@@ -1,59 +1,117 @@
-# 02 · Multi-Agent Research Crew
+# 02 · Multi-Agent Research API (live SSE)
 
-A small, runnable **multi-agent system** that splits a research-style question into four sequentially-coordinated specialists:
+A production-shaped multi-agent system with **four sequentially-coordinated specialists** (Planner → Researcher → Critic → Writer) — exposed over a typed HTTP API, with a **Server-Sent Events** endpoint that streams each agent's output to the browser in real time.
+
+The architecture mirrors the live-streaming pattern used in real multi-agent products — most directly the Building Permit Inspector demonstrated at NVIDIA GTC 2026, where four CrewAI agents coordinate a compliance review on top of an LLM.
+
+## Highlights
+
+- **FastAPI service** with both blocking (`/api/crew/run`) and streaming (`/api/crew/stream`) endpoints
+- **Server-Sent Events** — every agent boundary emits a `TraceEvent` with phase (`thinking`, `output`, `done`)
+- **Built-in live UI** — left rail shows agent status with pulsing dots; right pane streams reasoning as it arrives
+- **Tight role definition** — each agent has a focused system prompt (one file edit to tune)
+- **Tool routing** — researcher is the only agent allowed to call tools (`web_search_stub`, `calculator`)
+- **Offline mode** — without `OPENAI_API_KEY` the service runs deterministic stubs so the orchestration trace is always inspectable
+- **Dockerised** with healthcheck
+
+## Architecture
 
 ```
-   ┌──────────┐    ┌──────────────┐    ┌──────────┐    ┌──────────┐
-   │ Planner  │ →  │  Researcher  │ →  │  Critic  │ →  │  Writer  │
-   └──────────┘    └──────────────┘    └──────────┘    └──────────┘
-        │                │                  │                │
-        ▼                ▼                  ▼                ▼
-   subtask plan    tool-using calls    weakness pass    final brief
-```
-
-The crew is intentionally **simple** — four agents, sequential hand-off, two tools, one shared context. The architecture is deliberately the same shape used in production multi-agent systems but stripped down to what runs from a single CLI.
-
-## Why this shape
-
-Most "agentic AI" demos use a single model talking to itself in a loop. That works for toy tasks but fails on anything compositional because there's no division of responsibility. A small, well-defined crew with:
-
-- **A planner** that turns the input into 3–5 explicit subtasks,
-- **A researcher** that is the only agent allowed to call tools,
-- **A critic** that adversarially reviews and flags gaps,
-- **A writer** that produces the final markdown brief,
-
-…tends to generalise much better. Each agent has a tightly-scoped system prompt, which keeps the model on rails.
-
-## Quick start
-
-```bash
-cd 02-multi-agent-research-crew
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# OPENAI_API_KEY enables real generation; without it the crew runs in
-# offline-stub mode and prints the orchestration trace.
-export OPENAI_API_KEY=sk-...   # optional
-
-python -m src.main --topic "What are the key trade-offs of MoE LLMs vs dense models?"
+                    ┌─────────────────────────────────────────────┐
+                    │        FastAPI                              │
+   browser ◀── SSE ─│  /api/crew/stream    /api/crew/run          │
+                    └─────┬───────────────────────────┬───────────┘
+                          │                           │
+                          ▼                           ▼
+                  ┌───────────────────┐      ┌──────────────────┐
+                  │  Orchestrator     │      │  Synchronous run │
+                  │  (yields events)  │      │  (returns once)  │
+                  └────────┬──────────┘      └──────────────────┘
+                           │
+              ┌────────────┼─────────────┐──────────────┐
+              ▼            ▼             ▼              ▼
+       ┌──────────┐ ┌──────────────┐ ┌──────────┐ ┌──────────┐
+       │ Planner  │→│  Researcher  │→│  Critic  │→│  Writer  │
+       └──────────┘ └──────┬───────┘ └──────────┘ └──────────┘
+                           ▼
+                       ┌────────┐
+                       │ Tools  │
+                       │ search │
+                       │ calc   │
+                       └────────┘
 ```
 
 ## Project layout
 
 ```
 02-multi-agent-research-crew/
+├── app/
+│   ├── main.py             # FastAPI app + SSE generator
+│   ├── config.py           # pydantic-settings
+│   └── schemas.py          # CrewRequest, CrewResponse, TraceEvent
 ├── src/
-│   ├── agents.py       # Agent definitions (system prompts + roles)
-│   ├── tools.py        # Tool functions: web_search_stub, calculator
-│   ├── orchestrator.py # Sequential coordinator with shared context
-│   └── main.py         # CLI entry
+│   ├── agents.py           # 4 frozen-dataclass agents (one prompt each)
+│   ├── tools.py            # web_search_stub, safe calculator
+│   ├── orchestrator.py     # sequential run + per-agent runner
+│   └── main.py             # CLI entry (still works standalone)
+├── ui/
+│   └── index.html          # live SSE dashboard
 ├── examples/
-│   └── sample_run.md   # Sample transcript
+│   └── sample_run.md
+├── Dockerfile
+├── docker-compose.yml
 └── requirements.txt
 ```
 
-## Notes
+## Run locally
 
-- The `web_search_stub` returns canned text so the demo is fully deterministic and offline-runnable. Swap in a real search tool (Tavily, SerpAPI, etc.) for live use.
-- The orchestrator is hand-written rather than using a framework — this is intentional. It makes the data flow inspectable and the failure modes explicit.
-- All system prompts live in `agents.py` so prompt-tuning is one-file edits.
+```bash
+cd 02-multi-agent-research-crew
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# Optional — without it, the service runs in offline-stub mode
+export OPENAI_API_KEY=sk-...
+
+uvicorn app.main:app --reload --port 8001
+open http://localhost:8001/                  # macOS / Linux
+start http://localhost:8001/                 # Windows
+```
+
+Type a topic in the left panel and hit **Run crew (live)**. Each agent's output streams in below; agent dots on the left light up in sequence.
+
+## Run with Docker
+
+```bash
+OPENAI_API_KEY=sk-...   docker compose up --build
+```
+
+## API reference
+
+```
+GET  /                          → live SSE dashboard
+GET  /health                    → readiness
+POST /api/crew/run              → {topic} → full transcript (blocking)
+GET  /api/crew/stream?topic=…   → SSE; events of type "trace"
+```
+
+The SSE event payload (`TraceEvent`):
+
+```json
+{
+  "seq": 4,
+  "agent": "researcher",
+  "role": "Researcher",
+  "phase": "output",
+  "content": "1. (offline) Mixture-of-Experts LLMs activate only…",
+  "elapsed_ms": 6320
+}
+```
+
+## Configuration (`CREW_*` env vars)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `CREW_LLM_MODEL` | `gpt-4o-mini` | OpenAI chat model |
+| `CREW_LLM_TEMPERATURE` | `0.2` | Lower for determinism |
+| `OPENAI_API_KEY` | *(unset)* | Without it → offline stub mode |

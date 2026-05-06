@@ -41,15 +41,17 @@ This repo is a curated set of focused, runnable demos written from scratch, mirr
 
 ## 📁 Projects
 
-| # | Project | What it shows | Status |
-|---|---|---|---|
-| **01** | [**RAG FAQ Bot**](./01-rag-faq-bot/) | Retrieval-Augmented Generation with **hallucination guard** | <img src="https://img.shields.io/badge/runnable-success?logo=python&logoColor=white" /> |
-| **02** | [**Multi-Agent Research Crew**](./02-multi-agent-research-crew/) | Sequentially-coordinated **4-agent** system with tool use | <img src="https://img.shields.io/badge/runnable-success?logo=python&logoColor=white" /> |
-| **03** | [**SBERT Pair Trainer**](./03-sbert-pair-trainer/) | **Fine-tuning** + held-out evaluation (R² / MAE / RMSE) | <img src="https://img.shields.io/badge/runnable-success?logo=python&logoColor=white" /> |
-| **04** | [**CLIP Image-Text Search**](./04-clip-image-text-search/) | Multimodal retrieval — query an image set with natural language | <img src="https://img.shields.io/badge/runnable-success?logo=python&logoColor=white" /> |
-| **05** | [**Person Tracker Mini**](./05-person-tracker-mini/) | Real-time **YOLO + IoU tracker** on a video stream | <img src="https://img.shields.io/badge/runnable-success?logo=python&logoColor=white" /> |
+Every project is a **runnable service** — FastAPI backend, built-in browser UI, Docker-ready. Clone, `cd` in, `docker compose up`, open the URL.
 
-> Each project is self-contained — clone, `cd` in, install requirements, run.
+| # | Project | What it shows | Stack |
+|---|---|---|---|
+| **01** | [**RAG FAQ Service**](./01-rag-faq-bot/) | RAG with **hallucination guard** + chat UI | FastAPI · FAISS · SBERT · OpenAI · Docker |
+| **02** | [**Multi-Agent Research API**](./02-multi-agent-research-crew/) | 4-agent crew with **live SSE streaming** dashboard | FastAPI · SSE · OpenAI · Docker |
+| **03** | [**SBERT Training Pipeline**](./03-sbert-pair-trainer/) | 4-stage fine-tuning pipeline + **metrics dashboard** + filesystem registry | YAML configs · Pydantic · Docker |
+| **04** | [**CLIP Visual Search**](./04-clip-image-text-search/) | Multimodal retrieval with **drag-drop UI** + similarity scores | FastAPI · CLIP · Docker |
+| **05** | [**Edge Person Tracker**](./05-person-tracker-mini/) | YOLO + IoU tracker over **WebSocket** with live canvas overlay | FastAPI · WebSocket · YOLOv8 · OpenCV · Docker |
+
+> Architecture is consistent across projects: typed Pydantic schemas, env-driven config, singleton models warmed at startup, healthchecks, and a single-file UI per service.
 
 ---
 

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Agent Research Crew · Live</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg-elev: #161b22; --bg-soft: #1f2530;
+      --text: #e6edf3; --muted: #8b949e; --accent: #6ea8fe;
+      --accent-soft: rgba(110,168,254,.16); --border: #30363d;
+      --planner: #6ea8fe; --researcher: #34d399;
+      --critic: #fb923c;  --writer: #a78bfa;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #fafbff; --bg-elev: #fff; --bg-soft: #f0f3fa;
+        --text: #1a1d29; --muted: #6b7280; --accent: #4f8cff;
+        --accent-soft: rgba(79,140,255,.12); --border: #e3e6ee;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      display: grid; grid-template-rows: auto 1fr;
+    }
+    header {
+      padding: 16px 28px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    header h1 { margin: 0; font-size: 1.1rem; font-weight: 700; }
+    header .meta { color: var(--muted); font-size: .8rem; }
+    main {
+      display: grid; grid-template-columns: 320px 1fr;
+      height: 100%;
+    }
+    @media (max-width: 720px) {
+      main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    }
+    aside {
+      padding: 24px; border-right: 1px solid var(--border);
+      background: var(--bg-elev);
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    aside h2 { margin: 0 0 8px; font-size: .82rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    aside textarea {
+      width: 100%; min-height: 120px; resize: vertical;
+      padding: 12px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--bg);
+      color: var(--text); font-family: inherit; font-size: .92rem;
+    }
+    aside textarea:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+    aside button {
+      padding: 12px; border: none; border-radius: 10px;
+      background: var(--accent); color: #fff; font-weight: 600;
+      cursor: pointer; transition: filter .15s;
+    }
+    aside button:hover  { filter: brightness(1.1); }
+    aside button:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+    aside .agent-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    aside .agent-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 8px; background: var(--bg);
+      border: 1px solid var(--border);
+    }
+    aside .agent-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bg-soft); flex: 0 0 auto; }
+    aside .agent-row.active .agent-dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1s infinite; }
+    aside .agent-row.done .agent-dot { background: var(--researcher); }
+    aside .agent-name { font-weight: 600; font-size: .9rem; }
+    aside .agent-role { color: var(--muted); font-size: .78rem; margin-left: auto; }
+    @keyframes pulse { 50% { opacity: .5; } }
+
+    section.feed {
+      padding: 24px 28px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 16px;
+      background: var(--bg);
+    }
+    .event {
+      border-left: 3px solid var(--border);
+      background: var(--bg-elev);
+      padding: 14px 16px;
+      border-radius: 0 10px 10px 0;
+      animation: slideIn .25s ease backwards;
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } }
+    .event.agent-planner    { border-left-color: var(--planner); }
+    .event.agent-researcher { border-left-color: var(--researcher); }
+    .event.agent-critic     { border-left-color: var(--critic); }
+    .event.agent-writer     { border-left-color: var(--writer); }
+    .event.agent-system     { border-left-color: var(--muted); background: transparent; }
+    .event-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .event-agent { font-weight: 700; font-size: .92rem; }
+    .event-meta  { color: var(--muted); font-size: .76rem; }
+    .event-body  { white-space: pre-wrap; line-height: 1.55; font-size: .92rem; color: var(--text); }
+    .event.thinking .event-body { color: var(--muted); font-style: italic; }
+    .empty { color: var(--muted); text-align: center; padding: 80px 20px; font-size: .92rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🎯 Multi-Agent Research Crew</h1>
+    <span class="meta" id="status">idle</span>
+  </header>
+
+  <main>
+    <aside>
+      <h2>Topic</h2>
+      <textarea id="topic" placeholder="e.g. What are the trade-offs of MoE LLMs vs dense models?"></textarea>
+      <button id="runBtn">▶ Run crew (live)</button>
+
+      <h2>Agents</h2>
+      <div class="agent-list" id="agentList">
+        <div class="agent-row" data-agent="planner"><span class="agent-dot"></span><span class="agent-name">Planner</span><span class="agent-role">Decompose</span></div>
+        <div class="agent-row" data-agent="researcher"><span class="agent-dot"></span><span class="agent-name">Researcher</span><span class="agent-role">Tool use</span></div>
+        <div class="agent-row" data-agent="critic"><span class="agent-dot"></span><span class="agent-name">Critic</span><span class="agent-role">Adversarial</span></div>
+        <div class="agent-row" data-agent="writer"><span class="agent-dot"></span><span class="agent-name">Writer</span><span class="agent-role">Synthesis</span></div>
+      </div>
+    </aside>
+
+    <section class="feed" id="feed">
+      <div class="empty" id="empty">
+        Type a topic on the left and hit <strong>Run crew</strong>. Each agent's output streams here live via SSE.
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const feed = $("feed"), status = $("status");
+
+    function setAgentState(name, state) {
+      const row = document.querySelector(`.agent-row[data-agent="${name}"]`);
+      if (!row) return;
+      row.classList.remove("active", "done");
+      if (state) row.classList.add(state);
+    }
+    function clearAgents() {
+      document.querySelectorAll(".agent-row").forEach(r => r.classList.remove("active", "done"));
+    }
+
+    function addEvent({ agent, role, phase, content, elapsed_ms }) {
+      $("empty")?.remove();
+      const cls = `event agent-${agent} ${phase === "thinking" ? "thinking" : ""}`;
+      feed.insertAdjacentHTML("beforeend", `
+        <div class="${cls}">
+          <div class="event-head">
+            <span class="event-agent">${role}</span>
+            <span class="event-meta">${phase} · ${(elapsed_ms / 1000).toFixed(1)}s</span>
+          </div>
+          <div class="event-body">${escapeHtml(content)}</div>
+        </div>`);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      return (s ?? "").replace(/[&<>"']/g, c => ({
+        "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;"
+      }[c]));
+    }
+
+    $("runBtn").onclick = () => {
+      const topic = $("topic").value.trim();
+      if (!topic) { $("topic").focus(); return; }
+      feed.innerHTML = "";
+      clearAgents();
+      $("runBtn").disabled = true;
+      status.textContent = "running…";
+
+      const url = `/api/crew/stream?topic=${encodeURIComponent(topic)}`;
+      const es = new EventSource(url);
+
+      es.addEventListener("trace", (e) => {
+        const ev = JSON.parse(e.data);
+        addEvent(ev);
+
+        if (ev.agent !== "system") {
+          if (ev.phase === "thinking") setAgentState(ev.agent, "active");
+          if (ev.phase === "output") setAgentState(ev.agent, "done");
+        }
+        if (ev.agent === "system" && ev.phase === "done") {
+          es.close();
+          $("runBtn").disabled = false;
+          status.textContent = `complete · ${(ev.elapsed_ms / 1000).toFixed(1)}s`;
+        }
+      });
+
+      es.onerror = () => {
+        es.close();
+        $("runBtn").disabled = false;
+        status.textContent = "error";
+      };
+    };
+  </script>
+</body>
+</html>

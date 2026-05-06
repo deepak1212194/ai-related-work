@@ -1,0 +1,11 @@
+services:
+  tracker:
+    build: .
+    container_name: edge-person-tracker
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./data/uploads:/app/data/uploads
+    environment:
+      TRACKER_LOG_LEVEL: INFO
+    restart: unless-stopped

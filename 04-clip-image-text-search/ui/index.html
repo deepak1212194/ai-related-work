@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CLIP Visual Search</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg-elev: #161b22; --bg-soft: #1f2530;
+      --text: #e6edf3; --muted: #8b949e; --accent: #6ea8fe;
+      --accent-soft: rgba(110,168,254,.16); --border: #30363d;
+      --ok: #34d399;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #fafbff; --bg-elev: #fff; --bg-soft: #f0f3fa;
+        --text: #1a1d29; --muted: #6b7280; --accent: #4f8cff;
+        --accent-soft: rgba(79,140,255,.12); --border: #e3e6ee;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; padding: 28px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 24px; }
+    .panel {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 14px; padding: 22px; margin-bottom: 18px;
+    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .drop {
+      border: 2px dashed var(--border); border-radius: 12px;
+      padding: 28px; text-align: center; color: var(--muted);
+      transition: border-color .15s, background .15s;
+      cursor: pointer;
+    }
+    .drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+    .drop input { display: none; }
+    .meta-line { color: var(--muted); font-size: .82rem; margin-top: 6px; }
+    button {
+      padding: 10px 16px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-weight: 500;
+      font-size: .92rem; cursor: pointer; transition: all .15s;
+    }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    input[type=text] {
+      flex: 1; min-width: 260px; padding: 12px 14px;
+      border-radius: 10px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: .95rem;
+      outline: none;
+    }
+    input[type=text]:focus { border-color: var(--accent); }
+    .grid {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    }
+    .tile {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden; position: relative;
+      animation: fadeIn .25s ease backwards;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(.96); } }
+    .tile img { width: 100%; height: 160px; object-fit: cover; display: block; }
+    .tile .score {
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(0,0,0,.6); color: #fff;
+      font-size: .76rem; padding: 3px 8px; border-radius: 999px;
+    }
+    .tile .name {
+      padding: 6px 10px; font-size: .76rem; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+    .pill {
+      display: inline-block; padding: 4px 10px; border-radius: 999px;
+      background: var(--bg-soft); color: var(--text); font-size: .78rem;
+      border: 1px solid var(--border);
+    }
+    .pill.ok { color: var(--ok); border-color: var(--ok); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🔎 CLIP Visual Search</h1>
+    <p class="sub">Drop images, build an index, search with natural language.</p>
+
+    <div class="panel">
+      <h3 style="margin:0 0 12px; font-size:.84rem; text-transform:uppercase; color:var(--muted); letter-spacing:.08em;">1 · Add images</h3>
+      <label class="drop" id="drop">
+        <input type="file" id="files" accept="image/*" multiple />
+        <div><strong>Drop images here</strong> or click to choose · JPG / PNG / WEBP</div>
+        <div class="meta-line" id="dropMeta">No images uploaded yet</div>
+      </label>
+      <div class="row" style="margin-top: 14px;">
+        <button id="buildBtn" class="primary">⚙ Build index</button>
+        <span id="indexStatus" class="pill">index: not built</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 12px; font-size:.84rem; text-transform:uppercase; color:var(--muted); letter-spacing:.08em;">2 · Search</h3>
+      <form id="searchForm" class="row" autocomplete="off">
+        <input type="text" id="query" placeholder='e.g. "a photo of a sunset over a city"' required />
+        <button type="submit" class="primary">Search</button>
+      </form>
+      <div class="meta-line" id="searchMeta"></div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 12px; font-size:.84rem; text-transform:uppercase; color:var(--muted); letter-spacing:.08em;">Results</h3>
+      <div class="grid" id="results">
+        <div class="empty" id="empty">Upload a few images, build the index, and run a query.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  async function refreshHealth() {
+    const r = await fetch("/health").then(x => x.json()).catch(() => null);
+    if (!r) return;
+    $("dropMeta").textContent = `${r.n_images} images in catalog`;
+    const ind = $("indexStatus");
+    if (r.index_built) { ind.textContent = "index: built"; ind.classList.add("ok"); }
+    else { ind.textContent = "index: not built"; ind.classList.remove("ok"); }
+  }
+  refreshHealth();
+
+  // --- Drag-drop upload ---
+  const drop = $("drop");
+  const filesInput = $("files");
+  ["dragenter","dragover"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave","drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", ev => uploadMany(ev.dataTransfer.files));
+  filesInput.addEventListener("change", ev => uploadMany(ev.target.files));
+
+  async function uploadMany(fileList) {
+    const files = Array.from(fileList);
+    if (!files.length) return;
+    for (const f of files) {
+      const fd = new FormData();
+      fd.append("file", f);
+      try {
+        const r = await fetch("/api/upload", { method: "POST", body: fd });
+        if (!r.ok) console.warn(`upload failed: ${f.name}`, await r.text());
+      } catch (e) { console.error(e); }
+    }
+    refreshHealth();
+  }
+
+  // --- Build index ---
+  $("buildBtn").onclick = async () => {
+    const btn = $("buildBtn");
+    btn.disabled = true; btn.textContent = "indexing…";
+    const r = await fetch("/api/index/build", { method: "POST" }).then(x => x.json());
+    btn.disabled = false; btn.textContent = "⚙ Re-build index";
+    refreshHealth();
+    $("searchMeta").textContent = `Indexed ${r.indexed} images in ${r.elapsed_ms} ms`;
+  };
+
+  // --- Search ---
+  $("searchForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const q = $("query").value.trim();
+    if (!q) return;
+    const r = await fetch("/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: q, top_k: 8 }),
+    }).then(x => x.json()).catch(err => ({ error: err.message }));
+
+    if (r.error || !r.matches) {
+      $("results").innerHTML = `<div class="empty">Error: ${r.error ?? "no matches"}</div>`;
+      return;
+    }
+    $("searchMeta").textContent = `${r.matches.length} matches in ${r.elapsed_ms} ms`;
+    $("results").innerHTML = r.matches.map(m => `
+      <div class="tile">
+        <img src="${m.url}" alt="${m.path}" loading="lazy" />
+        <div class="score">${m.score.toFixed(2)}</div>
+        <div class="name">${m.path}</div>
+      </div>
+    `).join("");
+  };
+</script>
+</body>
+</html>

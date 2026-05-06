@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────
+# train.yaml — Reproducible SBERT fine-tuning configuration
+# ─────────────────────────────────────────────────────────────────
+# Pinned in version control so any run is reproducible from this file.
+# Override individual fields from the CLI: --override learning_rate=3e-5
+
+experiment_name: sbert-stsb-mpnet
+seed: 42
+
+# --- Data ---
+dataset: sentence-transformers/stsb        # public; no proprietary data
+label_max: 5.0                              # STS-B native scale (we normalise to [0,1])
+subset_train: 2000                          # demo cap; set 0 for full set
+subset_val: 0
+subset_test: 0
+
+# --- Model ---
+base_model: sentence-transformers/all-mpnet-base-v2
+pooling: mean
+
+# --- Optimiser ---
+loss: CosineSimilarityLoss
+learning_rate: 2.0e-5                       # conservative; prevents catastrophic forgetting
+batch_size: 16
+epochs: 1
+warmup_fraction: 0.1
+weight_decay: 0.01
+optimizer: AdamW
+fp16: false                                  # CPU-friendly default
+
+# --- Evaluation ---
+eval_batch_size: 64
+within_tolerance: 0.10                       # report % of preds within ±0.1 of label
+
+# --- Tracking & artifacts ---
+artifacts_dir: artifacts
+checkpoint_dir: artifacts/checkpoint
+metrics_path: artifacts/metrics.json
+mlflow_tracking: false                       # toggle on if MLflow server is reachable

@@ -1,0 +1,15 @@
+services:
+  rag:
+    build: .
+    container_name: rag-faq-service
+    ports:
+      - "8000:8000"
+    environment:
+      RAG_LOG_LEVEL: INFO
+      RAG_TOP_K: 3
+      RAG_MIN_SIM: 0.45
+      # Optional — set to enable real LLM generation; leave unset for offline stub
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - ./artifacts:/app/artifacts        # persist FAISS index across restarts
+    restart: unless-stopped

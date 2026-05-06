@@ -1,0 +1,12 @@
+services:
+  clip:
+    build: .
+    container_name: clip-search
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./data/images:/app/data/images
+      - ./artifacts:/app/artifacts
+    environment:
+      CLIP_LOG_LEVEL: INFO
+    restart: unless-stopped

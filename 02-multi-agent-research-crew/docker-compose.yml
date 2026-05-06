@@ -1,0 +1,11 @@
+services:
+  crew:
+    build: .
+    container_name: multi-agent-research
+    ports:
+      - "8001:8001"
+    environment:
+      CREW_LOG_LEVEL: INFO
+      CREW_LLM_MODEL: gpt-4o-mini
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    restart: unless-stopped

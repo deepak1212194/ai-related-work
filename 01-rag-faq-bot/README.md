@@ -1,68 +1,114 @@
-# 01 · RAG FAQ Bot
+# 01 · RAG FAQ Service
 
-A small, production-shaped **Retrieval-Augmented Generation** demo with a **hallucination guard**: the LLM is *only* allowed to answer when retrieved context contains a sufficiently strong match. Otherwise it returns a structured `IDK` response instead of fabricating.
+A production-shaped **Retrieval-Augmented Generation** service with a **hallucination guard**, exposed over a typed HTTP API and a built-in chat UI.
 
-## Why this design
+> The LLM only generates when retrieval crosses a similarity floor. Below the floor, the service returns a structured `refused` response instead of fabricating.
 
-Two quality issues kill RAG demos in real deployments:
+## Highlights
 
-1. The model **hallucinates** when retrieval returns nothing relevant.
-2. The model **mixes** retrieved fact with parametric knowledge in subtle, hard-to-debug ways.
-
-This project addresses both with **two simple guards**:
-
-- A retrieval-score floor (`MIN_SIM = 0.45`). Below it, we return a structured "I don't know" instead of calling the LLM.
-- A constrained-context prompt — the LLM is told, in the system message, to answer **only** from the provided context. Pydantic validates the output schema.
+- **Typed REST API** — FastAPI + Pydantic schemas for every request and response
+- **Singleton model + index** — embedding model and FAISS index loaded once at startup, reused across requests (sub-100 ms p95 retrieval after warmup)
+- **Built-in chat UI** at `/` — single-file HTML, dark/light auto, streams citations alongside answers
+- **Hallucination guard** — `min_sim` floor + `refused` status so callers can branch on quality
+- **Health endpoint** for liveness / readiness probes
+- **Dockerised** — single container, healthcheck, non-root, persistent index volume
+- **Configurable** — every knob (`top_k`, `min_sim`, model name) overrideable via `RAG_*` env vars
 
 ## Architecture
 
 ```
-docs/sample_faqs.txt
-      │
-      ▼
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│  src/ingest  │ →  │ src/retrieve │ →  │ src/generate │ →  │ src/pipeline │
-│              │    │              │    │              │    │              │
-│ chunk + embed│    │  FAISS top-K │    │   LLM call   │    │  end-to-end  │
-└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
-       │                   │                   │
-       ▼                   ▼                   ▼
- SentenceTransformer    FAISS Index      OpenAI / stub
- (all-MiniLM-L6-v2)                      (Pydantic out)
-```
-
-## Quick start
-
-```bash
-cd 01-rag-faq-bot
-python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-# Build the index from sample docs
-python -m src.ingest
-
-# Ask a question
-python -m src.pipeline --question "What is hallucination mitigation in RAG?"
+       ┌──────────┐                    ┌─────────────────────────────────┐
+       │  Chat UI │  ─── /api/query ──▶│  FastAPI                        │
+       │   (web)  │                    │  ├─ /api/query                  │
+       └──────────┘                    │  ├─ /api/ingest                 │
+                                       │  └─ /health                     │
+                                       └────┬────────────────────────────┘
+                                            │
+                          ┌─────────────────┼──────────────────┐
+                          ▼                 ▼                  ▼
+                   ┌──────────┐      ┌──────────┐       ┌──────────┐
+                   │ retrieve │      │ generate │       │  ingest  │
+                   │ (FAISS)  │      │ (LLM +   │       │ (chunk + │
+                   │          │      │  guard)  │       │  embed)  │
+                   └──────────┘      └──────────┘       └──────────┘
 ```
 
 ## Project layout
 
 ```
 01-rag-faq-bot/
-├── src/
-│   ├── ingest.py       # Module 1: chunk docs, embed, build FAISS index
-│   ├── retrieve.py     # Module 2: top-K vector search with score floor
-│   ├── generate.py     # Module 3: constrained-context LLM call (Pydantic out)
-│   └── pipeline.py     # Module 4: ingest → retrieve → generate (CLI entry)
+├── app/                      # service layer (FastAPI)
+│   ├── main.py               # routes + lifespan
+│   ├── config.py             # pydantic-settings
+│   ├── schemas.py            # request / response models
+│   └── deps.py               # process-wide singletons
+├── src/                      # core RAG logic (importable as a library)
+│   ├── ingest.py             # chunk → embed → FAISS index
+│   ├── retrieve.py           # top-K retrieval with score floor
+│   ├── generate.py           # LLM call with constrained-context prompt
+│   └── pipeline.py           # CLI end-to-end (still works standalone)
+├── ui/
+│   └── index.html            # chat interface
 ├── data/
-│   └── sample_faqs.txt # Public, hand-written FAQ pairs (no proprietary text)
-├── tests/
-│   └── test_retrieve.py
+│   └── sample_faqs.txt       # public, hand-written FAQs
+├── tests/                    # pytest smoke tests
+├── Dockerfile                # python:3.11-slim, healthcheck, single worker
+├── docker-compose.yml        # one-command stack
 └── requirements.txt
 ```
 
-## Notes
+## Run locally
 
-- Embedding model: `sentence-transformers/all-MiniLM-L6-v2` — small, fast, CPU-friendly. Swap in `all-mpnet-base-v2` for better quality at a latency cost.
-- The LLM call is wrapped in a stub when `OPENAI_API_KEY` is not set, so the demo runs offline (returns the retrieved context as the "answer" and skips generation).
-- All sample FAQs in `data/` are hand-written for this demo. No proprietary corpus.
+```bash
+cd 01-rag-faq-bot
+python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# 1. Start the service (auto-builds index on first /api/ingest)
+uvicorn app.main:app --reload --port 8000
+
+# 2. Build the index
+curl -X POST http://localhost:8000/api/ingest
+
+# 3. Open the chat UI
+open http://localhost:8000/                            # macOS
+start http://localhost:8000/                           # Windows
+```
+
+## Run with Docker
+
+```bash
+cd 01-rag-faq-bot
+OPENAI_API_KEY=sk-...   docker compose up --build      # optional key for real generation
+```
+
+The compose file mounts `./artifacts` so the FAISS index survives `docker compose down`.
+
+## API reference
+
+```
+GET  /                  → chat UI
+GET  /health            → readiness ({status, index_loaded, chunks_indexed, embed_model})
+POST /api/ingest        → re-build the FAISS index from data/sample_faqs.txt
+POST /api/query         → {question} → {status, answer, citations[], elapsed_ms}
+```
+
+OpenAPI spec auto-generated at `/docs` (Swagger) and `/redoc`.
+
+## Configuration (env vars, all prefixed `RAG_`)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `RAG_EMBED_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Swap for `all-mpnet-base-v2` for higher quality |
+| `RAG_TOP_K` | `3` | Chunks retrieved per query |
+| `RAG_MIN_SIM` | `0.45` | Score floor — below this, the service refuses |
+| `RAG_LLM_MODEL` | `gpt-4o-mini` | Any OpenAI chat model |
+| `OPENAI_API_KEY` | *(unset)* | Without it, the service runs in offline-stub mode |
+
+## Tests
+
+```bash
+pytest -q
+```
+
+The smoke test boots the FastAPI app in-process, re-indexes a tiny fixture, and asserts both the answered and refused paths.

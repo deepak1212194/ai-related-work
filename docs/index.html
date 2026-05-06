@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Deepak Chaudhary · AI/ML Engineer · Portfolio</title>
-  <meta name="description" content="Production AI/ML systems — LLMs, RAG, multi-agent, recommendation, computer vision. 5 runnable demos." />
+  <meta name="description" content="An interactive portfolio of five production-shaped AI services — RAG, multi-agent SSE streaming, SBERT training pipeline, CLIP visual search, and an edge person tracker. Each project is a FastAPI service with a built-in UI and Docker." />
   <meta name="theme-color" content="#4f8cff" />
 
   <!-- Open Graph / social preview -->
@@ -414,7 +414,7 @@
     <div class="container">
       <div class="section-eyebrow">Featured projects</div>
       <h2 class="section-title">Pick what to explore</h2>
-      <p class="section-sub">Five focused, runnable demos written from scratch — each mirrors a pattern I've shipped in production. Click any card to open the project on GitHub.</p>
+      <p class="section-sub">Five production-shaped services — each runs as a FastAPI app with a typed API, a built-in browser UI, and a Dockerfile. Click any card to open the project on GitHub.</p>
 
       <div class="filter-tabs" role="tablist">
         <button class="active" data-cat="all">All</button>
@@ -432,15 +432,16 @@
             <span class="card-cat">GenAI · RAG</span>
           </div>
           <div class="card-body">
-            <h3 class="card-title">RAG FAQ Bot</h3>
+            <h3 class="card-title">RAG FAQ Service</h3>
             <p class="card-desc">
-              Retrieval-augmented generation with a hallucination guard. The LLM is constrained to answer only when retrieval crosses a similarity floor; otherwise it returns a structured "I don't know".
+              Retrieval-augmented generation with a hallucination guard, exposed as a FastAPI service with a built-in chat UI. Singleton model and FAISS index warmed at startup; sub-100 ms p95 retrieval after warmup.
             </p>
             <div class="badges">
+              <span class="badge">FastAPI</span>
               <span class="badge">FAISS</span>
               <span class="badge">SBERT</span>
               <span class="badge">Pydantic</span>
-              <span class="badge">OpenAI</span>
+              <span class="badge">Docker</span>
             </div>
             <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/01-rag-faq-bot">View on GitHub</a>
           </div>
@@ -453,14 +454,15 @@
             <span class="card-cat">GenAI · Agents</span>
           </div>
           <div class="card-body">
-            <h3 class="card-title">Multi-Agent Research Crew</h3>
+            <h3 class="card-title">Multi-Agent Research API</h3>
             <p class="card-desc">
-              Four specialist agents — Planner → Researcher (tool use) → Critic → Writer — coordinated sequentially. Same shape as the system I demoed at NVIDIA GTC 2026, in 200 lines.
+              Planner → Researcher → Critic → Writer, coordinated sequentially. The Server-Sent Events endpoint streams every agent's output to the browser as it arrives — agent dots pulse in sequence, reasoning fills the feed in real time.
             </p>
             <div class="badges">
+              <span class="badge">FastAPI</span>
+              <span class="badge">SSE</span>
               <span class="badge">CrewAI-style</span>
-              <span class="badge">Tool use</span>
-              <span class="badge">OpenAI</span>
+              <span class="badge">Docker</span>
             </div>
             <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/02-multi-agent-research-crew">View on GitHub</a>
           </div>
@@ -473,14 +475,16 @@
             <span class="card-cat">ML · Fine-tuning</span>
           </div>
           <div class="card-body">
-            <h3 class="card-title">SBERT Pair Trainer</h3>
+            <h3 class="card-title">SBERT Training Pipeline</h3>
             <p class="card-desc">
-              Full fine-tuning of all-mpnet-base-v2 on the public STS Benchmark with CosineSimilarityLoss + a strict held-out test split. Reports R² / MAE / RMSE / within-±0.1.
+              Four config-driven stages — data → train → eval → register — with a frozen YAML config, an auto-versioned filesystem registry, and a live metrics dashboard that reads R²/MAE/RMSE from the latest run.
             </p>
             <div class="badges">
-              <span class="badge">SentenceTransformers</span>
+              <span class="badge">YAML configs</span>
+              <span class="badge">Pydantic</span>
               <span class="badge">PyTorch</span>
-              <span class="badge">STS-B</span>
+              <span class="badge">Dashboard</span>
+              <span class="badge">Docker</span>
             </div>
             <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/03-sbert-pair-trainer">View on GitHub</a>
           </div>
@@ -493,14 +497,15 @@
             <span class="card-cat">CV · Multimodal</span>
           </div>
           <div class="card-body">
-            <h3 class="card-title">CLIP Image-Text Search</h3>
+            <h3 class="card-title">CLIP Visual Search Service</h3>
             <p class="card-desc">
-              Multimodal retrieval — query a folder of images with natural language ("a photo of a sunset over a city"). Pre-computes image vectors once, encodes queries on the fly.
+              Drag images into the browser, build a CLIP vector index with one click, then query with natural language. Image vectors persist to a `.npz`; the service mounts the image folder so result thumbnails render instantly.
             </p>
             <div class="badges">
+              <span class="badge">FastAPI</span>
               <span class="badge">CLIP</span>
-              <span class="badge">Transformers</span>
-              <span class="badge">Pillow</span>
+              <span class="badge">Drag-drop UI</span>
+              <span class="badge">Docker</span>
             </div>
             <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/04-clip-image-text-search">View on GitHub</a>
           </div>
@@ -513,14 +518,16 @@
             <span class="card-cat">CV · Real-time</span>
           </div>
           <div class="card-body">
-            <h3 class="card-title">Person Tracker Mini</h3>
+            <h3 class="card-title">Edge Person Tracker Service</h3>
             <p class="card-desc">
-              Real-time multi-person tracking — YOLOv8n detection + a hand-rolled IoU-based tracker that assigns stable IDs across frames. Annotated MP4 output.
+              Upload a video, watch IDs follow people in real time. The WebSocket pushes per-frame bounding boxes; the browser draws them on a canvas overlaid on the &lt;video&gt; element while playback runs.
             </p>
             <div class="badges">
+              <span class="badge">FastAPI</span>
+              <span class="badge">WebSocket</span>
               <span class="badge">YOLOv8</span>
               <span class="badge">OpenCV</span>
-              <span class="badge">IoU tracker</span>
+              <span class="badge">Docker</span>
             </div>
             <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/05-person-tracker-mini">View on GitHub</a>
           </div>

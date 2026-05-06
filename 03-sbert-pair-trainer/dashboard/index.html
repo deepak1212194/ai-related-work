@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SBERT Training Metrics</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg-elev: #161b22; --bg-soft: #1f2530;
+      --text: #e6edf3; --muted: #8b949e; --accent: #6ea8fe;
+      --border: #30363d; --ok: #34d399; --warn: #fbbf24;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #fafbff; --bg-elev: #fff; --bg-soft: #f0f3fa;
+        --text: #1a1d29; --muted: #6b7280; --accent: #4f8cff;
+        --border: #e3e6ee;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; padding: 32px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; }
+    h1 { margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 28px; }
+    .card-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px; margin-bottom: 28px;
+    }
+    .card {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px 20px;
+    }
+    .card .label { font-size: .76rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .card .value { font-size: 1.8rem; font-weight: 700; margin-top: 6px; }
+    .card .value.good { color: var(--ok); }
+    .card .value.warn { color: var(--warn); }
+    .card .sub { font-size: .78rem; color: var(--muted); margin-top: 4px; }
+    h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 24px 0 10px; }
+    .panel {
+      background: var(--bg-elev); border: 1px solid var(--border);
+      border-radius: 12px; padding: 22px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+    th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+    .empty { color: var(--muted); padding: 14px; }
+    code { background: var(--bg-soft); padding: 2px 6px; border-radius: 4px; font-size: .86em; }
+    .bar { height: 8px; border-radius: 4px; background: var(--bg-soft); overflow: hidden; margin-top: 4px; }
+    .bar > span { display: block; height: 100%; background: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>📊 SBERT Training Metrics</h1>
+    <p class="sub">Auto-loaded from <code>artifacts/metrics.json</code> after the pipeline runs.</p>
+
+    <div id="kpis" class="card-grid">
+      <div class="empty">Loading…</div>
+    </div>
+
+    <h2>Registry</h2>
+    <div class="panel">
+      <table id="reg">
+        <thead><tr><th>Model</th><th>R²</th><th>MAE</th><th>RMSE</th><th>Within ±0.1</th></tr></thead>
+        <tbody><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  function fmt(x, d=4) { return (x == null) ? "—" : Number(x).toFixed(d); }
+
+  function r2Class(r2) {
+    if (r2 == null) return "";
+    if (r2 >= 0.85) return "good";
+    if (r2 >= 0.70) return "";
+    return "warn";
+  }
+
+  async function loadKpis() {
+    try {
+      const r = await fetch("/api/metrics");
+      if (!r.ok) {
+        $("kpis").innerHTML = `<div class="empty">No metrics yet. Run <code>python -m pipeline.run --config configs/train.yaml</code></div>`;
+        return;
+      }
+      const m = await r.json();
+      const ev = m.eval || {};
+      const tr = m.train || {};
+
+      $("kpis").innerHTML = `
+        <div class="card">
+          <div class="label">R²</div>
+          <div class="value ${r2Class(ev.r2)}">${fmt(ev.r2, 4)}</div>
+          <div class="sub">test set · n=${ev.n ?? "—"}</div>
+          <div class="bar"><span style="width:${Math.max(0, Math.min(100, (ev.r2 ?? 0) * 100)).toFixed(1)}%"></span></div>
+        </div>
+        <div class="card">
+          <div class="label">MAE</div>
+          <div class="value">${fmt(ev.mae)}</div>
+          <div class="sub">on [0,1] scale</div>
+        </div>
+        <div class="card">
+          <div class="label">RMSE</div>
+          <div class="value">${fmt(ev.rmse)}</div>
+          <div class="sub">on [0,1] scale</div>
+        </div>
+        <div class="card">
+          <div class="label">Within ±${fmt(ev.tolerance, 2)}</div>
+          <div class="value">${fmt((ev.within_tolerance ?? 0) * 100, 1)}%</div>
+          <div class="sub">vs label</div>
+        </div>
+        <div class="card">
+          <div class="label">Train Time</div>
+          <div class="value">${fmt(tr.elapsed_seconds, 1)}s</div>
+          <div class="sub">${tr.n_train_examples ?? "—"} pairs · bs=${tr.batch_size ?? "—"}</div>
+        </div>
+        <div class="card">
+          <div class="label">Learning Rate</div>
+          <div class="value">${tr.learning_rate ?? "—"}</div>
+          <div class="sub">epochs=${tr.epochs ?? "—"}</div>
+        </div>
+      `;
+    } catch (e) {
+      $("kpis").innerHTML = `<div class="empty">Error: ${e}</div>`;
+    }
+  }
+
+  async function loadRegistry() {
+    try {
+      const r = await fetch("/api/registry");
+      const data = await r.json();
+      const tbody = document.querySelector("#reg tbody");
+      if (!data.models?.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty">No registered models yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = data.models.map(m => `
+        <tr>
+          <td>${m.name}</td>
+          <td>${fmt(m.eval?.r2)}</td>
+          <td>${fmt(m.eval?.mae)}</td>
+          <td>${fmt(m.eval?.rmse)}</td>
+          <td>${fmt((m.eval?.within_tolerance ?? 0) * 100, 1)}%</td>
+        </tr>
+      `).join("");
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  loadKpis();
+  loadRegistry();
+</script>
+</body>
+</html>
