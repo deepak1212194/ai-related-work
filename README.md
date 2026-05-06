@@ -1,5 +1,5 @@
 <!--
-  ai-related-work  —  Profile README
+  ai-related-work  —  Profile-grade README
   Author: Deepak Chaudhary  ·  github.com/deepak1212194
 -->
 
@@ -16,6 +16,8 @@
   <img src="https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white" alt="PyTorch" />
   <img src="https://img.shields.io/badge/Azure%20ML-0078D4?logo=microsoftazure&logoColor=white" alt="Azure" />
   <img src="https://img.shields.io/badge/License-MIT-lightgrey" alt="MIT" />
+  <img src="https://komarev.com/ghpvc/?username=deepak1212194&label=Repo+views&color=blueviolet&style=flat" alt="Repo views" />
+  <a href="https://github.com/deepak1212194/ai-related-work/actions"><img src="https://github.com/deepak1212194/ai-related-work/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
 </p>
 
 ---
@@ -33,13 +35,13 @@ This repo is a curated set of focused, runnable demos written from scratch, mirr
 
 ## 📁 Projects
 
-| # | Project | What it shows |
-|---|---|---|
-| **01** | [**RAG FAQ Bot**](./01-rag-faq-bot/) | Retrieval-Augmented Generation with **hallucination guard** |
-| **02** | [**Multi-Agent Research Crew**](./02-multi-agent-research-crew/) | Sequentially-coordinated **4-agent** system with tool use |
-| **03** | [**SBERT Pair Trainer**](./03-sbert-pair-trainer/) | **Fine-tuning** + held-out evaluation (R² / MAE / RMSE) |
-| **04** | [**CLIP Image-Text Search**](./04-clip-image-text-search/) | Multimodal retrieval — query an image set with natural language |
-| **05** | [**Person Tracker Mini**](./05-person-tracker-mini/) | Real-time **YOLO + IoU tracker** on a video stream |
+| # | Project | What it shows | Status |
+|---|---|---|---|
+| **01** | [**RAG FAQ Bot**](./01-rag-faq-bot/) | Retrieval-Augmented Generation with **hallucination guard** | <img src="https://img.shields.io/badge/runnable-success?logo=python&logoColor=white" /> |
+| **02** | [**Multi-Agent Research Crew**](./02-multi-agent-research-crew/) | Sequentially-coordinated **4-agent** system with tool use | <img src="https://img.shields.io/badge/runnable-success?logo=python&logoColor=white" /> |
+| **03** | [**SBERT Pair Trainer**](./03-sbert-pair-trainer/) | **Fine-tuning** + held-out evaluation (R² / MAE / RMSE) | <img src="https://img.shields.io/badge/runnable-success?logo=python&logoColor=white" /> |
+| **04** | [**CLIP Image-Text Search**](./04-clip-image-text-search/) | Multimodal retrieval — query an image set with natural language | <img src="https://img.shields.io/badge/runnable-success?logo=python&logoColor=white" /> |
+| **05** | [**Person Tracker Mini**](./05-person-tracker-mini/) | Real-time **YOLO + IoU tracker** on a video stream | <img src="https://img.shields.io/badge/runnable-success?logo=python&logoColor=white" /> |
 
 > Each project is self-contained — clone, `cd` in, install requirements, run.
 
@@ -68,7 +70,7 @@ This repo is a curated set of focused, runnable demos written from scratch, mirr
 
 ## 🏗️ How these demos map to my real work
 
-The repo shows **simplified, public versions** of patterns I've shipped in production. The mappings:
+The repo shows **simplified, public versions** of patterns I've shipped in production:
 
 ```mermaid
 flowchart LR
@@ -92,9 +94,39 @@ flowchart LR
 ## 📈 Stats
 
 <p align="center">
-  <img src="https://github-readme-stats.vercel.app/api?username=deepak1212194&show_icons=true&theme=default&hide_border=true&include_all_commits=true&count_private=true" height="170" />
-  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=deepak1212194&layout=compact&theme=default&hide_border=true&langs_count=8" height="170" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api?username=deepak1212194&show_icons=true&theme=tokyonight&hide_border=true&include_all_commits=true&count_private=true" />
+    <source media="(prefers-color-scheme: light)" srcset="https://github-readme-stats.vercel.app/api?username=deepak1212194&show_icons=true&theme=default&hide_border=true&include_all_commits=true&count_private=true" />
+    <img alt="GitHub stats" height="170" src="https://github-readme-stats.vercel.app/api?username=deepak1212194&show_icons=true&theme=default&hide_border=true&include_all_commits=true&count_private=true" />
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/top-langs/?username=deepak1212194&layout=compact&theme=tokyonight&hide_border=true&langs_count=8" />
+    <source media="(prefers-color-scheme: light)" srcset="https://github-readme-stats.vercel.app/api/top-langs/?username=deepak1212194&layout=compact&theme=default&hide_border=true&langs_count=8" />
+    <img alt="Top languages" height="170" src="https://github-readme-stats.vercel.app/api/top-langs/?username=deepak1212194&layout=compact&theme=default&hide_border=true&langs_count=8" />
+  </picture>
 </p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github-readme-streak-stats.herokuapp.com?user=deepak1212194&theme=tokyonight&hide_border=true" />
+    <source media="(prefers-color-scheme: light)" srcset="https://github-readme-streak-stats.herokuapp.com?user=deepak1212194&theme=default&hide_border=true" />
+    <img alt="GitHub streak" height="170" src="https://github-readme-streak-stats.herokuapp.com?user=deepak1212194&theme=default&hide_border=true" />
+  </picture>
+</p>
+
+---
+
+## 🐍 Contribution graph (animated)
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/deepak1212194/ai-related-work/output/snake-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/deepak1212194/ai-related-work/output/snake.svg" />
+    <img alt="Contribution snake" src="https://raw.githubusercontent.com/deepak1212194/ai-related-work/output/snake.svg" />
+  </picture>
+</p>
+
+> The snake animation is regenerated daily by a GitHub Action ([snake.yml](./.github/workflows/snake.yml)) and lives on the [`output`](https://github.com/deepak1212194/ai-related-work/tree/output) branch. The image link will go live a few minutes after the first workflow run.
 
 ---
 
