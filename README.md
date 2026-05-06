@@ -1,5 +1,5 @@
 <!--
-  ai-engineering-portfolio  —  Profile README
+  AI-Work  —  Profile README
   Author: Deepak Chaudhary
 -->
 
