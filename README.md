@@ -1,14 +1,12 @@
 <!--
-  AI-Work  —  Profile README
-  Author: Deepak Chaudhary
+  ai-related-work  —  Profile README
+  Author: Deepak Chaudhary  ·  github.com/deepak1212194
 -->
 
-<h1 align="center">
-  AI Engineering Portfolio
-</h1>
+<h1 align="center">Hi, I'm Deepak 👋</h1>
 
 <p align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=22&duration=2400&pause=900&color=1F618D&center=true&vCenter=true&width=720&lines=Production+AI%2FML+Engineer+%E2%80%94+4%2B+years;LLMs%2C+RAG%2C+Multi-Agent+Systems%2C+Computer+Vision;Recommendation+Systems+at+Scale;Azure+ML+%E2%80%A2+NVIDIA+NIM+%E2%80%A2+CrewAI+%E2%80%A2+FAISS" alt="Typing intro" />
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=22&duration=2400&pause=900&color=1F618D&center=true&vCenter=true&width=720&lines=AI%2FML+Engineer+%E2%80%94+4%2B+years;LLMs%2C+RAG%2C+Multi-Agent+Systems%2C+Computer+Vision;Recommendation+Systems+at+Scale;Azure+ML+%E2%80%A2+NVIDIA+NIM+%E2%80%A2+CrewAI+%E2%80%A2+FAISS" alt="Typing intro" />
 </p>
 
 <p align="center">
@@ -22,32 +20,32 @@
 
 ---
 
-## Hi, I'm Deepak 👋
+I build **production AI systems end-to-end** — from data pipelines and model fine-tuning to autoscaling cloud and edge deployments. My work spans **LLMs, RAG, recommendation, semantic search, and computer vision**.
 
-I build production AI systems end-to-end — from data pipelines and model fine-tuning to autoscaling cloud and edge deployments. My recent work spans **LLMs, RAG, recommendation, semantic search, and computer vision**, shipping at scale on Azure, GPU clusters, and edge devices.
-
-- 🧠 Multi-agent system **selected for live demonstration at NVIDIA GTC 2026**
+- 🧠 Multi-agent system **demonstrated live at NVIDIA GTC 2026**
 - 🛰️ Co-inventor on a **granted Indian patent** for UAV-based disaster management
 - 🎓 M.Tech, Computer Science — **Indian Statistical Institute (ISI), Kolkata**
-- 🇮🇳 Based in Hyderabad, India
+- 📍 Hyderabad, India
 
-This repository is a curated set of focused, runnable demos — written from scratch — that mirror the kinds of systems I design at work.
-
----
-
-## 📁 Projects in this repository
-
-| # | Project | What it demonstrates | Stack |
-|---|---|---|---|
-| **01** | [**RAG FAQ Bot**](./01-rag-faq-bot/) | Retrieval-Augmented Generation with **hallucination guard** via constrained-context prompting | `sentence-transformers` · `FAISS` · `OpenAI` · `Pydantic` |
-| **02** | [**Multi-Agent Research Crew**](./02-multi-agent-research-crew/) | Sequentially-coordinated **multi-agent** system (planner → researcher → critic → writer) with tool use | `CrewAI` · `LangChain` · `OpenAI` |
-| **03** | [**SBERT Pair Trainer**](./03-sbert-pair-trainer/) | Full **fine-tuning** of a sentence encoder with `CosineSimilarityLoss` + held-out evaluation (R² / MAE / RMSE) | `sentence-transformers` · `PyTorch` · `STS-B` |
-
-> Each project is self-contained: clone the repo, `cd` into a project, install requirements, and run `python -m src.main` (or the project-specific entry point).
+This repo is a curated set of focused, runnable demos written from scratch, mirroring the kinds of systems I design at work.
 
 ---
 
-## 🛠️ Tech I use day-to-day
+## 📁 Projects
+
+| # | Project | What it shows |
+|---|---|---|
+| **01** | [**RAG FAQ Bot**](./01-rag-faq-bot/) | Retrieval-Augmented Generation with **hallucination guard** |
+| **02** | [**Multi-Agent Research Crew**](./02-multi-agent-research-crew/) | Sequentially-coordinated **4-agent** system with tool use |
+| **03** | [**SBERT Pair Trainer**](./03-sbert-pair-trainer/) | **Fine-tuning** + held-out evaluation (R² / MAE / RMSE) |
+| **04** | [**CLIP Image-Text Search**](./04-clip-image-text-search/) | Multimodal retrieval — query an image set with natural language |
+| **05** | [**Person Tracker Mini**](./05-person-tracker-mini/) | Real-time **YOLO + IoU tracker** on a video stream |
+
+> Each project is self-contained — clone, `cd` in, install requirements, run.
+
+---
+
+## 🛠️ Tech I use
 
 <p>
   <img src="https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white" />
@@ -57,8 +55,6 @@ This repository is a curated set of focused, runnable demos — written from scr
   <img src="https://img.shields.io/badge/CrewAI-FF6F00?style=flat" />
   <img src="https://img.shields.io/badge/FAISS-005571?style=flat" />
   <img src="https://img.shields.io/badge/Azure%20ML-0078D4?style=flat&logo=microsoftazure&logoColor=white" />
-  <img src="https://img.shields.io/badge/Azure%20OpenAI-0078D4?style=flat&logo=microsoftazure&logoColor=white" />
-  <img src="https://img.shields.io/badge/Azure%20AI%20Search-0078D4?style=flat&logo=microsoftazure&logoColor=white" />
   <img src="https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white" />
   <img src="https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white" />
   <img src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white" />
@@ -66,55 +62,44 @@ This repository is a curated set of focused, runnable demos — written from scr
   <img src="https://img.shields.io/badge/NVIDIA-76B900?style=flat&logo=nvidia&logoColor=white" />
 </p>
 
-```
-LLMs & GenAI       :   GPT-4 / GPT-4o, Llama, Qwen, RAG, Multi-Agent (CrewAI),
-                       Prompt Engineering, Hallucination Mitigation
-ML & Deep Learning :   PyTorch, Hugging Face Transformers, SentenceTransformers,
-                       Fine-tuning, Model Evaluation (R² / MAE / held-out testing)
-Vector & Retrieval :   FAISS, Azure AI Search, Embeddings, ANN, Cosine Similarity
-Computer Vision    :   YOLOv5/v7/v8, U-Net, EfficientNet, OC-SORT, NVIDIA DeepStream
-Cloud & MLOps      :   Azure ML, AKS, Azure DevOps CI/CD, Managed Endpoints, Docker
-GPU & Edge         :   NVIDIA NIM, DGX Spark, Jetson Nano, T4 / V100, FP8 inference
-```
+**Day-to-day:** PyTorch · Hugging Face · SentenceTransformers · LangChain · CrewAI · FAISS · Azure ML / OpenAI · AKS · Docker · NVIDIA NIM / DGX Spark · YOLO · DeepStream
 
 ---
 
-## 🏗️ How the projects map to real systems I've shipped
+## 🏗️ How these demos map to my real work
+
+The repo shows **simplified, public versions** of patterns I've shipped in production. The mappings:
 
 ```mermaid
 flowchart LR
-    subgraph Portfolio["This repository"]
-      P1[01 · RAG FAQ Bot]
-      P2[02 · Multi-Agent Crew]
-      P3[03 · SBERT Pair Trainer]
-    end
-
-    subgraph Production["Patterns I use in production"]
-      D1[LLM-assisted classification<br/>over a constrained domain set]
-      D2[Multi-agent compliance<br/>review with tool use]
-      D3[Sentence-encoder fine-tuning<br/>for matching / ranking]
-    end
-
-    P1 -.mirrors.-> D1
-    P2 -.mirrors.-> D2
-    P3 -.mirrors.-> D3
+    P1[01 · RAG FAQ Bot] -.mirrors.-> D1[LLM-assisted classification<br/>over a constrained domain set]
+    P2[02 · Multi-Agent Crew] -.mirrors.-> D2[Multi-agent compliance review<br/>with tool use]
+    P3[03 · SBERT Pair Trainer] -.mirrors.-> D3[Sentence-encoder fine-tuning<br/>for matching / ranking]
+    P4[04 · CLIP Search] -.mirrors.-> D4[Multimodal retrieval & blueprint<br/>understanding]
+    P5[05 · Person Tracker] -.mirrors.-> D5[Real-time edge CV<br/>on RTSP camera streams]
 ```
+
+| Demo here | Pattern in production |
+|---|---|
+| RAG FAQ Bot | LLM-assisted classification over a constrained domain set |
+| Multi-Agent Research Crew | Multi-agent compliance review with tool use |
+| SBERT Pair Trainer | Sentence-encoder fine-tuning for matching / ranking |
+| CLIP Image-Text Search | Multimodal retrieval & document understanding |
+| Person Tracker Mini | Real-time edge CV on RTSP camera streams |
 
 ---
 
 ## 📈 Stats
 
 <p align="center">
-  <img src="https://github-readme-stats.vercel.app/api?username=YOUR_GITHUB_USERNAME&show_icons=true&theme=default&hide_border=true&include_all_commits=true&count_private=true" height="170" />
-  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=YOUR_GITHUB_USERNAME&layout=compact&theme=default&hide_border=true&langs_count=8" height="170" />
+  <img src="https://github-readme-stats.vercel.app/api?username=deepak1212194&show_icons=true&theme=default&hide_border=true&include_all_commits=true&count_private=true" height="170" />
+  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=deepak1212194&layout=compact&theme=default&hide_border=true&langs_count=8" height="170" />
 </p>
-
-> 🛈  After you create the repo, replace `YOUR_GITHUB_USERNAME` (3 places in this README) with your real handle and the cards will render automatically.
 
 ---
 
 ## 📜 License
 
-Released under the [MIT License](./LICENSE) — feel free to learn from, fork, and adapt.
+MIT — see [LICENSE](./LICENSE). Feel free to learn from, fork, and adapt.
 
 <p align="center"><sub>Built and maintained by <a href="https://www.linkedin.com/in/deepak-chaudhary-285810b7">Deepak Chaudhary</a> · 2026</sub></p>
