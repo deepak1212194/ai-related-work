@@ -1,0 +1,23 @@
+### What is Retrieval-Augmented Generation (RAG)?
+RAG is a pattern where a language model is given relevant, retrieved context at generation time so it grounds its response in real data instead of relying solely on its parametric knowledge. A typical RAG pipeline embeds source documents, indexes them in a vector database, retrieves the top-k chunks for a query, and prepends them to the LLM prompt.
+
+### Why use a vector database for retrieval?
+Vector databases let you do approximate nearest-neighbour search over high-dimensional embeddings in milliseconds even for millions of documents. Compared with keyword search, vector search captures semantic similarity — "how do I cancel my subscription" matches "I want to stop my membership" even though no words overlap.
+
+### What is hallucination in language models?
+Hallucination is when an LLM produces text that sounds confident but is factually wrong or unsupported by its inputs. It happens because the model is trained to produce fluent text, not to refuse when it doesn't know. Mitigations include constrained prompting, retrieval grounding, output-schema validation, and explicit "I don't know" paths.
+
+### How can RAG mitigate hallucination?
+RAG mitigates hallucination by forcing the model to answer from retrieved context rather than its training data. To make this stick, three additional guards help: (1) a retrieval-score floor that triggers a refusal when no chunk is similar enough; (2) a system prompt that tells the model to answer only from the provided context; (3) a structured output schema (e.g. via Pydantic) so downstream code can detect refusals.
+
+### What is FAISS?
+FAISS (Facebook AI Similarity Search) is an open-source library for efficient similarity search and clustering of dense vectors. It supports flat indexes (exact search) and many approximate-search structures (IVF, HNSW, PQ). For under a million vectors, a flat L2 or inner-product index is usually fast enough on CPU.
+
+### What is a sentence transformer?
+A sentence transformer is a transformer model fine-tuned to produce a single fixed-size vector for an input sentence such that semantically similar sentences land close in vector space. Typical models include all-MiniLM-L6-v2 (384-dim, fast) and all-mpnet-base-v2 (768-dim, higher quality). They are trained with contrastive or cosine-similarity losses on sentence-pair data.
+
+### How do you evaluate a RAG system?
+RAG evaluation has two layers. Retrieval is graded with recall@k, MRR, or a manually-labelled relevance judgement. Generation is graded with answer correctness, faithfulness to context, and refusal rate when context is missing. Both layers should be measured on a held-out test set, never on the same data used to build the index.
+
+### When should I not use RAG?
+Skip RAG when your knowledge fits inside the context window and rarely changes (just include it in the prompt), or when latency is so tight that a vector lookup is unaffordable, or when the task is purely creative (RAG can over-constrain creative output). RAG shines for factual question-answering over a large, evolving corpus.
