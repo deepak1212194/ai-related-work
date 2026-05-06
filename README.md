@@ -10,6 +10,12 @@
 </p>
 
 <p align="center">
+  <a href="https://deepak1212194.github.io/ai-related-work/">
+    <img src="https://img.shields.io/badge/%F0%9F%9A%80%20Open%20interactive%20portfolio-4f8cff?style=for-the-badge" alt="Open interactive portfolio" />
+  </a>
+</p>
+
+<p align="center">
   <a href="https://www.linkedin.com/in/deepak-chaudhary-285810b7"><img src="https://img.shields.io/badge/LinkedIn-Deepak%20Chaudhary-0A66C2?logo=linkedin&logoColor=white" alt="LinkedIn" /></a>
   <a href="mailto:deepak1212194@gmail.com"><img src="https://img.shields.io/badge/Email-deepak1212194@gmail.com-D14836?logo=gmail&logoColor=white" alt="Email" /></a>
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python" />

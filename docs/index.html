@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deepak Chaudhary · AI/ML Engineer · Portfolio</title>
+  <meta name="description" content="Production AI/ML systems — LLMs, RAG, multi-agent, recommendation, computer vision. 5 runnable demos." />
+  <meta name="theme-color" content="#4f8cff" />
+
+  <!-- Open Graph / social preview -->
+  <meta property="og:title" content="Deepak Chaudhary — AI/ML Engineer" />
+  <meta property="og:description" content="Senior AI/ML Engineer · 4+ years · NVIDIA GTC 2026 · Granted Indian Patent · 5 production-shaped demos." />
+  <meta property="og:type" content="website" />
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧠%3C/text%3E%3C/svg%3E" />
+
+  <style>
+    /* ─────────── Theme tokens ─────────── */
+    :root {
+      --bg: #fafbff;
+      --bg-elev: #ffffff;
+      --bg-soft: #f3f4f9;
+      --text: #1a1d29;
+      --text-soft: #4a4f5e;
+      --muted: #767b8c;
+      --border: #e3e6ee;
+      --accent: #4f8cff;
+      --accent-soft: rgba(79, 140, 255, 0.12);
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 18px 48px rgba(15, 23, 42, 0.14);
+      --grad-1: linear-gradient(135deg, #6ea8fe 0%, #a78bfa 100%);
+      --grad-2: linear-gradient(135deg, #34d399 0%, #06b6d4 100%);
+      --grad-3: linear-gradient(135deg, #fb923c 0%, #f43f5e 100%);
+      --grad-4: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+      --grad-5: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --bg-elev: #161b22;
+        --bg-soft: #1f2530;
+        --text: #e6edf3;
+        --text-soft: #c9d1d9;
+        --muted: #8b949e;
+        --border: #30363d;
+        --accent: #6ea8fe;
+        --accent-soft: rgba(110, 168, 254, 0.16);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.45);
+        --shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.6);
+      }
+    }
+
+    /* ─────────── Reset ─────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ─────────── Layout ─────────── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ─────────── Hero ─────────── */
+    .hero {
+      padding: 96px 24px 48px;
+      text-align: center;
+      background:
+        radial-gradient(ellipse at top, var(--accent-soft), transparent 60%),
+        var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-eyebrow {
+      display: inline-block;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      margin-bottom: 22px;
+    }
+    .hero-title {
+      font-size: clamp(2.4rem, 6vw, 3.4rem);
+      font-weight: 800;
+      line-height: 1.05;
+      margin: 0 0 14px;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .hero-tagline {
+      font-size: clamp(1rem, 2.4vw, 1.18rem);
+      color: var(--text-soft);
+      margin: 0 auto 18px;
+      max-width: 620px;
+    }
+    .hero-stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 14px 0 28px;
+    }
+    .pill {
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      font-size: 0.82rem;
+      color: var(--text-soft);
+    }
+    .pill strong { color: var(--text); font-weight: 600; }
+
+    .social-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .social-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 12px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-weight: 500;
+      font-size: 0.92rem;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .social-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--accent);
+      text-decoration: none;
+    }
+    .social-btn.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .social-btn.primary:hover { color: #fff; }
+
+    /* ─────────── Section ─────────── */
+    section { padding: 60px 0; }
+    .section-eyebrow {
+      color: var(--accent);
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+    .section-title {
+      font-size: clamp(1.6rem, 3.4vw, 2rem);
+      font-weight: 700;
+      margin: 0 0 8px;
+      letter-spacing: -0.01em;
+    }
+    .section-sub {
+      color: var(--muted);
+      margin: 0 0 28px;
+      max-width: 640px;
+    }
+
+    /* ─────────── Filter tabs ─────────── */
+    .filter-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    .filter-tabs button {
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-elev);
+      color: var(--text-soft);
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .filter-tabs button:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .filter-tabs button.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* ─────────── Project grid ─────────── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+    }
+    .card {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      animation: fadeIn 0.4s ease backwards;
+    }
+    .card.hidden { display: none; }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--accent);
+    }
+    .card-header {
+      padding: 22px 22px 18px;
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    .card-header::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.18) 100%);
+      pointer-events: none;
+    }
+    .card-num {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      opacity: 0.85;
+    }
+    .card-cat {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.18);
+      font-size: 0.74rem;
+      font-weight: 600;
+      backdrop-filter: blur(4px);
+    }
+    .gradient-1 { background: var(--grad-1); }
+    .gradient-2 { background: var(--grad-2); }
+    .gradient-3 { background: var(--grad-3); }
+    .gradient-4 { background: var(--grad-4); }
+    .gradient-5 { background: var(--grad-5); }
+
+    .card-body {
+      padding: 20px 22px 22px;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-title {
+      font-size: 1.18rem;
+      font-weight: 700;
+      margin: 0 0 8px;
+      color: var(--text);
+    }
+    .card-desc {
+      color: var(--text-soft);
+      font-size: 0.93rem;
+      margin: 0 0 16px;
+      flex-grow: 1;
+    }
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 18px;
+    }
+    .badge {
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--bg-soft);
+      color: var(--text-soft);
+      font-size: 0.74rem;
+      font-weight: 500;
+      border: 1px solid var(--border);
+    }
+    .card-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.92rem;
+    }
+    .card-link::after {
+      content: "→";
+      transition: transform 0.15s ease;
+    }
+    .card-link:hover {
+      text-decoration: none;
+    }
+    .card-link:hover::after { transform: translateX(3px); }
+
+    /* ─────────── How-to ─────────── */
+    .howto {
+      background: var(--bg-soft);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .howto-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 720px) {
+      .howto-grid { grid-template-columns: 1fr; }
+    }
+    pre {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-size: 0.84rem;
+      line-height: 1.6;
+      margin: 0;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      color: var(--text);
+    }
+    pre code { color: var(--text); }
+    .howto-step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .howto-num {
+      flex: 0 0 auto;
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      display: grid; place-items: center;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+    .howto-text h4 { margin: 0 0 4px; font-size: 1rem; font-weight: 600; }
+    .howto-text p  { margin: 0; color: var(--muted); font-size: 0.92rem; }
+
+    /* ─────────── Footer ─────────── */
+    footer {
+      padding: 36px 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.86rem;
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--text-soft); }
+
+    /* ─────────── Animations ─────────── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .card:nth-child(1) { animation-delay: 0.05s; }
+    .card:nth-child(2) { animation-delay: 0.10s; }
+    .card:nth-child(3) { animation-delay: 0.15s; }
+    .card:nth-child(4) { animation-delay: 0.20s; }
+    .card:nth-child(5) { animation-delay: 0.25s; }
+  </style>
+</head>
+<body>
+
+  <!-- ─────────── HERO ─────────── -->
+  <header class="hero">
+    <div class="container">
+      <span class="hero-eyebrow">AI / ML Engineer · Hyderabad, India</span>
+      <h1 class="hero-title">Deepak Chaudhary</h1>
+      <p class="hero-tagline">
+        I build production AI systems end-to-end — LLMs, RAG, multi-agent, recommendation, and computer vision — on Azure, GPU clusters, and edge devices.
+      </p>
+      <div class="hero-stats">
+        <span class="pill">⏱ <strong>4+ years</strong> production AI</span>
+        <span class="pill">🧠 <strong>NVIDIA GTC 2026</strong> demo</span>
+        <span class="pill">🛰 <strong>Granted Indian Patent</strong></span>
+        <span class="pill">🎓 <strong>ISI Kolkata</strong></span>
+      </div>
+      <div class="social-row">
+        <a class="social-btn primary" href="https://github.com/deepak1212194/ai-related-work">⭐ View on GitHub</a>
+        <a class="social-btn" href="https://www.linkedin.com/in/deepak-chaudhary-285810b7">LinkedIn</a>
+        <a class="social-btn" href="mailto:deepak1212194@gmail.com">Email</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─────────── PROJECTS ─────────── -->
+  <section id="projects">
+    <div class="container">
+      <div class="section-eyebrow">Featured projects</div>
+      <h2 class="section-title">Pick what to explore</h2>
+      <p class="section-sub">Five focused, runnable demos written from scratch — each mirrors a pattern I've shipped in production. Click any card to open the project on GitHub.</p>
+
+      <div class="filter-tabs" role="tablist">
+        <button class="active" data-cat="all">All</button>
+        <button data-cat="genai">GenAI / LLMs</button>
+        <button data-cat="ml">ML / Training</button>
+        <button data-cat="cv">Computer Vision</button>
+      </div>
+
+      <div class="grid" id="projectGrid">
+
+        <!-- 01 RAG -->
+        <article class="card" data-cat="genai">
+          <div class="card-header gradient-1">
+            <div class="card-num">PROJECT · 01</div>
+            <span class="card-cat">GenAI · RAG</span>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">RAG FAQ Bot</h3>
+            <p class="card-desc">
+              Retrieval-augmented generation with a hallucination guard. The LLM is constrained to answer only when retrieval crosses a similarity floor; otherwise it returns a structured "I don't know".
+            </p>
+            <div class="badges">
+              <span class="badge">FAISS</span>
+              <span class="badge">SBERT</span>
+              <span class="badge">Pydantic</span>
+              <span class="badge">OpenAI</span>
+            </div>
+            <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/01-rag-faq-bot">View on GitHub</a>
+          </div>
+        </article>
+
+        <!-- 02 Multi-Agent -->
+        <article class="card" data-cat="genai">
+          <div class="card-header gradient-5">
+            <div class="card-num">PROJECT · 02</div>
+            <span class="card-cat">GenAI · Agents</span>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">Multi-Agent Research Crew</h3>
+            <p class="card-desc">
+              Four specialist agents — Planner → Researcher (tool use) → Critic → Writer — coordinated sequentially. Same shape as the system I demoed at NVIDIA GTC 2026, in 200 lines.
+            </p>
+            <div class="badges">
+              <span class="badge">CrewAI-style</span>
+              <span class="badge">Tool use</span>
+              <span class="badge">OpenAI</span>
+            </div>
+            <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/02-multi-agent-research-crew">View on GitHub</a>
+          </div>
+        </article>
+
+        <!-- 03 SBERT -->
+        <article class="card" data-cat="ml">
+          <div class="card-header gradient-2">
+            <div class="card-num">PROJECT · 03</div>
+            <span class="card-cat">ML · Fine-tuning</span>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">SBERT Pair Trainer</h3>
+            <p class="card-desc">
+              Full fine-tuning of all-mpnet-base-v2 on the public STS Benchmark with CosineSimilarityLoss + a strict held-out test split. Reports R² / MAE / RMSE / within-±0.1.
+            </p>
+            <div class="badges">
+              <span class="badge">SentenceTransformers</span>
+              <span class="badge">PyTorch</span>
+              <span class="badge">STS-B</span>
+            </div>
+            <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/03-sbert-pair-trainer">View on GitHub</a>
+          </div>
+        </article>
+
+        <!-- 04 CLIP -->
+        <article class="card" data-cat="cv">
+          <div class="card-header gradient-3">
+            <div class="card-num">PROJECT · 04</div>
+            <span class="card-cat">CV · Multimodal</span>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">CLIP Image-Text Search</h3>
+            <p class="card-desc">
+              Multimodal retrieval — query a folder of images with natural language ("a photo of a sunset over a city"). Pre-computes image vectors once, encodes queries on the fly.
+            </p>
+            <div class="badges">
+              <span class="badge">CLIP</span>
+              <span class="badge">Transformers</span>
+              <span class="badge">Pillow</span>
+            </div>
+            <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/04-clip-image-text-search">View on GitHub</a>
+          </div>
+        </article>
+
+        <!-- 05 Person Tracker -->
+        <article class="card" data-cat="cv">
+          <div class="card-header gradient-4">
+            <div class="card-num">PROJECT · 05</div>
+            <span class="card-cat">CV · Real-time</span>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">Person Tracker Mini</h3>
+            <p class="card-desc">
+              Real-time multi-person tracking — YOLOv8n detection + a hand-rolled IoU-based tracker that assigns stable IDs across frames. Annotated MP4 output.
+            </p>
+            <div class="badges">
+              <span class="badge">YOLOv8</span>
+              <span class="badge">OpenCV</span>
+              <span class="badge">IoU tracker</span>
+            </div>
+            <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/05-person-tracker-mini">View on GitHub</a>
+          </div>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── HOW TO RUN ─────────── -->
+  <section class="howto">
+    <div class="container">
+      <div class="section-eyebrow">Get started</div>
+      <h2 class="section-title">Run any project in 3 steps</h2>
+      <p class="section-sub">Each project is self-contained. The pattern is the same for all five.</p>
+
+      <div class="howto-grid">
+        <div>
+          <div class="howto-step">
+            <div class="howto-num">1</div>
+            <div class="howto-text">
+              <h4>Clone the repo</h4>
+              <p>Pull the full portfolio in one shot.</p>
+            </div>
+          </div>
+          <div class="howto-step" style="margin-top:14px;">
+            <div class="howto-num">2</div>
+            <div class="howto-text">
+              <h4>Pick a project, install</h4>
+              <p>Each folder has its own requirements.txt — no shared state.</p>
+            </div>
+          </div>
+          <div class="howto-step" style="margin-top:14px;">
+            <div class="howto-num">3</div>
+            <div class="howto-text">
+              <h4>Run the entry script</h4>
+              <p>Each project README documents the exact command.</p>
+            </div>
+          </div>
+        </div>
+        <div>
+<pre><code>git clone https://github.com/deepak1212194/ai-related-work.git
+cd ai-related-work/01-rag-faq-bot
+
+python -m venv .venv
+.venv\Scripts\activate          <span style="color:var(--muted)"># Windows</span>
+source .venv/bin/activate       <span style="color:var(--muted)"># macOS/Linux</span>
+
+pip install -r requirements.txt
+python -m src.ingest
+python -m src.pipeline -q "What is FAISS?"</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>
+      Built and maintained by
+      <a href="https://www.linkedin.com/in/deepak-chaudhary-285810b7"><strong>Deepak Chaudhary</strong></a>
+      · MIT License · 2026
+    </p>
+    <p style="margin-top:6px">
+      <a href="https://github.com/deepak1212194/ai-related-work">Source on GitHub</a> ·
+      <a href="https://github.com/deepak1212194/ai-related-work/issues">Issues</a> ·
+      <a href="https://github.com/deepak1212194/ai-related-work/discussions">Discussions</a>
+    </p>
+  </footer>
+
+  <script>
+    /* Filter tabs */
+    const tabs = document.querySelectorAll(".filter-tabs button");
+    const cards = document.querySelectorAll("#projectGrid .card");
+
+    tabs.forEach(tab => {
+      tab.addEventListener("click", () => {
+        tabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+
+        const cat = tab.dataset.cat;
+        cards.forEach((card, idx) => {
+          const show = cat === "all" || card.dataset.cat === cat;
+          card.classList.toggle("hidden", !show);
+          if (show) {
+            // Re-trigger fade-in
+            card.style.animation = "none";
+            // Force reflow
+            void card.offsetWidth;
+            card.style.animation = `fadeIn 0.35s ease ${idx * 0.04}s backwards`;
+          }
+        });
+      });
+    });
+
+    /* Tiny keyboard nav: ← / → cycle the filter tabs */
+    document.addEventListener("keydown", (e) => {
+      if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+      const list = Array.from(tabs);
+      const idx = list.findIndex(t => t.classList.contains("active"));
+      const next = e.key === "ArrowRight"
+        ? (idx + 1) % list.length
+        : (idx - 1 + list.length) % list.length;
+      list[next].click();
+    });
+  </script>
+</body>
+</html>
