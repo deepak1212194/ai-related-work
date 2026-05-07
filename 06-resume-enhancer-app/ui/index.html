@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Resume Enhancer · Senior AI / ML</title>
+  <title>Resume Enhancer · Senior-Grade Polish</title>
   <style>
     :root {
       --bg: #0d1117; --bg-elev: #161b22; --bg-soft: #1f2530;
@@ -20,26 +20,47 @@
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0; min-height: 100vh; padding: 32px;
+      margin: 0; min-height: 100vh; padding: 32px 20px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg); color: var(--text);
     }
-    .wrap { max-width: 880px; margin: 0 auto; }
+    .wrap { max-width: 920px; margin: 0 auto; }
     h1 { font-size: 1.6rem; margin: 0 0 4px; }
     .sub { color: var(--muted); margin: 0 0 22px; font-size: .95rem; }
+
     .panel {
       background: var(--bg-elev); border: 1px solid var(--border);
       border-radius: 14px; padding: 22px; margin-bottom: 18px;
     }
-    h3 { margin: 0 0 12px; font-size: .82rem; text-transform: uppercase;
-         letter-spacing: .08em; color: var(--muted); }
+    h3 {
+      margin: 0 0 12px; font-size: .82rem; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--muted);
+    }
+
+    /* ── Role picker pills ── */
+    .roles { display: flex; gap: 8px; flex-wrap: wrap; }
+    .role {
+      padding: 10px 14px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--bg);
+      cursor: pointer; transition: all .15s; flex: 1 1 160px;
+      min-width: 150px;
+    }
+    .role:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .role.active {
+      background: var(--accent-soft); border-color: var(--accent);
+    }
+    .role .name { font-weight: 600; font-size: .92rem; }
+    .role .desc { font-size: .76rem; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+
+    /* ── Drop zone ── */
     .drop {
       border: 2px dashed var(--border); border-radius: 12px;
       padding: 36px 24px; text-align: center; color: var(--muted);
-      cursor: pointer; transition: border-color .15s, background .15s;
+      cursor: pointer; transition: all .15s;
     }
     .drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
     .drop input { display: none; }
+
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     button {
       padding: 10px 16px; border-radius: 10px;
@@ -47,66 +68,128 @@
       color: var(--text); font-weight: 500; font-size: .92rem; cursor: pointer;
       transition: all .15s;
     }
-    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-    button:hover { transform: translateY(-1px); }
+    button.primary {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+    button:hover:not(:disabled) { transform: translateY(-1px); }
     button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
     a.dl {
       padding: 10px 16px; border-radius: 10px;
       border: 1px solid var(--accent); color: var(--accent);
       text-decoration: none; font-weight: 600; font-size: .92rem;
+      display: inline-flex; align-items: center; gap: 6px;
     }
     a.dl:hover { background: var(--accent-soft); }
+
+    /* ── Status pills ── */
     .pill {
       display: inline-block; padding: 4px 10px; border-radius: 999px;
       background: var(--bg-soft); color: var(--text); font-size: .78rem;
       border: 1px solid var(--border);
     }
-    .pill.ok { color: var(--ok); border-color: var(--ok); }
+    .pill.ok   { color: var(--ok);   border-color: var(--ok); }
     .pill.warn { color: var(--warn); border-color: var(--warn); }
+    .pill.err  { color: var(--err);  border-color: var(--err); }
+
     .meta-line { color: var(--muted); font-size: .82rem; margin-top: 6px; }
-    pre {
-      background: var(--bg-soft); border: 1px solid var(--border);
-      border-radius: 10px; padding: 14px 18px; font-size: .82rem;
-      overflow-x: auto; margin: 0;
-    }
-    .notes {
-      list-style: none; padding: 0; margin: 0;
-    }
-    .notes li {
-      padding: 6px 0; border-bottom: 1px solid var(--border);
-      font-size: .88rem; color: var(--text-soft, var(--muted));
-    }
-    .notes li:last-child { border: none; }
+
+    /* ── Loading ── */
+    .loading { padding: 18px 0; }
     .spinner {
-      display: inline-block; width: 14px; height: 14px;
+      width: 14px; height: 14px; display: inline-block;
       border: 2px solid var(--border); border-top-color: var(--accent);
-      border-radius: 50%; animation: spin 0.8s linear infinite;
-      vertical-align: middle;
+      border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle;
+      margin-right: 8px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .progress-bar {
+      height: 6px; background: var(--bg-soft); border-radius: 3px;
+      overflow: hidden; margin-top: 12px;
+    }
+    .progress-bar > span {
+      display: block; height: 100%; background: var(--accent);
+      width: 0%; transition: width .35s ease;
+    }
+
+    /* ── Notes / warnings ── */
+    .notes, .warnings { list-style: none; padding: 0; margin: 0; }
+    .notes li, .warnings li {
+      padding: 6px 10px; margin-bottom: 4px; border-radius: 6px;
+      font-size: .88rem; background: var(--bg-soft);
+    }
+    .warnings li { border-left: 3px solid var(--warn); color: var(--text); }
+
+    /* ── Preview cards ── */
+    details {
+      background: var(--bg-soft); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px; margin-bottom: 6px;
+    }
+    details[open] { padding-bottom: 12px; }
+    summary {
+      cursor: pointer; font-size: .88rem; font-weight: 500; padding: 4px 0;
+      display: flex; gap: 10px; align-items: center;
+    }
+    summary::marker, summary::-webkit-details-marker { display: none; }
+    .badge {
+      display: inline-block; font-size: .72rem; padding: 2px 8px;
+      border-radius: 999px; font-weight: 600;
+    }
+    .badge.changed { background: rgba(52, 211, 153, .18); color: var(--ok); }
+    .badge.kept    { background: rgba(251, 191, 36, .18); color: var(--warn); }
+    .diff {
+      display: grid; gap: 10px; grid-template-columns: 1fr 1fr;
+      margin-top: 10px; font-size: .85rem; line-height: 1.5;
+    }
+    @media (max-width: 720px) { .diff { grid-template-columns: 1fr; } }
+    .diff > div {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 12px; white-space: pre-wrap;
+    }
+    .diff h4 {
+      margin: 0 0 6px; font-size: .72rem; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted);
+    }
+
+    .error-box {
+      background: rgba(248, 113, 113, .08); border: 1px solid var(--err);
+      border-radius: 10px; padding: 14px 16px; color: var(--text);
+      font-size: .92rem;
+    }
+    .error-box strong { color: var(--err); }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>📄 Resume Enhancer</h1>
     <p class="sub">
-      Drop a PDF or .tex resume. The senior-ai-resume-craft rules will
-      polish it and return both an enhanced .tex and a compiled PDF.
-      <strong>Restrictive by design</strong> — never weakens, never
-      removes a fact.
+      Drop a PDF or .tex resume, pick a target role, and get a polished
+      <code>.tex</code> + <code>.pdf</code>. <strong>Restrictive by design</strong> —
+      never weakens, never fabricates. If a section can't be improved,
+      it's preserved verbatim with a note explaining why.
     </p>
 
+    <!-- ────────── Status panel ────────── -->
     <div class="panel">
       <h3>Status</h3>
       <div class="row" id="statusRow">
-        <span class="pill" id="backend">backend: ?</span>
-        <span class="pill" id="pdflatex">pdflatex: ?</span>
+        <span class="pill" id="backendPill">backend: ?</span>
+        <span class="pill" id="pdflatexPill">pdflatex: ?</span>
       </div>
       <div class="meta-line" id="backendNote"></div>
     </div>
 
+    <!-- ────────── Role picker ────────── -->
     <div class="panel">
-      <h3>1 · Upload your resume</h3>
+      <h3>1 · Pick the target role</h3>
+      <div class="roles" id="rolesContainer">
+        <!-- populated from /api/roles -->
+      </div>
+    </div>
+
+    <!-- ────────── Upload ────────── -->
+    <div class="panel">
+      <h3>2 · Upload your resume</h3>
       <label class="drop" id="drop">
         <input type="file" id="file" accept=".pdf,.tex,application/pdf,application/x-tex" />
         <div><strong>Drop your resume here</strong> or click to choose</div>
@@ -118,47 +201,98 @@
       </div>
     </div>
 
+    <!-- ────────── Loading ────────── -->
+    <div class="panel" id="loadingPanel" style="display: none;">
+      <h3>Working…</h3>
+      <div class="loading">
+        <span class="spinner"></span>
+        <span id="loadingMsg">Reading your resume…</span>
+        <div class="progress-bar"><span id="progressFill"></span></div>
+      </div>
+    </div>
+
+    <!-- ────────── Result ────────── -->
     <div class="panel" id="resultPanel" style="display: none;">
-      <h3>2 · Result</h3>
+      <h3>Result</h3>
       <div class="row" id="resultRow"></div>
       <div class="meta-line" id="resultMeta"></div>
-      <h3 style="margin-top: 18px;">Enhancement notes</h3>
+
+      <h3 style="margin-top: 18px;">Notes</h3>
       <ul class="notes" id="notesList"></ul>
+
+      <div id="warningsWrap" style="display: none;">
+        <h3 style="margin-top: 18px;">Warnings</h3>
+        <ul class="warnings" id="warningsList"></ul>
+      </div>
+
+      <h3 style="margin-top: 18px;">Section-by-section preview</h3>
+      <div id="previews"></div>
+    </div>
+
+    <!-- ────────── Error ────────── -->
+    <div class="panel" id="errorPanel" style="display: none;">
+      <div class="error-box" id="errorBox"></div>
     </div>
   </div>
 
 <script>
   const $ = id => document.getElementById(id);
   let chosenFile = null;
+  let chosenRole = null;
+  let progressTimer = null;
 
-  // ── Health ──
+  // ────────── Health + roles ──────────
   async function refreshHealth() {
     try {
       const r = await fetch("/health").then(x => x.json());
-      $("backend").textContent = `backend: ${r.backend}`;
-      $("backend").classList.toggle("ok", r.backend_configured);
-      $("backend").classList.toggle("warn", !r.backend_configured);
-      $("pdflatex").textContent = `pdflatex: ${r.pdflatex_available ? "available" : "missing"}`;
-      $("pdflatex").classList.toggle("ok", r.pdflatex_available);
-      $("pdflatex").classList.toggle("warn", !r.pdflatex_available);
+      $("backendPill").textContent = `backend: ${r.backend}`;
+      $("backendPill").classList.toggle("ok",   r.backend_configured);
+      $("backendPill").classList.toggle("warn", !r.backend_configured);
+      $("pdflatexPill").textContent = `pdflatex: ${r.pdflatex_available ? "available" : "missing"}`;
+      $("pdflatexPill").classList.toggle("ok",   r.pdflatex_available);
+      $("pdflatexPill").classList.toggle("warn", !r.pdflatex_available);
+
       const note = !r.backend_configured
         ? "⚠ Set the API key for your selected backend (HF_API_KEY or ANTHROPIC_API_KEY)."
         : (!r.pdflatex_available
-          ? "ℹ pdflatex not on PATH — .tex will still be returned, but PDF won't be compiled."
-          : "");
+            ? "ℹ pdflatex not on PATH — .tex will be returned, .pdf compilation will be skipped."
+            : "All systems go.");
       $("backendNote").textContent = note;
+
+      // Render role pills
+      renderRoles(r.available_roles || []);
     } catch (e) {
-      $("backend").textContent = "backend: offline";
+      $("backendPill").textContent = "backend: offline";
+      $("backendPill").classList.add("err");
     }
+  }
+
+  function renderRoles(roles) {
+    if (!roles.length) return;
+    const c = $("rolesContainer");
+    c.innerHTML = roles.map((r, i) => `
+      <div class="role ${i === 0 ? "active" : ""}" data-id="${r.id}">
+        <div class="name">${r.name}</div>
+        <div class="desc">${r.description}</div>
+      </div>
+    `).join("");
+    chosenRole = roles[0].id;
+    c.querySelectorAll(".role").forEach(el => {
+      el.addEventListener("click", () => {
+        c.querySelectorAll(".role").forEach(x => x.classList.remove("active"));
+        el.classList.add("active");
+        chosenRole = el.dataset.id;
+      });
+    });
   }
   refreshHealth();
 
-  // ── Drag-drop ──
+  // ────────── File selection ──────────
   const drop = $("drop"), fileInput = $("file");
-  ["dragenter","dragover"].forEach(e => drop.addEventListener(e, ev => {
+  ["dragenter", "dragover"].forEach(e => drop.addEventListener(e, ev => {
     ev.preventDefault(); drop.classList.add("over");
   }));
-  ["dragleave","drop"].forEach(e => drop.addEventListener(e, ev => {
+  ["dragleave", "drop"].forEach(e => drop.addEventListener(e, ev => {
     ev.preventDefault(); drop.classList.remove("over");
   }));
   drop.addEventListener("drop", ev => pickFile(ev.dataTransfer.files[0]));
@@ -169,46 +303,141 @@
     chosenFile = f;
     $("fileLabel").textContent = `${f.name} (${(f.size/1024).toFixed(0)} KB)`;
     $("goBtn").disabled = false;
+    hideAllResults();
   }
 
-  // ── Enhance ──
+  // ────────── Loading messages ──────────
+  const LOADING_MSGS = [
+    "Reading your resume…",
+    "Detecting sections…",
+    "Polishing the summary…",
+    "Strengthening verbs…",
+    "Adding scope phrases…",
+    "Checking ATS keywords…",
+    "Compiling LaTeX…",
+    "Almost done…",
+  ];
+
+  function startLoadingAnimation() {
+    let i = 0;
+    let pct = 0;
+    $("loadingMsg").textContent = LOADING_MSGS[0];
+    $("progressFill").style.width = "0%";
+    progressTimer = setInterval(() => {
+      i = (i + 1) % LOADING_MSGS.length;
+      $("loadingMsg").textContent = LOADING_MSGS[i];
+      pct = Math.min(95, pct + Math.random() * 8 + 2);
+      $("progressFill").style.width = pct + "%";
+    }, 1200);
+  }
+
+  function stopLoadingAnimation() {
+    if (progressTimer) clearInterval(progressTimer);
+    progressTimer = null;
+    $("progressFill").style.width = "100%";
+  }
+
+  function hideAllResults() {
+    $("resultPanel").style.display = "none";
+    $("errorPanel").style.display = "none";
+    $("loadingPanel").style.display = "none";
+  }
+
+  // ────────── Enhance ──────────
   $("goBtn").onclick = async () => {
     if (!chosenFile) return;
     $("goBtn").disabled = true;
-    $("goBtn").innerHTML = '<span class="spinner"></span> enhancing…';
-    $("resultPanel").style.display = "none";
+    hideAllResults();
+    $("loadingPanel").style.display = "";
+    startLoadingAnimation();
 
     const fd = new FormData();
     fd.append("file", chosenFile);
+    if (chosenRole) fd.append("role", chosenRole);
 
     try {
       const r = await fetch("/api/enhance", { method: "POST", body: fd });
-      if (!r.ok) {
-        const err = await r.text();
-        alert(`Failed: ${err}`);
-        return;
-      }
       const data = await r.json();
-      renderResult(data);
+      stopLoadingAnimation();
+      $("loadingPanel").style.display = "none";
+
+      if (!r.ok || data.status === "error") {
+        renderError(data.warnings?.[0] || `Server returned ${r.status}`);
+      } else {
+        renderResult(data);
+      }
     } catch (e) {
-      alert(`Network error: ${e.message}`);
+      stopLoadingAnimation();
+      $("loadingPanel").style.display = "none";
+      renderError(`Network error: ${e.message}. Please try again.`);
     } finally {
       $("goBtn").disabled = false;
-      $("goBtn").innerHTML = '✨ Enhance';
     }
   };
 
+  // ────────── Render ──────────
+  function escapeHtml(s) {
+    return (s ?? "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
   function renderResult(data) {
     $("resultPanel").style.display = "";
+
+    // Download buttons
+    const dlPdf = data.pdf_compiled
+      ? `<a class="dl" href="${data.pdf_path}" download="resume.pdf">⬇ Download .pdf</a>`
+      : `<span class="pill warn">.pdf not compiled — use Overleaf to render the .tex</span>`;
     $("resultRow").innerHTML = `
       <a class="dl" href="${data.tex_path}" download="resume.tex">⬇ Download .tex</a>
-      ${data.pdf_compiled
-        ? `<a class="dl" href="${data.pdf_path}" download="resume.pdf">⬇ Download .pdf</a>`
-        : `<span class="pill warn">pdf not compiled — download .tex and compile in Overleaf</span>`}
+      ${dlPdf}
     `;
     $("resultMeta").textContent =
-      `Enhanced ${data.sections_enhanced} sections in ${data.elapsed_ms} ms · backend: ${data.backend}`;
-    $("notesList").innerHTML = data.notes.map(n => `<li>${n}</li>`).join("");
+      `Role: ${data.role} · enhanced ${data.sections_enhanced}/${data.sections_total} sections in ${data.elapsed_ms} ms · backend: ${data.backend}`;
+
+    // Notes
+    $("notesList").innerHTML = (data.notes || []).map(n => `<li>${escapeHtml(n)}</li>`).join("");
+
+    // Warnings
+    if (data.warnings && data.warnings.length) {
+      $("warningsWrap").style.display = "";
+      $("warningsList").innerHTML = data.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join("");
+    } else {
+      $("warningsWrap").style.display = "none";
+    }
+
+    // Section previews
+    $("previews").innerHTML = (data.previews || []).map(p => `
+      <details>
+        <summary>
+          <span class="badge ${p.changed ? "changed" : "kept"}">
+            ${p.changed ? "enhanced" : "kept"}
+          </span>
+          <span>${escapeHtml(p.section)}</span>
+          ${p.note ? `<span class="meta-line" style="margin-left:auto;">${escapeHtml(p.note)}</span>` : ""}
+        </summary>
+        <div class="diff">
+          <div>
+            <h4>Before</h4>${escapeHtml(p.before)}
+          </div>
+          <div>
+            <h4>After</h4>${escapeHtml(p.after)}
+          </div>
+        </div>
+      </details>
+    `).join("") || `<div class="meta-line">No section previews available.</div>`;
+  }
+
+  function renderError(message) {
+    $("errorPanel").style.display = "";
+    $("errorBox").innerHTML = `
+      <strong>Could not enhance this resume.</strong><br/>
+      ${escapeHtml(message)}<br/><br/>
+      <span class="meta-line">Your file was not modified. Try a different file format
+      (.pdf or .tex), shorter content, or check that the document has standard
+      sections (Summary / Skills / Experience / Education).</span>
+    `;
   }
 </script>
 </body>

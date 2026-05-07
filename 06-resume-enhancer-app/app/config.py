@@ -5,6 +5,10 @@ config.py — Resume Enhancer settings
 LLM backend is selectable via env:
     RESUME_LLM_BACKEND=huggingface   (default; uses HF Inference API)
     RESUME_LLM_BACKEND=anthropic     (swap-in; uses Claude API)
+
+All limits below are hard caps that prevent runaway loops or hung
+requests. The app is designed to ALWAYS return a structured response
+even if the LLM is unreachable or slow.
 """
 
 from pathlib import Path
@@ -35,12 +39,21 @@ class Settings(BaseSettings):
     anthropic_model: str = Field(default="claude-opus-4-7")
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
 
+    # --- Hard limits to prevent runaway / infinite loop ---
+    llm_call_timeout_seconds: int = Field(default=30, ge=5, le=120)
+    overall_job_timeout_seconds: int = Field(default=180, ge=30, le=600)
+    max_bullets_to_enhance: int = Field(default=30, ge=1, le=100)
+    max_skills_buckets_to_enhance: int = Field(default=10, ge=1, le=20)
+
     # --- LaTeX compilation ---
-    pdflatex_cmd: str = Field(default="pdflatex")    # or "tectonic" if installed
+    pdflatex_cmd: str = Field(default="pdflatex")
     compile_timeout_seconds: int = Field(default=60, ge=5, le=300)
 
     # --- Upload limits ---
     max_upload_size_mb: int = Field(default=5, ge=1, le=20)
+
+    # --- Default target role ---
+    default_role: str = Field(default="ai_ml_engineer")
 
     model_config = SettingsConfigDict(
         env_file=".env",

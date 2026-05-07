@@ -1,135 +1,196 @@
 """
-enhancer.py — Section-by-section orchestration
-================================================
+enhancer.py — Section-by-section orchestration with safety guards
+==================================================================
 
-Applies the rules from rules.py to each parsed section via the LLM
-backend. The orchestration is RESTRICTIVE by design:
-
-  - Each section is rewritten independently (small, focused prompts).
-  - The output is length-checked and length-clamped — if the LLM
-    returns something suspiciously short (< 50% of input), we KEEP the
-    input. This guards against accidental degradation.
-  - Tech keyword preservation is checked per bullet; if a key noun
-    disappears, we KEEP the input.
+Hard guarantees:
+  - Every LLM call is wrapped in try/except. The app never raises.
+  - Bullet count is capped at settings.max_bullets_to_enhance; the
+    excess is preserved verbatim (with a note appended).
+  - Overall wall-clock is bounded; if total elapsed exceeds
+    settings.overall_job_timeout_seconds, remaining sections are kept
+    as-is.
+  - Per-section output is length-checked (>= 50% of input length)
+    AND keyword-checked (no protected term may disappear). On either
+    failure, the input is preserved.
+  - Returns a list of SectionPreview objects so the UI can show
+    before/after for every section, with explicit "kept (reason)"
+    notes when an enhancement was rejected.
 """
 
 from __future__ import annotations
 
 import logging
 import re
+import time
 from typing import Iterable
 
-from .llm import LLMClient
+from .config import settings
+from .llm import LLMClient, LLMError
 from .rules import (
     ACHIEVEMENT_TASK,
     BULLET_TASK,
     SKILLS_TASK,
     SUMMARY_TASK,
-    SYSTEM_RULES,
+    compose_system_prompt,
 )
-from .schemas import ParsedResume
+from .schemas import ParsedResume, SectionPreview
 
 log = logging.getLogger(__name__)
 
-# Tech terms we never want to lose silently
+# Tech terms / numbers we never want to lose silently
 PROTECTED_TERMS_RE = re.compile(
     r"\b(LLM|RAG|FAISS|SBERT|CLIP|YOLO[v\d-]*|OC-?SORT|NvSORT|GPT-4o?|"
     r"Azure ML|Azure AI Search|AKS|Hugging Face|CrewAI|LangChain|"
-    r"NVIDIA|DGX|NIM|TensorRT|ONNX|TRTexec|FastAPI|"
+    r"NVIDIA|DGX|NIM|TensorRT|ONNX|TRTexec|FastAPI|Kubernetes|Terraform|"
+    r"Docker|Postgres(?:QL)?|Redis|Kafka|GraphQL|Tableau|Looker|"
     r"\d{2,}K\+?|\d+\.\d+|R\^?\d|MAE|RMSE|fine[- ]?tun\w+)",
     re.IGNORECASE,
 )
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Per-section enhancement with safety guards
-# ──────────────────────────────────────────────────────────────────────
 def _safe_replace(original: str, candidate: str, *,
-                  min_ratio: float = 0.5) -> tuple[str, bool]:
+                  min_ratio: float = 0.5) -> tuple[str, bool, str]:
     """
-    Return (text_to_use, was_replaced).
-    Reject the candidate if it's much shorter than the original or
-    if it dropped a protected keyword that was present in the input.
+    Decide whether to use the LLM candidate or keep the input.
+    Returns (text_to_use, was_replaced, reason_if_kept).
     """
-    if not candidate or candidate.strip() == "":
-        return original, False
+    if not candidate or not candidate.strip():
+        return original, False, "LLM returned empty"
     if len(candidate) < min_ratio * len(original):
-        log.warning("[GUARD] candidate too short — keeping original")
-        return original, False
-
-    original_terms = set(m.group(0).lower() for m in PROTECTED_TERMS_RE.finditer(original))
-    candidate_terms = set(m.group(0).lower() for m in PROTECTED_TERMS_RE.finditer(candidate))
+        return original, False, f"output too short ({len(candidate)} < {int(min_ratio*100)}% of input)"
+    original_terms = {m.group(0).lower() for m in PROTECTED_TERMS_RE.finditer(original)}
+    candidate_terms = {m.group(0).lower() for m in PROTECTED_TERMS_RE.finditer(candidate)}
     dropped = original_terms - candidate_terms
     if dropped:
-        log.warning("[GUARD] candidate dropped protected terms %s — keeping original", dropped)
-        return original, False
-    return candidate.strip(), True
+        return original, False, f"would drop protected terms: {', '.join(sorted(dropped))}"
+    return candidate.strip(), True, ""
 
 
-def _call(llm: LLMClient, task: str) -> str:
+def _call_safe(llm: LLMClient, system: str, user: str) -> str:
+    """Wrap LLM call. Returns "" on any failure — caller falls back."""
     try:
-        return llm.complete(SYSTEM_RULES, task)
-    except Exception as e:                 # noqa: BLE001
-        log.warning("[LLM] call failed: %s — falling back to input unchanged", e)
+        return llm.complete(system, user)
+    except LLMError as e:
+        log.warning("[LLM] call failed: %s", e)
+        return ""
+    except Exception as e:                              # noqa: BLE001
+        log.warning("[LLM] unexpected error: %s", e)
         return ""
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Public: enhance a ParsedResume in place, return notes
+# Public — orchestrates everything with hard limits
 # ──────────────────────────────────────────────────────────────────────
-def enhance(parsed: ParsedResume, llm: LLMClient) -> tuple[ParsedResume, list[str]]:
+def enhance(parsed: ParsedResume, llm: LLMClient,
+            role_id: str) -> tuple[ParsedResume, list[str], list[SectionPreview], list[str]]:
+    """
+    Returns (enhanced_parsed, notes, previews, warnings).
+
+    `notes` is a high-level summary line per section.
+    `previews` is per-item before/after for the UI.
+    `warnings` is human-readable issues that didn't stop the run.
+    """
     notes: list[str] = []
+    previews: list[SectionPreview] = []
+    warnings: list[str] = []
+    started = time.monotonic()
+    timeout = settings.overall_job_timeout_seconds
+
+    def remaining_time() -> float:
+        return max(0.0, timeout - (time.monotonic() - started))
+
+    def time_up() -> bool:
+        return remaining_time() <= 0.5
+
+    system = compose_system_prompt(role_id)
 
     # --- Summary ---
-    if parsed.summary:
-        cand = _call(llm, SUMMARY_TASK.format(content=parsed.summary))
-        new_text, replaced = _safe_replace(parsed.summary, cand)
+    if parsed.summary and not time_up():
+        before = parsed.summary
+        cand = _call_safe(llm, system, SUMMARY_TASK.format(content=before))
+        new_text, replaced, reason = _safe_replace(before, cand)
         parsed.summary = new_text
-        notes.append(f"summary: {'enhanced' if replaced else 'kept (guard tripped)'}")
+        previews.append(SectionPreview(
+            section="Summary", before=before, after=new_text,
+            changed=replaced, note="" if replaced else f"kept — {reason}",
+        ))
+        notes.append(f"summary: {'enhanced' if replaced else 'kept'}")
+    elif time_up():
+        warnings.append("summary skipped — overall timeout reached")
 
     # --- Skills ---
     skills_replaced = 0
-    for bucket, items in parsed.skills.items():
-        cand = _call(llm, SKILLS_TASK.format(content=items))
-        new_text, replaced = _safe_replace(items, cand, min_ratio=0.7)
+    skills_processed = 0
+    bucket_items = list(parsed.skills.items())[: settings.max_skills_buckets_to_enhance]
+    if len(parsed.skills) > settings.max_skills_buckets_to_enhance:
+        warnings.append(
+            f"skills: {len(parsed.skills) - settings.max_skills_buckets_to_enhance}"
+            f" buckets beyond cap — kept verbatim"
+        )
+    for bucket, items in bucket_items:
+        if time_up():
+            warnings.append(f"skills bucket '{bucket}' skipped — timeout")
+            break
+        skills_processed += 1
+        cand = _call_safe(llm, system, SKILLS_TASK.format(content=items))
+        new_text, replaced, reason = _safe_replace(items, cand, min_ratio=0.7)
         parsed.skills[bucket] = new_text
         if replaced:
             skills_replaced += 1
-    notes.append(f"skills: {skills_replaced}/{len(parsed.skills)} buckets enhanced")
+    notes.append(f"skills: {skills_replaced}/{skills_processed} buckets enhanced")
 
     # --- Experience bullets ---
     bullets_replaced = 0
-    bullets_total = 0
+    bullets_processed = 0
+    bullet_total = sum(len(b.bullets) for b in parsed.experience_blocks)
+    cap = settings.max_bullets_to_enhance
+    seen_bullets = 0
     for block in parsed.experience_blocks:
         new_bullets: list[str] = []
         for bullet in block.bullets:
-            bullets_total += 1
-            cand = _call(llm, BULLET_TASK.format(content=bullet))
-            new_text, replaced = _safe_replace(bullet, cand)
+            seen_bullets += 1
+            if seen_bullets > cap or time_up():
+                # Keep verbatim past the cap
+                new_bullets.append(bullet)
+                continue
+            bullets_processed += 1
+            cand = _call_safe(llm, system, BULLET_TASK.format(content=bullet))
+            new_text, replaced, reason = _safe_replace(bullet, cand)
             new_bullets.append(new_text)
+            previews.append(SectionPreview(
+                section=f"Bullet · {block.title or 'experience'}",
+                before=bullet, after=new_text,
+                changed=replaced, note="" if replaced else f"kept — {reason}",
+            ))
             if replaced:
                 bullets_replaced += 1
         block.bullets = new_bullets
-    notes.append(f"experience: {bullets_replaced}/{bullets_total} bullets enhanced")
+    notes.append(f"experience: {bullets_replaced}/{bullets_processed} bullets enhanced")
+    if bullet_total > cap:
+        warnings.append(
+            f"experience: {bullet_total - cap} bullets beyond cap of {cap} kept verbatim"
+        )
+    if time_up():
+        warnings.append("experience: overall timeout hit before all bullets processed")
 
     # --- Achievements ---
     ach_replaced = 0
     new_ach: list[str] = []
     for line in parsed.achievements:
-        cand = _call(llm, ACHIEVEMENT_TASK.format(content=line))
-        new_text, replaced = _safe_replace(line, cand, min_ratio=0.7)
+        if time_up():
+            new_ach.append(line)
+            continue
+        cand = _call_safe(llm, system, ACHIEVEMENT_TASK.format(content=line))
+        new_text, replaced, reason = _safe_replace(line, cand, min_ratio=0.7)
         new_ach.append(new_text)
         if replaced:
             ach_replaced += 1
     parsed.achievements = new_ach
     notes.append(f"achievements: {ach_replaced}/{len(new_ach)} lines polished")
 
-    return parsed, notes
+    return parsed, notes, previews, warnings
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Convenience: how many sections were touched
-# ──────────────────────────────────────────────────────────────────────
 def count_sections(parsed: ParsedResume) -> int:
     n = 0
     if parsed.summary: n += 1
