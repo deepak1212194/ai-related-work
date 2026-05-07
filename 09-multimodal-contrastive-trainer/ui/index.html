@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Multimodal Contrastive Trainer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root { --bg:#0d0f1a; --surface:#141828; --surface-2:#1b2038; --border:#2a3050;
+      --text:#e2e8f4; --text-soft:#7a86a3; --purple:#8b5cf6; --blue:#3b82f6;
+      --green:#22c55e; --orange:#f59e0b; --red:#ef4444; --radius:12px; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .app{max-width:900px;margin:0 auto;padding:28px 20px}
+    .header{text-align:center;margin-bottom:28px}
+    .header h1{font-size:1.5rem;font-weight:700;background:linear-gradient(135deg,var(--purple),var(--blue));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .header p{color:var(--text-soft);font-size:.85rem;margin-top:4px}
+    .config{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:20px}
+    .config h3{font-size:.88rem;margin-bottom:12px}
+    .config-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+    .field label{font-size:.75rem;color:var(--text-soft);display:block;margin-bottom:4px}
+    .field select,.field input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font-size:.85rem}
+    .actions{display:flex;gap:10px;margin-bottom:20px}
+    .btn{padding:10px 20px;border-radius:var(--radius);border:none;font-weight:600;cursor:pointer;font-size:.85rem;transition:transform .1s}
+    .btn:hover{transform:translateY(-1px)} .btn:disabled{opacity:.5}
+    .btn-primary{background:var(--purple);color:#fff}
+    .btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+    .metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+    .metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+    .metric .label{font-size:.7rem;color:var(--text-soft);text-transform:uppercase;letter-spacing:.06em}
+    .metric .value{font-size:1.5rem;font-weight:700;margin-top:4px}
+    .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:16px}
+    .panel h3{font-size:.9rem;margin-bottom:12px}
+    .loss-chart{width:100%;height:180px;position:relative}
+    .loss-bar{position:absolute;bottom:0;background:linear-gradient(180deg,var(--purple),var(--blue));border-radius:4px 4px 0 0;min-width:20px;transition:height .3s}
+    .loss-label{position:absolute;bottom:-18px;font-size:.68rem;color:var(--text-soft);text-align:center;width:100%}
+    .loss-val{position:absolute;top:-18px;font-size:.68rem;color:var(--text-soft);text-align:center;width:100%}
+    .epoch-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:.82rem}
+    .epoch-row:last-child{border:none}
+    .epoch-row .loss{color:var(--orange)} .epoch-row .acc{color:var(--green)}
+    .empty{text-align:center;padding:48px;color:var(--text-soft)} .empty .icon{font-size:2.4rem;margin-bottom:10px}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .metric,.panel{animation:fadeIn .3s ease}
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>🧠 Multimodal Contrastive Trainer</h1>
+    <p>ResNet-50 + BERT dual encoder with contrastive / focal loss</p>
+  </div>
+
+  <div class="config">
+    <h3>Training Configuration</h3>
+    <div class="config-grid">
+      <div class="field"><label>Loss Function</label><select id="lossType"><option value="contrastive">Contrastive (InfoNCE)</option><option value="focal">Focal Contrastive</option></select></div>
+      <div class="field"><label>Epochs</label><input type="number" id="epochs" value="5" min="1" max="50"/></div>
+      <div class="field"><label>Batch Size</label><input type="number" id="batchSize" value="8" min="2" max="64"/></div>
+      <div class="field"><label>Learning Rate</label><input type="number" id="lr" value="0.0001" step="0.00001" min="0.000001"/></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="btnTrain" onclick="startTraining()">🚀 Train Model</button>
+    <button class="btn btn-secondary" onclick="loadResults()">📊 Load Results</button>
+  </div>
+
+  <div id="content">
+    <div class="empty"><div class="icon">🧠</div><p>Configure and start training to see results</p></div>
+  </div>
+</div>
+
+<script>
+const API='';
+
+async function startTraining(){
+  const btn=document.getElementById('btnTrain');
+  btn.disabled=true; btn.textContent='⏳ Training...';
+  try{
+    const r=await fetch(`${API}/api/train`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({loss_type:v('lossType'),num_epochs:parseInt(v('epochs')),batch_size:parseInt(v('batchSize')),learning_rate:parseFloat(v('lr'))})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Failed');
+    renderResults(d);
+  }catch(e){document.getElementById('content').innerHTML=`<div class="panel"><p>Error: ${e.message}</p></div>`}
+  finally{btn.disabled=false;btn.textContent='🚀 Train Model'}
+}
+
+async function loadResults(){
+  try{
+    const[hr,mr]=await Promise.all([fetch(`${API}/api/history`),fetch(`${API}/api/metrics`)]);
+    if(!hr.ok||!mr.ok)throw new Error('No results yet');
+    const hd=await hr.json(), md=await mr.json();
+    renderResults({history:hd.history,eval_metrics:md});
+  }catch(e){document.getElementById('content').innerHTML=`<div class="panel"><p>${e.message}</p></div>`}
+}
+
+function renderResults(d){
+  let html='';
+  const em=d.eval_metrics||{};
+  html+=`<div class="metrics-grid">
+    <div class="metric"><div class="label">Recall@1</div><div class="value" style="color:var(--green)">${((em.recall_at_1||0)*100).toFixed(1)}%</div></div>
+    <div class="metric"><div class="label">Recall@5</div><div class="value" style="color:var(--blue)">${((em.recall_at_5||0)*100).toFixed(1)}%</div></div>
+    <div class="metric"><div class="label">Mean Rank</div><div class="value">${em.mean_rank||'—'}</div></div>
+    <div class="metric"><div class="label">Epochs</div><div class="value">${d.epochs_completed||d.history?.length||'—'}</div></div>
+  </div>`;
+
+  if(d.history&&d.history.length){
+    // Loss chart
+    const losses=d.history.map(h=>h.loss);
+    const maxL=Math.max(...losses);
+    const w=Math.floor(600/losses.length);
+    html+=`<div class="panel"><h3>Training Loss</h3><div class="loss-chart" style="display:flex;align-items:flex-end;gap:4px;height:160px;padding-bottom:20px">`;
+    for(let i=0;i<losses.length;i++){
+      const h=(losses[i]/maxL*140);
+      html+=`<div style="flex:1;position:relative;height:${h}px;background:linear-gradient(180deg,var(--purple),var(--blue));border-radius:4px 4px 0 0;min-width:16px">
+        <div style="position:absolute;top:-16px;width:100%;text-align:center;font-size:.68rem;color:var(--text-soft)">${losses[i].toFixed(3)}</div>
+        <div style="position:absolute;bottom:-16px;width:100%;text-align:center;font-size:.68rem;color:var(--text-soft)">E${i+1}</div>
+      </div>`;
+    }
+    html+=`</div></div>`;
+
+    // Epoch table
+    html+=`<div class="panel"><h3>Epoch Details</h3>`;
+    for(const e of d.history){
+      html+=`<div class="epoch-row"><span>Epoch ${e.epoch}</span><span class="loss">Loss: ${e.loss.toFixed(4)}</span><span class="acc">Acc: ${(e.accuracy*100).toFixed(1)}%</span></div>`;
+    }
+    html+=`</div>`;
+  }
+  document.getElementById('content').innerHTML=html;
+}
+
+function v(id){return document.getElementById(id).value}
+</script>
+</body>
+</html>

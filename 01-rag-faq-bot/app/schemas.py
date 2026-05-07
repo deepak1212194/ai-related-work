@@ -1,52 +1,67 @@
-"""
-schemas.py — Public API contracts
-==================================
-RAG FAQ Service — App layer
+"""Pydantic schemas for the Semantic Search & Classification Service."""
 
-All request and response shapes for the HTTP API live here so the
-contract is one-stop-discoverable and validated at the edge.
-"""
-
-from typing import Literal
-
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
-# ──────────────────────────────────────────────────────────────────────
-# /api/query
-# ──────────────────────────────────────────────────────────────────────
-class QueryRequest(BaseModel):
-    question: str = Field(..., min_length=1, max_length=1000)
-    top_k: int | None = Field(default=None, ge=1, le=20)
+# ── Requests ─────────────────────────────────────────────────────────
+
+class SearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, description="Natural-language search query")
+    top_k: Optional[int] = Field(5, ge=1, le=50, description="Number of results")
+    classify: bool = Field(True, description="Run weighted-vote classification")
+    generate_answer: bool = Field(False, description="Generate LLM answer (requires OPENAI_API_KEY)")
 
 
-class Citation(BaseModel):
+# ── Responses ────────────────────────────────────────────────────────
+
+class SearchHit(BaseModel):
+    text: str
     score: float
-    snippet: str
+    source: str = ""
+    category: str = ""
 
 
-class QueryResponse(BaseModel):
-    status: Literal["answered", "refused"]
-    answer: str
-    citations: list[Citation] = Field(default_factory=list)
-    elapsed_ms: int
+class ClassificationInfo(BaseModel):
+    predicted_category: str
+    confidence: float
+    category_scores: Dict[str, float] = {}
 
 
-# ──────────────────────────────────────────────────────────────────────
-# /api/ingest
-# ──────────────────────────────────────────────────────────────────────
-class IngestResponse(BaseModel):
-    status: Literal["ok", "error"]
-    chunks_indexed: int
-    elapsed_ms: int
-    message: str | None = None
+class SearchResponse(BaseModel):
+    query: str
+    hits: List[SearchHit]
+    classification: Optional[ClassificationInfo] = None
+    answer: Optional[str] = None
+    answer_status: Optional[str] = None
+    elapsed_ms: int = 0
 
 
-# ──────────────────────────────────────────────────────────────────────
-# /health
-# ──────────────────────────────────────────────────────────────────────
 class HealthResponse(BaseModel):
-    status: Literal["ok", "degraded"]
+    status: str
     index_loaded: bool
     embed_model: str
-    chunks_indexed: int
+    documents_indexed: int
+
+
+class IngestResponse(BaseModel):
+    status: str
+    documents_indexed: int
+    elapsed_ms: int = 0
+    message: str = ""
+
+
+class StatsResponse(BaseModel):
+    total_documents: int
+    categories: Dict[str, int]
+    sources: Dict[str, int]
+    embed_model: str
+    index_dimension: int
+
+
+class EvalResponse(BaseModel):
+    accuracy: float
+    mrr: float
+    recall_at_k: float
+    k: int
+    n_queries: int

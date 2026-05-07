@@ -1,114 +1,93 @@
-# 01 · RAG FAQ Service
+# 01 · Semantic Search & Classification Service
 
-A production-shaped **Retrieval-Augmented Generation** service with a **hallucination guard**, exposed over a typed HTTP API and a built-in chat UI.
+Embedding-based document retrieval with **weighted-vote domain classification** — exposed as a FastAPI service with a built-in search UI.
 
-> The LLM only generates when retrieval crosses a similarity floor. Below the floor, the service returns a structured `refused` response instead of fabricating.
+This mirrors production patterns for **domain mapping** and **talent-to-job matching**: index documents by their semantic embeddings, retrieve nearest neighbours for a query, and classify the query into a domain by aggregating category votes from retrieved evidence.
 
-## Highlights
+## What it does
 
-- **Typed REST API** — FastAPI + Pydantic schemas for every request and response
-- **Singleton model + index** — embedding model and FAISS index loaded once at startup, reused across requests (sub-100 ms p95 retrieval after warmup)
-- **Built-in chat UI** at `/` — single-file HTML, dark/light auto, streams citations alongside answers
-- **Hallucination guard** — `min_sim` floor + `refused` status so callers can branch on quality
-- **Health endpoint** for liveness / readiness probes
-- **Dockerised** — single container, healthcheck, non-root, persistent index volume
-- **Configurable** — every knob (`top_k`, `min_sim`, model name) overrideable via `RAG_*` env vars
+1. **Ingest** — Loads documents from `data/` (CSV, JSON, or text), chunks them, embeds with a sentence transformer, and builds a FAISS index.
+2. **Search** — Encodes a natural-language query, retrieves top-K nearest documents by cosine similarity.
+3. **Classify** — Aggregates category labels from retrieved documents using score-weighted voting. Returns the predicted domain with a confidence measure.
+4. **Evaluate** — Computes retrieval quality metrics (Accuracy, MRR, Recall@K) on labelled documents.
 
 ## Architecture
 
 ```
-       ┌──────────┐                    ┌─────────────────────────────────┐
-       │  Chat UI │  ─── /api/query ──▶│  FastAPI                        │
-       │   (web)  │                    │  ├─ /api/query                  │
-       └──────────┘                    │  ├─ /api/ingest                 │
-                                       │  └─ /health                     │
-                                       └────┬────────────────────────────┘
-                                            │
-                          ┌─────────────────┼──────────────────┐
-                          ▼                 ▼                  ▼
-                   ┌──────────┐      ┌──────────┐       ┌──────────┐
-                   │ retrieve │      │ generate │       │  ingest  │
-                   │ (FAISS)  │      │ (LLM +   │       │ (chunk + │
-                   │          │      │  guard)  │       │  embed)  │
-                   └──────────┘      └──────────┘       └──────────┘
+Query → SentenceTransformer → FAISS Index → Top-K Documents
+                                                  ↓
+                                    Weighted Vote Aggregation
+                                                  ↓
+                                    Predicted Category + Confidence
 ```
 
-## Project layout
-
-```
-01-rag-faq-bot/
-├── app/                      # service layer (FastAPI)
-│   ├── main.py               # routes + lifespan
-│   ├── config.py             # pydantic-settings
-│   ├── schemas.py            # request / response models
-│   └── deps.py               # process-wide singletons
-├── src/                      # core RAG logic (importable as a library)
-│   ├── ingest.py             # chunk → embed → FAISS index
-│   ├── retrieve.py           # top-K retrieval with score floor
-│   ├── generate.py           # LLM call with constrained-context prompt
-│   └── pipeline.py           # CLI end-to-end (still works standalone)
-├── ui/
-│   └── index.html            # chat interface
-├── data/
-│   └── sample_faqs.txt       # public, hand-written FAQs
-├── tests/                    # pytest smoke tests
-├── Dockerfile                # python:3.11-slim, healthcheck, single worker
-├── docker-compose.yml        # one-command stack
-└── requirements.txt
-```
-
-## Run locally
+## Quick start
 
 ```bash
 cd 01-rag-faq-bot
-python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# 1. Start the service (auto-builds index on first /api/ingest)
+# Ingest sample documents
+python -m src.ingest
+
+# Search from CLI
+python -m src.pipeline -q "real-time object detection"
+
+# Run evaluation
+python -m src.pipeline --eval
+
+# Start the API + UI
 uvicorn app.main:app --reload --port 8000
-
-# 2. Build the index
-curl -X POST http://localhost:8000/api/ingest
-
-# 3. Open the chat UI
-open http://localhost:8000/                            # macOS
-start http://localhost:8000/                           # Windows
+# Open http://localhost:8000
 ```
 
-## Run with Docker
+## API
 
-```bash
-cd 01-rag-faq-bot
-OPENAI_API_KEY=sk-...   docker compose up --build      # optional key for real generation
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Service status + index info |
+| `POST` | `/api/ingest` | Rebuild index from `data/` |
+| `POST` | `/api/search` | Search + classify a query |
+| `GET` | `/api/stats` | Index statistics, category distribution |
+| `POST` | `/api/evaluate` | Retrieval quality metrics |
+
+### Search request
+
+```json
+{
+  "query": "build recommendation systems with PyTorch",
+  "top_k": 5,
+  "classify": true,
+  "generate_answer": false
+}
 ```
 
-The compose file mounts `./artifacts` so the FAISS index survives `docker compose down`.
+### Search response
 
-## API reference
-
-```
-GET  /                  → chat UI
-GET  /health            → readiness ({status, index_loaded, chunks_indexed, embed_model})
-POST /api/ingest        → re-build the FAISS index from data/sample_faqs.txt
-POST /api/query         → {question} → {status, answer, citations[], elapsed_ms}
-```
-
-OpenAPI spec auto-generated at `/docs` (Swagger) and `/redoc`.
-
-## Configuration (env vars, all prefixed `RAG_`)
-
-| Variable | Default | Notes |
-|---|---|---|
-| `RAG_EMBED_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Swap for `all-mpnet-base-v2` for higher quality |
-| `RAG_TOP_K` | `3` | Chunks retrieved per query |
-| `RAG_MIN_SIM` | `0.45` | Score floor — below this, the service refuses |
-| `RAG_LLM_MODEL` | `gpt-4o-mini` | Any OpenAI chat model |
-| `OPENAI_API_KEY` | *(unset)* | Without it, the service runs in offline-stub mode |
-
-## Tests
-
-```bash
-pytest -q
+```json
+{
+  "query": "build recommendation systems with PyTorch",
+  "hits": [
+    {"text": "...", "score": 0.847, "category": "AI/ML Engineering", "source": "documents.csv"}
+  ],
+  "classification": {
+    "predicted_category": "AI/ML Engineering",
+    "confidence": 0.72,
+    "category_scores": {"AI/ML Engineering": 0.72, "NLP/NLU": 0.18, "...": "..."}
+  },
+  "elapsed_ms": 12
+}
 ```
 
-The smoke test boots the FastAPI app in-process, re-indexes a tiny fixture, and asserts both the answered and refused paths.
+## How it maps to production
+
+| This demo | Production pattern |
+|-----------|-------------------|
+| CSV document ingestion | Azure ML pipeline ingesting job descriptions from SQL/Event Hub |
+| FAISS flat index | FAISS IVF index with 500K+ documents, rebuilt nightly |
+| Weighted-vote classification | Domain mapping: classify jobs into taxonomy using nearest-neighbour voting |
+| Evaluation metrics (MRR) | Offline evaluation before promoting a new embedding model version |
+
+## Stack
+
+FastAPI · FAISS · SentenceTransformers · Pydantic · Docker

@@ -3,219 +3,308 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RAG FAQ Bot · Chat</title>
+  <title>Semantic Search & Classification</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #0d1117; --bg-elev: #161b22; --bg-soft: #1f2530;
-      --text: #e6edf3; --muted: #8b949e; --accent: #6ea8fe;
-      --accent-soft: rgba(110,168,254,.16); --border: #30363d;
-      --ok: #34d399; --warn: #fbbf24; --err: #f87171;
+      --bg: #0f1117; --surface: #1a1d27; --surface-2: #242836;
+      --border: #2d3348; --text: #e4e8f1; --text-soft: #8b93a8;
+      --accent: #6c8aff; --accent-soft: rgba(108,138,255,0.12);
+      --green: #34d399; --orange: #fb923c; --red: #f43f5e;
+      --radius: 12px; --shadow: 0 8px 32px rgba(0,0,0,0.4);
     }
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #fafbff; --bg-elev: #fff; --bg-soft: #f0f3fa;
-        --text: #1a1d29; --muted: #6b7280; --accent: #4f8cff;
-        --accent-soft: rgba(79,140,255,.12); --border: #e3e6ee;
-      }
-    }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg); color: var(--text);
-      display: flex; flex-direction: column; align-items: center;
-      padding: 24px;
-    }
-    header {
-      width: 100%; max-width: 760px;
-      display: flex; align-items: center; justify-content: space-between;
-      padding-bottom: 14px; border-bottom: 1px solid var(--border);
-    }
-    .brand { display: flex; align-items: center; gap: 10px; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
-    .dot.degraded { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
-    h1 { font-size: 1rem; font-weight: 600; margin: 0; }
-    .meta { color: var(--muted); font-size: .82rem; }
-    .actions button {
-      background: var(--bg-soft); color: var(--text);
-      border: 1px solid var(--border); border-radius: 8px;
-      padding: 6px 12px; font-size: .82rem; cursor: pointer;
-    }
-    .actions button:hover { border-color: var(--accent); }
-    main {
-      width: 100%; max-width: 760px; flex: 1;
-      display: flex; flex-direction: column;
-      padding: 18px 0;
-    }
-    .messages {
-      flex: 1; overflow-y: auto; min-height: 320px;
-      display: flex; flex-direction: column; gap: 14px;
-      padding-right: 4px;
-    }
-    .msg { display: flex; gap: 10px; }
-    .msg .avatar {
-      flex: 0 0 auto; width: 30px; height: 30px;
-      border-radius: 50%; display: grid; place-items: center;
-      font-size: .82rem; font-weight: 700;
-    }
-    .msg.user .avatar  { background: var(--accent); color: #fff; }
-    .msg.bot  .avatar  { background: var(--bg-soft); color: var(--accent); border: 1px solid var(--border); }
-    .bubble {
-      flex: 1; background: var(--bg-elev); border: 1px solid var(--border);
-      border-radius: 12px; padding: 12px 14px; line-height: 1.5;
-    }
-    .bubble.user { background: var(--accent-soft); border-color: var(--accent); }
-    .bubble.refused { border-color: var(--warn); }
-    .bubble .body { white-space: pre-wrap; }
-    .citations { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
-    .citation {
-      font-size: .82rem; color: var(--muted); padding: 4px 0;
-      display: flex; gap: 6px;
-    }
-    .citation .score {
-      flex: 0 0 auto; padding: 1px 6px; border-radius: 4px;
-      background: var(--bg-soft); color: var(--text); font-weight: 600;
-    }
-    .stats { font-size: .76rem; color: var(--muted); margin-top: 6px; }
-    form {
-      display: flex; gap: 8px; padding-top: 14px;
-      border-top: 1px solid var(--border);
-    }
-    input[type=text] {
-      flex: 1; padding: 12px 14px; border-radius: 10px;
-      border: 1px solid var(--border); background: var(--bg-elev);
-      color: var(--text); font-size: .95rem; outline: none;
-    }
-    input[type=text]:focus { border-color: var(--accent); }
-    button.send {
-      padding: 0 18px; border-radius: 10px; border: none;
-      background: var(--accent); color: #fff;
-      font-weight: 600; cursor: pointer;
-    }
-    button.send:disabled { opacity: .5; cursor: not-allowed; }
-    .empty {
-      color: var(--muted); text-align: center; padding: 60px 0; font-size: .92rem;
-    }
-    .empty .hint { margin-top: 6px; font-size: .8rem; }
-    .typing { color: var(--muted); font-style: italic; padding: 6px 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    .app { max-width: 960px; margin: 0 auto; padding: 32px 20px; }
+
+    /* Header */
+    .header { text-align: center; margin-bottom: 36px; }
+    .header h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 6px;
+      background: linear-gradient(135deg, #6c8aff, #a78bfa); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .header p { color: var(--text-soft); font-size: 0.88rem; }
+
+    /* Status bar */
+    .status-bar { display: flex; gap: 8px; justify-content: center; margin-bottom: 24px; flex-wrap: wrap; }
+    .status-pill { padding: 5px 12px; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+      background: var(--surface); border: 1px solid var(--border); color: var(--text-soft); }
+    .status-pill.ok { border-color: var(--green); color: var(--green); }
+
+    /* Search box */
+    .search-box { display: flex; gap: 10px; margin-bottom: 12px; }
+    .search-box input { flex: 1; padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+    .search-box input:focus { border-color: var(--accent); }
+    .search-box button { padding: 12px 24px; border-radius: var(--radius); border: none;
+      background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9rem;
+      transition: transform 0.15s, opacity 0.15s; }
+    .search-box button:hover { transform: translateY(-1px); }
+    .search-box button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Options row */
+    .options { display: flex; gap: 16px; margin-bottom: 24px; align-items: center; }
+    .options label { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text-soft); cursor: pointer; }
+    .options input[type="checkbox"] { accent-color: var(--accent); }
+    .options select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); font-size: 0.82rem; }
+
+    /* Results */
+    .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .results-header h2 { font-size: 1rem; font-weight: 600; }
+    .results-header .elapsed { font-size: 0.78rem; color: var(--text-soft); }
+
+    /* Classification card */
+    .classification { background: var(--accent-soft); border: 1px solid rgba(108,138,255,0.25);
+      border-radius: var(--radius); padding: 16px; margin-bottom: 18px; }
+    .classification .label { font-size: 0.78rem; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    .classification .category { font-size: 1.2rem; font-weight: 700; margin: 4px 0; }
+    .classification .conf { font-size: 0.82rem; color: var(--text-soft); }
+    .cat-bars { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .cat-bar { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; }
+    .cat-bar .bar { height: 6px; border-radius: 3px; background: var(--accent); min-width: 8px; }
+
+    /* Hit card */
+    .hit { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; margin-bottom: 10px; transition: border-color 0.2s; }
+    .hit:hover { border-color: var(--accent); }
+    .hit-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .hit-score { font-size: 0.78rem; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+    .hit-score.high { background: rgba(52,211,153,0.15); color: var(--green); }
+    .hit-score.mid { background: rgba(251,146,60,0.15); color: var(--orange); }
+    .hit-score.low { background: rgba(244,63,94,0.15); color: var(--red); }
+    .hit-cat { font-size: 0.75rem; padding: 3px 8px; border-radius: 6px; background: var(--surface-2); color: var(--text-soft); }
+    .hit-text { font-size: 0.88rem; color: var(--text-soft); line-height: 1.5; }
+    .hit-source { font-size: 0.72rem; color: var(--text-soft); margin-top: 8px; opacity: 0.6; }
+
+    /* Action buttons */
+    .actions { display: flex; gap: 10px; margin-bottom: 24px; }
+    .actions button { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-soft); font-size: 0.82rem; cursor: pointer;
+      transition: all 0.15s; font-weight: 500; }
+    .actions button:hover { border-color: var(--accent); color: var(--text); }
+
+    /* Stats panel */
+    .stats-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; margin-top: 20px; display: none; }
+    .stats-panel.visible { display: block; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .stat-card { background: var(--surface-2); border-radius: 8px; padding: 14px; }
+    .stat-card .label { font-size: 0.72rem; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat-card .value { font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
+
+    /* Empty state */
+    .empty { text-align: center; padding: 48px 20px; color: var(--text-soft); }
+    .empty .icon { font-size: 2.4rem; margin-bottom: 12px; }
+
+    /* Eval panel */
+    .eval-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; margin-top: 12px; display: none; }
+    .eval-panel.visible { display: block; }
+    .eval-metric { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .eval-metric:last-child { border-bottom: none; }
+    .eval-metric .name { font-size: 0.88rem; color: var(--text-soft); }
+    .eval-metric .val { font-size: 0.95rem; font-weight: 600; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .hit, .classification { animation: fadeIn 0.3s ease; }
   </style>
 </head>
 <body>
-  <header>
-    <div class="brand">
-      <span class="dot" id="statusDot"></span>
-      <h1>RAG FAQ Bot</h1>
-      <span class="meta" id="statusMeta">connecting…</span>
-    </div>
-    <div class="actions">
-      <button id="reindexBtn" title="Re-build the FAISS index from the data folder">↻ Re-index</button>
-    </div>
-  </header>
+<div class="app">
+  <div class="header">
+    <h1>Semantic Search & Classification</h1>
+    <p>Embedding-based document retrieval with weighted-vote domain classification</p>
+  </div>
 
-  <main>
-    <div class="messages" id="messages">
-      <div class="empty" id="empty">
-        Ask me anything about RAG, FAISS, or sentence transformers.
-        <div class="hint">Tip: try “What is hallucination mitigation in RAG?”</div>
+  <div class="status-bar" id="statusBar">
+    <span class="status-pill" id="statusHealth">⏳ Loading...</span>
+    <span class="status-pill" id="statusDocs">— docs</span>
+    <span class="status-pill" id="statusModel">—</span>
+  </div>
+
+  <div class="search-box">
+    <input type="text" id="queryInput" placeholder="Search: e.g. 'real-time object detection on edge devices'" />
+    <button id="searchBtn" onclick="doSearch()" disabled>Search</button>
+  </div>
+
+  <div class="options">
+    <label><input type="checkbox" id="chkClassify" checked /> Classify</label>
+    <label>
+      Top-K:
+      <select id="selTopK">
+        <option value="3">3</option>
+        <option value="5" selected>5</option>
+        <option value="10">10</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="actions">
+    <button onclick="doIngest()">🔄 Rebuild Index</button>
+    <button onclick="toggleStats()">📊 Index Stats</button>
+    <button onclick="doEval()">📈 Evaluate</button>
+  </div>
+
+  <div class="stats-panel" id="statsPanel"></div>
+  <div class="eval-panel" id="evalPanel"></div>
+
+  <div id="resultsArea">
+    <div class="empty">
+      <div class="icon">🔍</div>
+      <p>Enter a query to search across indexed documents</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    document.getElementById('statusHealth').textContent = d.status === 'ok' ? '✅ Online' : '⚠️ Degraded';
+    document.getElementById('statusHealth').className = 'status-pill' + (d.status === 'ok' ? ' ok' : '');
+    document.getElementById('statusDocs').textContent = `${d.documents_indexed} docs`;
+    document.getElementById('statusModel').textContent = d.embed_model.split('/').pop();
+    document.getElementById('searchBtn').disabled = !d.index_loaded;
+  } catch(e) {
+    document.getElementById('statusHealth').textContent = '❌ Offline';
+  }
+}
+
+async function doSearch() {
+  const query = document.getElementById('queryInput').value.trim();
+  if (!query) return;
+
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true; btn.textContent = '...';
+
+  try {
+    const r = await fetch(`${API}/api/search`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        query,
+        top_k: parseInt(document.getElementById('selTopK').value),
+        classify: document.getElementById('chkClassify').checked,
+        generate_answer: false,
+      })
+    });
+    const d = await r.json();
+    renderResults(d);
+  } catch(e) {
+    document.getElementById('resultsArea').innerHTML = `<div class="empty"><p>Error: ${e.message}</p></div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Search';
+  }
+}
+
+function renderResults(data) {
+  const area = document.getElementById('resultsArea');
+  let html = '';
+
+  html += `<div class="results-header"><h2>${data.hits.length} results</h2><span class="elapsed">${data.elapsed_ms}ms</span></div>`;
+
+  if (data.classification) {
+    const c = data.classification;
+    const pct = (c.confidence * 100).toFixed(0);
+    html += `<div class="classification">
+      <div class="label">Classified Domain</div>
+      <div class="category">${c.predicted_category}</div>
+      <div class="conf">Confidence: ${pct}% · based on weighted retrieval voting</div>
+      <div class="cat-bars">`;
+    for (const [cat, score] of Object.entries(c.category_scores)) {
+      const w = Math.max(8, score * 200);
+      html += `<div class="cat-bar"><div class="bar" style="width:${w}px"></div>${cat} ${(score*100).toFixed(0)}%</div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  for (const hit of data.hits) {
+    const cls = hit.score >= 0.6 ? 'high' : hit.score >= 0.35 ? 'mid' : 'low';
+    html += `<div class="hit">
+      <div class="hit-top">
+        <span class="hit-score ${cls}">${hit.score.toFixed(3)}</span>
+        ${hit.category ? `<span class="hit-cat">${hit.category}</span>` : ''}
       </div>
-    </div>
+      <div class="hit-text">${hit.text}</div>
+      ${hit.source ? `<div class="hit-source">Source: ${hit.source}</div>` : ''}
+    </div>`;
+  }
 
-    <form id="chatForm" autocomplete="off">
-      <input type="text" id="q" placeholder="Type your question…" required maxlength="1000" />
-      <button class="send" type="submit" id="sendBtn">Send</button>
-    </form>
-  </main>
+  if (!data.hits.length) {
+    html += '<div class="empty"><p>No results found for this query.</p></div>';
+  }
 
-  <script>
-    const $ = (id) => document.getElementById(id);
-    const messages = $("messages");
-    const empty = $("empty");
-    const statusDot = $("statusDot");
-    const statusMeta = $("statusMeta");
+  area.innerHTML = html;
+}
 
-    async function refreshHealth() {
-      try {
-        const r = await fetch("/health").then(x => x.json());
-        statusDot.classList.toggle("degraded", r.status !== "ok");
-        statusMeta.textContent = `${r.embed_model.split("/").pop()} · ${r.chunks_indexed} chunks`;
-      } catch { statusMeta.textContent = "offline"; statusDot.classList.add("degraded"); }
-    }
-    refreshHealth();
+async function doIngest() {
+  try {
+    const r = await fetch(`${API}/api/ingest`, {method: 'POST'});
+    const d = await r.json();
+    alert(`Index rebuilt: ${d.documents_indexed} documents in ${d.elapsed_ms}ms`);
+    checkHealth();
+  } catch(e) { alert('Ingest failed: ' + e.message); }
+}
 
-    $("reindexBtn").onclick = async () => {
-      const btn = $("reindexBtn");
-      btn.disabled = true; btn.textContent = "indexing…";
-      try {
-        const r = await fetch("/api/ingest", { method: "POST" }).then(x => x.json());
-        addBot(`Re-indexed: ${r.chunks_indexed} chunks (${r.elapsed_ms} ms)`, []);
-      } catch (e) { addBot(`Re-index failed: ${e}`, []); }
-      btn.disabled = false; btn.textContent = "↻ Re-index";
-      refreshHealth();
-    };
+function toggleStats() {
+  const panel = document.getElementById('statsPanel');
+  if (panel.classList.contains('visible')) {
+    panel.classList.remove('visible'); return;
+  }
+  fetch(`${API}/api/stats`).then(r => r.json()).then(d => {
+    let html = `<div class="stats-grid">
+      <div class="stat-card"><div class="label">Documents</div><div class="value">${d.total_documents}</div></div>
+      <div class="stat-card"><div class="label">Categories</div><div class="value">${Object.keys(d.categories).length}</div></div>
+      <div class="stat-card"><div class="label">Dimension</div><div class="value">${d.index_dimension}</div></div>
+      <div class="stat-card"><div class="label">Model</div><div class="value" style="font-size:0.85rem">${d.embed_model.split('/').pop()}</div></div>
+    </div>`;
 
-    function escapeHtml(s) {
-      return s.replace(/[&<>"']/g, c => ({
-        "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;"
-      }[c]));
-    }
-
-    function addUser(text) {
-      empty?.remove();
-      messages.insertAdjacentHTML("beforeend", `
-        <div class="msg user">
-          <div class="avatar">D</div>
-          <div class="bubble user"><div class="body">${escapeHtml(text)}</div></div>
-        </div>`);
-      messages.scrollTop = messages.scrollHeight;
+    html += '<h3 style="margin:16px 0 8px;font-size:0.88rem;color:var(--text-soft)">Category Distribution</h3>';
+    const sorted = Object.entries(d.categories).sort((a,b) => b[1]-a[1]);
+    const max = sorted[0][1];
+    for (const [cat, cnt] of sorted) {
+      const w = (cnt / max * 100);
+      html += `<div style="display:flex;align-items:center;gap:10px;margin:4px 0;font-size:0.82rem">
+        <span style="width:140px;color:var(--text-soft)">${cat}</span>
+        <div style="flex:1;height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden">
+          <div style="width:${w}%;height:100%;background:var(--accent);border-radius:4px"></div>
+        </div>
+        <span style="width:24px;text-align:right">${cnt}</span>
+      </div>`;
     }
 
-    function addBot(answer, citations, status, ms) {
-      empty?.remove();
-      const ctsHtml = (citations || []).map(c =>
-        `<div class="citation"><span class="score">${c.score.toFixed(2)}</span><span>${escapeHtml(c.snippet)}</span></div>`
-      ).join("");
-      const refusedClass = status === "refused" ? " refused" : "";
-      messages.insertAdjacentHTML("beforeend", `
-        <div class="msg bot">
-          <div class="avatar">🤖</div>
-          <div class="bubble bot${refusedClass}">
-            <div class="body">${escapeHtml(answer)}</div>
-            ${ctsHtml ? `<div class="citations">${ctsHtml}</div>` : ""}
-            ${ms != null ? `<div class="stats">${status} · ${ms} ms</div>` : ""}
-          </div>
-        </div>`);
-      messages.scrollTop = messages.scrollHeight;
-    }
+    panel.innerHTML = html;
+    panel.classList.add('visible');
+  }).catch(e => alert('Stats failed: ' + e.message));
+}
 
-    function addTyping() {
-      messages.insertAdjacentHTML("beforeend",
-        `<div class="msg bot" id="typing"><div class="avatar">🤖</div><div class="typing">thinking…</div></div>`);
-      messages.scrollTop = messages.scrollHeight;
-    }
-    function removeTyping() { document.getElementById("typing")?.remove(); }
+async function doEval() {
+  const panel = document.getElementById('evalPanel');
+  if (panel.classList.contains('visible')) { panel.classList.remove('visible'); return; }
 
-    $("chatForm").onsubmit = async (e) => {
-      e.preventDefault();
-      const q = $("q").value.trim();
-      if (!q) return;
-      addUser(q); $("q").value = "";
-      $("sendBtn").disabled = true;
-      addTyping();
-      try {
-        const r = await fetch("/api/query", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: q }),
-        }).then(x => x.json());
-        removeTyping();
-        addBot(r.answer, r.citations, r.status, r.elapsed_ms);
-      } catch (err) {
-        removeTyping();
-        addBot(`Error: ${err.message || err}`, []);
-      }
-      $("sendBtn").disabled = false;
-      $("q").focus();
-    };
-  </script>
+  try {
+    const r = await fetch(`${API}/api/evaluate`, {method: 'POST'});
+    const d = await r.json();
+    let html = '<h3 style="margin-bottom:12px;font-size:0.95rem">Retrieval Evaluation</h3>';
+    const metrics = [
+      ['Accuracy (Top-1)', (d.accuracy * 100).toFixed(1) + '%'],
+      ['MRR', d.mrr.toFixed(4)],
+      [`Recall@${d.k}`, (d.recall_at_k * 100).toFixed(1) + '%'],
+      ['Queries evaluated', d.n_queries],
+    ];
+    for (const [name, val] of metrics) {
+      html += `<div class="eval-metric"><span class="name">${name}</span><span class="val">${val}</span></div>`;
+    }
+    panel.innerHTML = html;
+    panel.classList.add('visible');
+  } catch(e) { alert('Eval failed: ' + e.message); }
+}
+
+document.getElementById('queryInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+checkHealth();
+</script>
 </body>
 </html>

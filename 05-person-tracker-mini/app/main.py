@@ -32,6 +32,7 @@ from .config import UI_DIR, settings
 from .schemas import FrameUpdate, HealthResponse, TrackBox, UploadResponse
 from src.detector import PersonDetector
 from src.tracker import IouTracker
+from src.dwell import DwellTimeEngine, Zone
 
 logging.basicConfig(
     level=settings.log_level,
@@ -45,6 +46,7 @@ EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 # Detector singleton (loading YOLO is slow)
 # ──────────────────────────────────────────────────────────────────────
 _detector: PersonDetector | None = None
+_dwell_engine: DwellTimeEngine | None = None
 
 
 def get_detector() -> PersonDetector:
@@ -55,6 +57,13 @@ def get_detector() -> PersonDetector:
             model_path=settings.yolo_model, conf=settings.detect_conf,
         )
     return _detector
+
+
+def get_dwell_engine() -> DwellTimeEngine:
+    global _dwell_engine
+    if _dwell_engine is None:
+        _dwell_engine = DwellTimeEngine(dwell_threshold=30.0, alert_interval=10.0)
+    return _dwell_engine
 
 
 @asynccontextmanager
@@ -170,6 +179,10 @@ async def track_stream(ws: WebSocket):
             dets = await asyncio.to_thread(detector.detect, frame)
             tracks = tracker.update(dets)
 
+            # Dwell-time analytics
+            dwell = get_dwell_engine()
+            dwell_alerts = dwell.update(tracks, frame_idx)
+
             update = FrameUpdate(
                 frame=frame_idx,
                 timestamp_s=frame_idx / fps,
@@ -183,7 +196,14 @@ async def track_stream(ws: WebSocket):
                     for t in tracks
                 ],
             )
-            await ws.send_text(update.model_dump_json())
+            payload = json.loads(update.model_dump_json())
+            if dwell_alerts:
+                payload["dwell_alerts"] = [
+                    {"track_id": a.track_id, "zone_id": a.zone_id,
+                     "dwell_seconds": round(a.dwell_seconds, 1)}
+                    for a in dwell_alerts
+                ]
+            await ws.send_text(json.dumps(payload))
 
         cap.release()
         await ws.send_json({"event": "done", "frames": frame_idx})
@@ -204,7 +224,82 @@ async def track_stream(ws: WebSocket):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Module 4: UI
+# Module 4: Zone Management & Analytics
+# ──────────────────────────────────────────────────────────────────────
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+
+class ZoneRequest(BaseModel):
+    zone_id: str
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    label: str = ""
+
+
+@app.post("/api/zones", tags=["analytics"])
+def add_zone(req: ZoneRequest):
+    """Add or update a monitoring zone."""
+    dwell = get_dwell_engine()
+    dwell.add_zone(Zone(
+        zone_id=req.zone_id, x1=req.x1, y1=req.y1,
+        x2=req.x2, y2=req.y2, label=req.label,
+    ))
+    return {"status": "ok", "zones": len(dwell.zones)}
+
+
+@app.delete("/api/zones/{zone_id}", tags=["analytics"])
+def remove_zone(zone_id: str):
+    """Remove a monitoring zone."""
+    dwell = get_dwell_engine()
+    dwell.remove_zone(zone_id)
+    return {"status": "ok", "zones": len(dwell.zones)}
+
+
+@app.get("/api/zones", tags=["analytics"])
+def list_zones():
+    """List all monitoring zones."""
+    dwell = get_dwell_engine()
+    return {"zones": [
+        {"zone_id": z.zone_id, "x1": z.x1, "y1": z.y1,
+         "x2": z.x2, "y2": z.y2, "label": z.label}
+        for z in dwell.zones.values()
+    ]}
+
+
+@app.get("/api/analytics", tags=["analytics"])
+def analytics():
+    """Get zone occupancy and dwell statistics."""
+    dwell = get_dwell_engine()
+    stats = dwell.get_zone_stats()
+    dwelling = dwell.get_dwelling_tracks()
+    return {
+        "zone_stats": [
+            {"zone_id": s.zone_id, "occupancy": s.current_occupancy,
+             "total_entries": s.total_entries, "active_dwellers": s.active_dwellers,
+             "avg_dwell_seconds": s.avg_dwell_seconds}
+            for s in stats
+        ],
+        "dwelling_tracks": [
+            {"track_id": d.track_id, "zone_id": d.zone_id,
+             "dwell_seconds": round(d.dwell_seconds, 1)}
+            for d in dwelling
+        ],
+        "total_alerts": len(dwell.alert_history),
+    }
+
+
+@app.get("/api/heatmap", tags=["analytics"])
+def heatmap():
+    """Get heatmap data for visualization."""
+    dwell = get_dwell_engine()
+    return {"heatmap": dwell.get_heatmap_data()}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Module 5: UI
 # ──────────────────────────────────────────────────────────────────────
 @app.get("/", include_in_schema=False)
 def root_ui():

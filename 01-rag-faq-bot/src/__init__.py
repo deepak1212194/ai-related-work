@@ -1,1 +1,1 @@
-"""RAG FAQ Bot — retrieval-augmented generation with hallucination guard."""
+"""Semantic Search & Classification — core modules."""

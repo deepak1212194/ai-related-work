@@ -1,45 +1,98 @@
 """
-pipeline.py — End-to-End RAG Pipeline
-======================================
-RAG FAQ Bot — Module 4
-
-CLI entry that wires retrieve.py and generate.py into a single call.
-
+pipeline.py — CLI entry point for search and evaluation
+=========================================================
 Usage:
-    python -m src.pipeline --question "What is FAISS?"
+    python -m src.pipeline -q "machine learning engineer"
+    python -m src.pipeline --eval
 """
 
 import argparse
 import json
+import sys
+import time
+from pathlib import Path
 
-from .generate import Answer, generate
-from .retrieve import search
+import faiss
+from sentence_transformers import SentenceTransformer
 
-
-# ──────────────────────────────────────────────────────────────────────
-# Module 1: One-shot run
-# ──────────────────────────────────────────────────────────────────────
-def answer_question(question: str, top_k: int = 3) -> Answer:
-    """Retrieve top-K chunks and ask the generator for a structured answer."""
-    print(f"[RAG] Question: {question}")
-    chunks = search(question, top_k=top_k)
-    print(f"[RAG] Retrieved {len(chunks)} chunks above similarity floor")
-    return generate(question, chunks)
+from .ingest import ARTIFACTS_DIR, INDEX_PATH, META_PATH, EMBED_MODEL_NAME
+from .retrieve import retrieve, classify_from_results, evaluate_retrieval
+from .generate import generate
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Entry Point
-# ──────────────────────────────────────────────────────────────────────
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the RAG pipeline once.")
-    parser.add_argument("--question", "-q", required=True)
-    parser.add_argument("--top-k", "-k", type=int, default=3)
+def _load_assets():
+    """Load the model, index, and metadata."""
+    if not INDEX_PATH.exists():
+        sys.exit("[ERR] Index not found. Run: python -m src.ingest")
+    model = SentenceTransformer(EMBED_MODEL_NAME)
+    index = faiss.read_index(str(INDEX_PATH))
+    meta = json.loads(META_PATH.read_text(encoding="utf-8"))
+    return model, index, meta["documents"]
+
+
+def search(query: str, top_k: int = 5):
+    """Run a search query and print results."""
+    model, index, docs = _load_assets()
+
+    t0 = time.perf_counter()
+    results = retrieve(query, model, index, docs, top_k=top_k)
+    classification = classify_from_results(results)
+    answer = generate(query, results)
+    elapsed = int((time.perf_counter() - t0) * 1000)
+
+    print(f"\n{'='*60}")
+    print(f"  Query: {query}")
+    print(f"  Results: {len(results)} | Elapsed: {elapsed}ms")
+    print(f"{'='*60}\n")
+
+    if classification:
+        print(f"  Classification: {classification.predicted_category} "
+              f"(confidence: {classification.confidence:.1%})")
+        print(f"  Category scores: {classification.category_scores}\n")
+
+    for i, r in enumerate(results, 1):
+        cat = f" [{r.category}]" if r.category else ""
+        print(f"  [{i}] score={r.score:.3f}{cat}")
+        print(f"      {r.text[:200]}...\n")
+
+    print(f"  Answer ({answer.status}):")
+    print(f"  {answer.answer}\n")
+
+
+def evaluate():
+    """Run evaluation on labelled data."""
+    model, index, docs = _load_assets()
+
+    # Build eval set from indexed docs that have categories
+    labelled = [d for d in docs if d.get("category")]
+    if len(labelled) < 3:
+        print("[EVAL] Not enough labelled documents for evaluation.")
+        return
+
+    queries = [d["text"][:100] for d in labelled]
+    categories = [d["category"] for d in labelled]
+
+    metrics = evaluate_retrieval(queries, categories, model, index, docs)
+    print(f"\n{'='*60}")
+    print("  Retrieval Evaluation")
+    print(f"{'='*60}")
+    for k, v in metrics.items():
+        print(f"  {k}: {v}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Semantic Search CLI")
+    parser.add_argument("-q", "--query", type=str, help="Search query")
+    parser.add_argument("-k", "--top-k", type=int, default=5)
+    parser.add_argument("--eval", action="store_true", help="Run evaluation")
     args = parser.parse_args()
 
-    result = answer_question(args.question, top_k=args.top_k)
-
-    print("\n[RAG] Result:")
-    print(json.dumps(result.model_dump(), indent=2, ensure_ascii=False))
+    if args.eval:
+        evaluate()
+    elif args.query:
+        search(args.query, args.top_k)
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":

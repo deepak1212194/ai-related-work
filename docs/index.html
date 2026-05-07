@@ -1,660 +1,322 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Deepak Chaudhary · AI/ML Engineer · Portfolio</title>
-  <meta name="description" content="An interactive portfolio of five production-shaped AI services — RAG, multi-agent SSE streaming, SBERT training pipeline, CLIP visual search, and an edge person tracker. Each project is a FastAPI service with a built-in UI and Docker." />
-  <meta name="theme-color" content="#4f8cff" />
-
-  <!-- Open Graph / social preview -->
-  <meta property="og:title" content="Deepak Chaudhary — AI/ML Engineer" />
-  <meta property="og:description" content="Senior AI/ML Engineer · 4+ years · NVIDIA GTC 2026 · Granted Indian Patent · 5 production-shaped demos." />
-  <meta property="og:type" content="website" />
-
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧠%3C/text%3E%3C/svg%3E" />
-
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Deepak Chaudhary — AI/ML Engineer Portfolio</title>
+  <meta name="description" content="Portfolio of Deepak Chaudhary, AI/ML Engineer with 4+ years building production AI systems — LLMs, RAG, Multi-Agent, Computer Vision, Recommendation Systems."/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
   <style>
-    /* ─────────── Theme tokens ─────────── */
     :root {
-      --bg: #fafbff;
-      --bg-elev: #ffffff;
-      --bg-soft: #f3f4f9;
-      --text: #1a1d29;
-      --text-soft: #4a4f5e;
-      --muted: #767b8c;
-      --border: #e3e6ee;
-      --accent: #4f8cff;
-      --accent-soft: rgba(79, 140, 255, 0.12);
-      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-      --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
-      --shadow-lg: 0 18px 48px rgba(15, 23, 42, 0.14);
-      --grad-1: linear-gradient(135deg, #6ea8fe 0%, #a78bfa 100%);
-      --grad-2: linear-gradient(135deg, #34d399 0%, #06b6d4 100%);
-      --grad-3: linear-gradient(135deg, #fb923c 0%, #f43f5e 100%);
-      --grad-4: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
-      --grad-5: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+      --bg: #0a0c14; --bg-2: #10132a; --surface: #151930; --surface-2: #1c2242;
+      --border: #252e55; --text: #e4e8f8; --text-soft: #8892b5; --text-muted: #5a6485;
+      --accent: #6366f1; --accent-2: #818cf8; --accent-soft: rgba(99,102,241,0.12);
+      --green: #34d399; --blue: #60a5fa; --orange: #fb923c; --purple: #a78bfa;
+      --red: #f43f5e; --yellow: #fbbf24; --cyan: #22d3ee;
+      --radius: 16px; --radius-sm: 10px;
     }
-
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #0d1117;
-        --bg-elev: #161b22;
-        --bg-soft: #1f2530;
-        --text: #e6edf3;
-        --text-soft: #c9d1d9;
-        --muted: #8b949e;
-        --border: #30363d;
-        --accent: #6ea8fe;
-        --accent-soft: rgba(110, 168, 254, 0.16);
-        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-        --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.45);
-        --shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.6);
-      }
-    }
-
-    /* ─────────── Reset ─────────── */
-    *, *::before, *::after { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Helvetica Neue", Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.55;
-      -webkit-font-smoothing: antialiased;
-    }
-    a { color: var(--accent); text-decoration: none; }
+    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; }
+    a { color: var(--accent-2); text-decoration: none; }
     a:hover { text-decoration: underline; }
 
-    /* ─────────── Layout ─────────── */
-    .container {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 0 24px;
-    }
+    /* ─── HERO ─────────────────────────────────────── */
+    .hero { position: relative; padding: 100px 24px 80px; text-align: center; overflow: hidden; }
+    .hero::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: radial-gradient(ellipse at 50% 30%, rgba(99,102,241,0.08) 0%, transparent 60%); pointer-events: none; }
+    .hero-badge { display: inline-block; padding: 6px 16px; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+      background: var(--accent-soft); color: var(--accent-2); border: 1px solid rgba(99,102,241,0.25); margin-bottom: 20px; letter-spacing: 0.04em; }
+    .hero h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800; line-height: 1.15; margin-bottom: 16px;
+      background: linear-gradient(135deg, #e4e8f8 30%, var(--accent-2) 70%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero .subtitle { font-size: clamp(1rem, 2.5vw, 1.15rem); color: var(--text-soft); max-width: 640px; margin: 0 auto 28px; line-height: 1.7; }
+    .hero-stats { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
+    .hero-stat { text-align: center; }
+    .hero-stat .num { font-size: 2rem; font-weight: 800; color: var(--accent-2); }
+    .hero-stat .label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .hero-links { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .hero-links a { padding: 10px 22px; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.88rem; transition: all 0.2s; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-2); text-decoration: none; transform: translateY(-2px); }
+    .btn-ghost { background: transparent; color: var(--text-soft); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--text); text-decoration: none; }
 
-    /* ─────────── Hero ─────────── */
-    .hero {
-      padding: 96px 24px 48px;
-      text-align: center;
-      background:
-        radial-gradient(ellipse at top, var(--accent-soft), transparent 60%),
-        var(--bg);
-      border-bottom: 1px solid var(--border);
-    }
-    .hero-eyebrow {
-      display: inline-block;
-      padding: 6px 14px;
-      border-radius: 999px;
-      background: var(--accent-soft);
-      color: var(--accent);
-      font-size: 0.78rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      margin-bottom: 22px;
-    }
-    .hero-title {
-      font-size: clamp(2.4rem, 6vw, 3.4rem);
-      font-weight: 800;
-      line-height: 1.05;
-      margin: 0 0 14px;
-      letter-spacing: -0.02em;
-      background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
-    .hero-tagline {
-      font-size: clamp(1rem, 2.4vw, 1.18rem);
-      color: var(--text-soft);
-      margin: 0 auto 18px;
-      max-width: 620px;
-    }
-    .hero-stats {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: center;
-      margin: 14px 0 28px;
-    }
-    .pill {
-      padding: 6px 12px;
-      border-radius: 999px;
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      font-size: 0.82rem;
-      color: var(--text-soft);
-    }
-    .pill strong { color: var(--text); font-weight: 600; }
+    /* ─── TECH STACK ──────────────────────────────── */
+    .tech-section { padding: 48px 24px; text-align: center; }
+    .tech-grid { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; max-width: 700px; margin: 0 auto; }
+    .tech-chip { padding: 6px 14px; border-radius: 8px; font-size: 0.78rem; font-weight: 500;
+      background: var(--surface); border: 1px solid var(--border); color: var(--text-soft);
+      transition: all 0.2s; cursor: default; }
+    .tech-chip:hover { border-color: var(--accent); color: var(--accent-2); transform: translateY(-2px); }
 
-    .social-row {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-      flex-wrap: wrap;
-      margin-top: 8px;
-    }
-    .social-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 18px;
-      border-radius: 12px;
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-weight: 500;
-      font-size: 0.92rem;
-      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-    }
-    .social-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-md);
-      border-color: var(--accent);
-      text-decoration: none;
-    }
-    .social-btn.primary {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
-    .social-btn.primary:hover { color: #fff; }
+    /* ─── SECTION HEADER ─────────────────────────── */
+    .section { padding: 64px 24px; max-width: 1100px; margin: 0 auto; }
+    .section-header { text-align: center; margin-bottom: 40px; }
+    .section-header h2 { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; }
+    .section-header p { color: var(--text-soft); font-size: 0.9rem; }
 
-    /* ─────────── Section ─────────── */
-    section { padding: 60px 0; }
-    .section-eyebrow {
-      color: var(--accent);
-      font-size: 0.82rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 6px;
-    }
-    .section-title {
-      font-size: clamp(1.6rem, 3.4vw, 2rem);
-      font-weight: 700;
-      margin: 0 0 8px;
-      letter-spacing: -0.01em;
-    }
-    .section-sub {
-      color: var(--muted);
-      margin: 0 0 28px;
-      max-width: 640px;
-    }
+    /* ─── FILTER TABS ─────────────────────────────── */
+    .filter-tabs { display: flex; gap: 8px; justify-content: center; margin-bottom: 32px; flex-wrap: wrap; }
+    .filter-tab { padding: 7px 16px; border-radius: 8px; font-size: 0.8rem; font-weight: 500;
+      background: var(--surface); border: 1px solid var(--border); color: var(--text-soft);
+      cursor: pointer; transition: all 0.2s; }
+    .filter-tab:hover, .filter-tab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-2); }
 
-    /* ─────────── Filter tabs ─────────── */
-    .filter-tabs {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 24px;
-    }
-    .filter-tabs button {
-      padding: 8px 16px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--bg-elev);
-      color: var(--text-soft);
-      font-size: 0.88rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .filter-tabs button:hover {
-      border-color: var(--accent);
-      color: var(--text);
-    }
-    .filter-tabs button.active {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
+    /* ─── PROJECT CARDS ───────────────────────────── */
+    .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+    .project-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 24px; transition: all 0.3s; position: relative; overflow: hidden; }
+    .project-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--purple)); opacity: 0; transition: opacity 0.3s; }
+    .project-card:hover { border-color: var(--accent); transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(99,102,241,0.12); }
+    .project-card:hover::before { opacity: 1; }
+    .card-num { font-size: 0.68rem; font-weight: 700; color: var(--accent-2); letter-spacing: 0.08em; margin-bottom: 8px; }
+    .card-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+    .card-desc { font-size: 0.85rem; color: var(--text-soft); line-height: 1.6; margin-bottom: 14px; }
+    .card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .card-tag { padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 500;
+      background: var(--surface-2); color: var(--text-muted); }
+    .card-link { font-size: 0.82rem; font-weight: 600; color: var(--accent-2); }
+    .card-link:hover { color: #fff; }
+    .card-badge { position: absolute; top: 16px; right: 16px; padding: 3px 8px; border-radius: 6px;
+      font-size: 0.68rem; font-weight: 600; }
+    .badge-hackathon { background: rgba(251,146,60,0.15); color: var(--orange); }
+    .badge-production { background: rgba(52,211,153,0.15); color: var(--green); }
+    .badge-new { background: rgba(99,102,241,0.15); color: var(--accent-2); }
 
-    /* ─────────── Project grid ─────────── */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 18px;
-    }
-    .card {
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-      animation: fadeIn 0.4s ease backwards;
-    }
-    .card.hidden { display: none; }
-    .card:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-lg);
-      border-color: var(--accent);
-    }
-    .card-header {
-      padding: 22px 22px 18px;
-      color: #fff;
-      position: relative;
-      overflow: hidden;
-    }
-    .card-header::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.18) 100%);
-      pointer-events: none;
-    }
-    .card-num {
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      opacity: 0.85;
-    }
-    .card-cat {
-      display: inline-block;
-      margin-top: 4px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.18);
-      font-size: 0.74rem;
-      font-weight: 600;
-      backdrop-filter: blur(4px);
-    }
-    .gradient-1 { background: var(--grad-1); }
-    .gradient-2 { background: var(--grad-2); }
-    .gradient-3 { background: var(--grad-3); }
-    .gradient-4 { background: var(--grad-4); }
-    .gradient-5 { background: var(--grad-5); }
+    /* ─── PRODUCTION MAP ─────────────────────────── */
+    .map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .map-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 18px; display: flex; gap: 14px; align-items: flex-start; }
+    .map-arrow { font-size: 1.2rem; flex-shrink: 0; margin-top: 2px; }
+    .map-demo { font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; }
+    .map-prod { font-size: 0.8rem; color: var(--text-soft); }
 
-    .card-body {
-      padding: 20px 22px 22px;
-      flex-grow: 1;
-      display: flex;
-      flex-direction: column;
-    }
-    .card-title {
-      font-size: 1.18rem;
-      font-weight: 700;
-      margin: 0 0 8px;
-      color: var(--text);
-    }
-    .card-desc {
-      color: var(--text-soft);
-      font-size: 0.93rem;
-      margin: 0 0 16px;
-      flex-grow: 1;
-    }
-    .badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-bottom: 18px;
-    }
-    .badge {
-      padding: 3px 10px;
-      border-radius: 999px;
-      background: var(--bg-soft);
-      color: var(--text-soft);
-      font-size: 0.74rem;
-      font-weight: 500;
-      border: 1px solid var(--border);
-    }
-    .card-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--accent);
-      font-weight: 600;
-      font-size: 0.92rem;
-    }
-    .card-link::after {
-      content: "→";
-      transition: transform 0.15s ease;
-    }
-    .card-link:hover {
-      text-decoration: none;
-    }
-    .card-link:hover::after { transform: translateX(3px); }
+    /* ─── FOOTER ──────────────────────────────────── */
+    .footer { text-align: center; padding: 48px 24px; border-top: 1px solid var(--border); }
+    .footer p { color: var(--text-muted); font-size: 0.82rem; }
+    .footer a { color: var(--accent-2); }
 
-    /* ─────────── How-to ─────────── */
-    .howto {
-      background: var(--bg-soft);
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-    }
-    .howto-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-    }
-    @media (max-width: 720px) {
-      .howto-grid { grid-template-columns: 1fr; }
-    }
-    pre {
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px 18px;
-      overflow-x: auto;
-      font-size: 0.84rem;
-      line-height: 1.6;
-      margin: 0;
-      font-family: "SF Mono", Menlo, Consolas, monospace;
-      color: var(--text);
-    }
-    pre code { color: var(--text); }
-    .howto-step {
-      display: flex;
-      gap: 14px;
-      align-items: flex-start;
-    }
-    .howto-num {
-      flex: 0 0 auto;
-      width: 32px; height: 32px;
-      border-radius: 8px;
-      background: var(--accent);
-      color: #fff;
-      display: grid; place-items: center;
-      font-weight: 700;
-      font-size: 0.92rem;
-    }
-    .howto-text h4 { margin: 0 0 4px; font-size: 1rem; font-weight: 600; }
-    .howto-text p  { margin: 0; color: var(--muted); font-size: 0.92rem; }
+    /* ─── ANIMATIONS ─────────────────────────────── */
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .project-card { animation: fadeInUp 0.4s ease backwards; }
+    .project-card:nth-child(1) { animation-delay: 0.05s; }
+    .project-card:nth-child(2) { animation-delay: 0.1s; }
+    .project-card:nth-child(3) { animation-delay: 0.15s; }
+    .project-card:nth-child(4) { animation-delay: 0.2s; }
+    .project-card:nth-child(5) { animation-delay: 0.25s; }
+    .project-card:nth-child(6) { animation-delay: 0.3s; }
+    .project-card:nth-child(7) { animation-delay: 0.35s; }
+    .project-card:nth-child(8) { animation-delay: 0.4s; }
+    .project-card:nth-child(9) { animation-delay: 0.45s; }
 
-    /* ─────────── Footer ─────────── */
-    footer {
-      padding: 36px 24px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.86rem;
-      border-top: 1px solid var(--border);
+    @media (max-width: 640px) {
+      .hero { padding: 60px 16px 48px; }
+      .projects-grid { grid-template-columns: 1fr; }
+      .hero-stats { gap: 20px; }
     }
-    footer a { color: var(--text-soft); }
-
-    /* ─────────── Animations ─────────── */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    .card:nth-child(1) { animation-delay: 0.05s; }
-    .card:nth-child(2) { animation-delay: 0.10s; }
-    .card:nth-child(3) { animation-delay: 0.15s; }
-    .card:nth-child(4) { animation-delay: 0.20s; }
-    .card:nth-child(5) { animation-delay: 0.25s; }
   </style>
 </head>
 <body>
 
-  <!-- ─────────── HERO ─────────── -->
-  <header class="hero">
-    <div class="container">
-      <span class="hero-eyebrow">AI / ML Engineer · Hyderabad, India</span>
-      <h1 class="hero-title">Deepak Chaudhary</h1>
-      <p class="hero-tagline">
-        I build production AI systems end-to-end — LLMs, RAG, multi-agent, recommendation, and computer vision — on Azure, GPU clusters, and edge devices.
-      </p>
-      <div class="hero-stats">
-        <span class="pill">⏱ <strong>4+ years</strong> production AI</span>
-        <span class="pill">🧠 <strong>NVIDIA GTC 2026</strong> demo</span>
-        <span class="pill">🛰 <strong>Granted Indian Patent</strong></span>
-        <span class="pill">🎓 <strong>ISI Kolkata</strong></span>
-      </div>
-      <div class="social-row">
-        <a class="social-btn primary" href="https://github.com/deepak1212194/ai-related-work">⭐ View on GitHub</a>
-        <a class="social-btn" href="https://www.linkedin.com/in/deepak-chaudhary-285810b7">LinkedIn</a>
-        <a class="social-btn" href="mailto:deepak1212194@gmail.com">Email</a>
-      </div>
+<!-- ═══════════════ HERO ═══════════════ -->
+<section class="hero">
+  <div class="hero-badge">AI/ML ENGINEER · HYDERABAD</div>
+  <h1>Deepak Chaudhary</h1>
+  <p class="subtitle">
+    I build production AI systems end-to-end — from data pipelines and model fine-tuning
+    to autoscaling cloud and edge deployments. Spanning <strong>LLMs, RAG, multi-agent systems,
+    recommendation, semantic search, and computer vision</strong>.
+  </p>
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="num" id="statYears">4+</div><div class="label">Years</div></div>
+    <div class="hero-stat"><div class="num" id="statProjects">9</div><div class="label">Projects</div></div>
+    <div class="hero-stat"><div class="num">1.8M+</div><div class="label">Users Served</div></div>
+    <div class="hero-stat"><div class="num">GTC 2026</div><div class="label">NVIDIA Demo</div></div>
+  </div>
+  <div class="hero-links">
+    <a href="https://github.com/deepak1212194/ai-related-work" class="btn-primary" target="_blank">GitHub Repo</a>
+    <a href="https://www.linkedin.com/in/deepak-chaudhary-285810b7" class="btn-ghost" target="_blank">LinkedIn</a>
+    <a href="mailto:deepak1212194@gmail.com" class="btn-ghost">Contact</a>
+  </div>
+</section>
+
+<!-- ═══════════════ TECH STACK ═══════════════ -->
+<section class="tech-section">
+  <div class="tech-grid">
+    <span class="tech-chip">Python</span><span class="tech-chip">PyTorch</span>
+    <span class="tech-chip">Hugging Face</span><span class="tech-chip">LangChain</span>
+    <span class="tech-chip">CrewAI</span><span class="tech-chip">FAISS</span>
+    <span class="tech-chip">Azure ML</span><span class="tech-chip">Docker</span>
+    <span class="tech-chip">Kubernetes</span><span class="tech-chip">FastAPI</span>
+    <span class="tech-chip">NVIDIA NIM</span><span class="tech-chip">DGX Spark</span>
+    <span class="tech-chip">YOLO</span><span class="tech-chip">DeepStream</span>
+    <span class="tech-chip">XGBoost</span><span class="tech-chip">SentenceTransformers</span>
+    <span class="tech-chip">OpenAI</span><span class="tech-chip">PostgreSQL</span>
+  </div>
+</section>
+
+<!-- ═══════════════ PROJECTS ═══════════════ -->
+<section class="section" id="projects">
+  <div class="section-header">
+    <h2>Projects</h2>
+    <p>Every project is a runnable FastAPI service — clone, install, run, open in browser</p>
+  </div>
+
+  <div class="filter-tabs">
+    <button class="filter-tab active" onclick="filterProjects('all')">All</button>
+    <button class="filter-tab" onclick="filterProjects('nlp')">NLP / LLM</button>
+    <button class="filter-tab" onclick="filterProjects('cv')">Computer Vision</button>
+    <button class="filter-tab" onclick="filterProjects('ml')">ML / Training</button>
+    <button class="filter-tab" onclick="filterProjects('hackathon')">Hackathon</button>
+  </div>
+
+  <div class="projects-grid" id="projectsGrid">
+
+    <div class="project-card" data-tags="nlp ml">
+      <span class="card-badge badge-production">Production</span>
+      <div class="card-num">01</div>
+      <div class="card-title">Semantic Search & Classification</div>
+      <div class="card-desc">Embedding-based document retrieval with weighted-vote domain classification. FAISS index + SentenceTransformers with retrieval evaluation metrics (MRR, Recall@K).</div>
+      <div class="card-tags"><span class="card-tag">FastAPI</span><span class="card-tag">FAISS</span><span class="card-tag">SBERT</span><span class="card-tag">Pydantic</span></div>
+      <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/01-rag-faq-bot" target="_blank">View Code →</a>
     </div>
-  </header>
 
-  <!-- ─────────── PROJECTS ─────────── -->
-  <section id="projects">
-    <div class="container">
-      <div class="section-eyebrow">Featured projects</div>
-      <h2 class="section-title">Pick what to explore</h2>
-      <p class="section-sub">Five production-shaped services — each runs as a FastAPI app with a typed API, a built-in browser UI, and a Dockerfile. Click any card to open the project on GitHub.</p>
-
-      <div class="filter-tabs" role="tablist">
-        <button class="active" data-cat="all">All</button>
-        <button data-cat="genai">GenAI / LLMs</button>
-        <button data-cat="ml">ML / Training</button>
-        <button data-cat="cv">Computer Vision</button>
-      </div>
-
-      <div class="grid" id="projectGrid">
-
-        <!-- 01 RAG -->
-        <article class="card" data-cat="genai">
-          <div class="card-header gradient-1">
-            <div class="card-num">PROJECT · 01</div>
-            <span class="card-cat">GenAI · RAG</span>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title">RAG FAQ Service</h3>
-            <p class="card-desc">
-              Retrieval-augmented generation with a hallucination guard, exposed as a FastAPI service with a built-in chat UI. Singleton model and FAISS index warmed at startup; sub-100 ms p95 retrieval after warmup.
-            </p>
-            <div class="badges">
-              <span class="badge">FastAPI</span>
-              <span class="badge">FAISS</span>
-              <span class="badge">SBERT</span>
-              <span class="badge">Pydantic</span>
-              <span class="badge">Docker</span>
-            </div>
-            <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/01-rag-faq-bot">View on GitHub</a>
-          </div>
-        </article>
-
-        <!-- 02 Multi-Agent -->
-        <article class="card" data-cat="genai">
-          <div class="card-header gradient-5">
-            <div class="card-num">PROJECT · 02</div>
-            <span class="card-cat">GenAI · Agents</span>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title">Multi-Agent Research API</h3>
-            <p class="card-desc">
-              Planner → Researcher → Critic → Writer, coordinated sequentially. The Server-Sent Events endpoint streams every agent's output to the browser as it arrives — agent dots pulse in sequence, reasoning fills the feed in real time.
-            </p>
-            <div class="badges">
-              <span class="badge">FastAPI</span>
-              <span class="badge">SSE</span>
-              <span class="badge">CrewAI-style</span>
-              <span class="badge">Docker</span>
-            </div>
-            <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/02-multi-agent-research-crew">View on GitHub</a>
-          </div>
-        </article>
-
-        <!-- 03 SBERT -->
-        <article class="card" data-cat="ml">
-          <div class="card-header gradient-2">
-            <div class="card-num">PROJECT · 03</div>
-            <span class="card-cat">ML · Fine-tuning</span>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title">SBERT Training Pipeline</h3>
-            <p class="card-desc">
-              Four config-driven stages — data → train → eval → register — with a frozen YAML config, an auto-versioned filesystem registry, and a live metrics dashboard that reads R²/MAE/RMSE from the latest run.
-            </p>
-            <div class="badges">
-              <span class="badge">YAML configs</span>
-              <span class="badge">Pydantic</span>
-              <span class="badge">PyTorch</span>
-              <span class="badge">Dashboard</span>
-              <span class="badge">Docker</span>
-            </div>
-            <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/03-sbert-pair-trainer">View on GitHub</a>
-          </div>
-        </article>
-
-        <!-- 04 CLIP -->
-        <article class="card" data-cat="cv">
-          <div class="card-header gradient-3">
-            <div class="card-num">PROJECT · 04</div>
-            <span class="card-cat">CV · Multimodal</span>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title">CLIP Visual Search Service</h3>
-            <p class="card-desc">
-              Drag images into the browser, build a CLIP vector index with one click, then query with natural language. Image vectors persist to a `.npz`; the service mounts the image folder so result thumbnails render instantly.
-            </p>
-            <div class="badges">
-              <span class="badge">FastAPI</span>
-              <span class="badge">CLIP</span>
-              <span class="badge">Drag-drop UI</span>
-              <span class="badge">Docker</span>
-            </div>
-            <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/04-clip-image-text-search">View on GitHub</a>
-          </div>
-        </article>
-
-        <!-- 06 Resume Enhancer -->
-        <article class="card" data-cat="genai">
-          <div class="card-header gradient-2">
-            <div class="card-num">PROJECT · 06</div>
-            <span class="card-cat">GenAI · LLM Tools</span>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title">Resume Enhancer App</h3>
-            <p class="card-desc">
-              Drop a PDF or .tex resume, get back an enhanced .tex + compiled PDF — restrictive by design (never weakens, never fabricates). Two LLM backends behind one interface: Hugging Face by default, Claude as swap-in.
-            </p>
-            <div class="badges">
-              <span class="badge">FastAPI</span>
-              <span class="badge">PyMuPDF</span>
-              <span class="badge">Hugging Face</span>
-              <span class="badge">Claude</span>
-              <span class="badge">pdflatex</span>
-              <span class="badge">Docker</span>
-            </div>
-            <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/06-resume-enhancer-app">View on GitHub</a>
-          </div>
-        </article>
-
-        <!-- 05 Person Tracker -->
-        <article class="card" data-cat="cv">
-          <div class="card-header gradient-4">
-            <div class="card-num">PROJECT · 05</div>
-            <span class="card-cat">CV · Real-time</span>
-          </div>
-          <div class="card-body">
-            <h3 class="card-title">Edge Person Tracker Service</h3>
-            <p class="card-desc">
-              Upload a video, watch IDs follow people in real time. The WebSocket pushes per-frame bounding boxes; the browser draws them on a canvas overlaid on the &lt;video&gt; element while playback runs.
-            </p>
-            <div class="badges">
-              <span class="badge">FastAPI</span>
-              <span class="badge">WebSocket</span>
-              <span class="badge">YOLOv8</span>
-              <span class="badge">OpenCV</span>
-              <span class="badge">Docker</span>
-            </div>
-            <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/05-person-tracker-mini">View on GitHub</a>
-          </div>
-        </article>
-
-      </div>
+    <div class="project-card" data-tags="nlp">
+      <span class="card-badge badge-production">Production</span>
+      <div class="card-num">02</div>
+      <div class="card-title">Multi-Agent Research Crew</div>
+      <div class="card-desc">4-agent sequential crew with live SSE streaming — planner, researcher, analyst, writer. Shared context, fallback-enabled LLM loop, real-time trace dashboard.</div>
+      <div class="card-tags"><span class="card-tag">FastAPI</span><span class="card-tag">SSE</span><span class="card-tag">OpenAI</span><span class="card-tag">CrewAI</span></div>
+      <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/02-multi-agent-research-crew" target="_blank">View Code →</a>
     </div>
-  </section>
 
-  <!-- ─────────── HOW TO RUN ─────────── -->
-  <section class="howto">
-    <div class="container">
-      <div class="section-eyebrow">Get started</div>
-      <h2 class="section-title">Run any project in 3 steps</h2>
-      <p class="section-sub">Each project is self-contained. The pattern is the same for all five.</p>
-
-      <div class="howto-grid">
-        <div>
-          <div class="howto-step">
-            <div class="howto-num">1</div>
-            <div class="howto-text">
-              <h4>Clone the repo</h4>
-              <p>Pull the full portfolio in one shot.</p>
-            </div>
-          </div>
-          <div class="howto-step" style="margin-top:14px;">
-            <div class="howto-num">2</div>
-            <div class="howto-text">
-              <h4>Pick a project, install</h4>
-              <p>Each folder has its own requirements.txt — no shared state.</p>
-            </div>
-          </div>
-          <div class="howto-step" style="margin-top:14px;">
-            <div class="howto-num">3</div>
-            <div class="howto-text">
-              <h4>Run the entry script</h4>
-              <p>Each project README documents the exact command.</p>
-            </div>
-          </div>
-        </div>
-        <div>
-<pre><code>git clone https://github.com/deepak1212194/ai-related-work.git
-cd ai-related-work/01-rag-faq-bot
-
-python -m venv .venv
-.venv\Scripts\activate          <span style="color:var(--muted)"># Windows</span>
-source .venv/bin/activate       <span style="color:var(--muted)"># macOS/Linux</span>
-
-pip install -r requirements.txt
-python -m src.ingest
-python -m src.pipeline -q "What is FAISS?"</code></pre>
-        </div>
-      </div>
+    <div class="project-card" data-tags="ml">
+      <span class="card-badge badge-production">Production</span>
+      <div class="card-num">03</div>
+      <div class="card-title">SBERT Training Pipeline</div>
+      <div class="card-desc">4-stage fine-tuning pipeline for sentence transformers: data prep → training → evaluation → registry. YAML configs, Pydantic schemas, metrics dashboard.</div>
+      <div class="card-tags"><span class="card-tag">SentenceTransformers</span><span class="card-tag">PyTorch</span><span class="card-tag">YAML</span></div>
+      <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/03-sbert-pair-trainer" target="_blank">View Code →</a>
     </div>
-  </section>
 
-  <footer>
-    <p>
-      Built and maintained by
-      <a href="https://www.linkedin.com/in/deepak-chaudhary-285810b7"><strong>Deepak Chaudhary</strong></a>
-      · MIT License · 2026
-    </p>
-    <p style="margin-top:6px">
-      <a href="https://github.com/deepak1212194/ai-related-work">Source on GitHub</a> ·
-      <a href="https://github.com/deepak1212194/ai-related-work/issues">Issues</a> ·
-      <a href="https://github.com/deepak1212194/ai-related-work/discussions">Discussions</a>
-    </p>
-  </footer>
+    <div class="project-card" data-tags="cv ml">
+      <div class="card-num">04</div>
+      <div class="card-title">CLIP Visual Search</div>
+      <div class="card-desc">Multimodal image-text retrieval with CLIP embeddings. Drag-drop UI, similarity scoring, batch indexing. Supports text→image and image→image search.</div>
+      <div class="card-tags"><span class="card-tag">CLIP</span><span class="card-tag">FastAPI</span><span class="card-tag">FAISS</span></div>
+      <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/04-clip-image-text-search" target="_blank">View Code →</a>
+    </div>
 
-  <script>
-    /* Filter tabs */
-    const tabs = document.querySelectorAll(".filter-tabs button");
-    const cards = document.querySelectorAll("#projectGrid .card");
+    <div class="project-card" data-tags="cv">
+      <span class="card-badge badge-production">Production</span>
+      <div class="card-num">05</div>
+      <div class="card-title">Edge Person Tracker + Dwell Analytics</div>
+      <div class="card-desc">YOLO + IoU tracker with ROI-based dwell-time monitoring, zone occupancy counting, heatmap visualization, and real-time WebSocket streaming. Mirrors production edge CV pipeline.</div>
+      <div class="card-tags"><span class="card-tag">YOLOv8</span><span class="card-tag">OpenCV</span><span class="card-tag">WebSocket</span><span class="card-tag">Dwell Analytics</span></div>
+      <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/05-person-tracker-mini" target="_blank">View Code →</a>
+    </div>
 
-    tabs.forEach(tab => {
-      tab.addEventListener("click", () => {
-        tabs.forEach(t => t.classList.remove("active"));
-        tab.classList.add("active");
+    <div class="project-card" data-tags="nlp">
+      <div class="card-num">06</div>
+      <div class="card-title">Resume Enhancer App</div>
+      <div class="card-desc">PDF / .tex resume → enhanced .tex + .pdf via senior-grade rules. Supports Hugging Face and Claude backends with section-level enhancement.</div>
+      <div class="card-tags"><span class="card-tag">FastAPI</span><span class="card-tag">PyMuPDF</span><span class="card-tag">Jinja</span><span class="card-tag">pdflatex</span></div>
+      <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/06-resume-enhancer-app" target="_blank">View Code →</a>
+    </div>
 
-        const cat = tab.dataset.cat;
-        cards.forEach((card, idx) => {
-          const show = cat === "all" || card.dataset.cat === cat;
-          card.classList.toggle("hidden", !show);
-          if (show) {
-            // Re-trigger fade-in
-            card.style.animation = "none";
-            // Force reflow
-            void card.offsetWidth;
-            card.style.animation = `fadeIn 0.35s ease ${idx * 0.04}s backwards`;
-          }
-        });
-      });
-    });
+    <div class="project-card" data-tags="nlp hackathon">
+      <span class="card-badge badge-hackathon">Hackathon</span>
+      <div class="card-num">07</div>
+      <div class="card-title">ReAct Weather Agent</div>
+      <div class="card-desc">Pure ReAct (Reasoning + Acting) agent with iterative tool calling. SSE streaming shows Thought→Action→Observation trace in real-time. Domain-gated, supports online and offline modes.</div>
+      <div class="card-tags"><span class="card-tag">OpenAI</span><span class="card-tag">ReAct</span><span class="card-tag">SSE</span><span class="card-tag">Tool Calling</span></div>
+      <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/07-react-weather-agent" target="_blank">View Code →</a>
+    </div>
 
-    /* Tiny keyboard nav: ← / → cycle the filter tabs */
-    document.addEventListener("keydown", (e) => {
-      if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
-      const list = Array.from(tabs);
-      const idx = list.findIndex(t => t.classList.contains("active"));
-      const next = e.key === "ArrowRight"
-        ? (idx + 1) % list.length
-        : (idx - 1 + list.length) % list.length;
-      list[next].click();
-    });
-  </script>
+    <div class="project-card" data-tags="ml hackathon">
+      <span class="card-badge badge-hackathon">Hackathon</span>
+      <div class="card-num">08</div>
+      <div class="card-title">Energy Forecaster</div>
+      <div class="card-desc">SARIMA vs XGBoost for 24h-ahead electricity demand forecasting. Full pipeline: data quality → cleaning → feature engineering → anomaly detection → model comparison with MAE/RMSE/MAPE.</div>
+      <div class="card-tags"><span class="card-tag">XGBoost</span><span class="card-tag">statsmodels</span><span class="card-tag">pandas</span><span class="card-tag">FastAPI</span></div>
+      <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/08-energy-forecaster" target="_blank">View Code →</a>
+    </div>
+
+    <div class="project-card" data-tags="cv ml hackathon">
+      <span class="card-badge badge-hackathon">Hackathon</span>
+      <div class="card-num">09</div>
+      <div class="card-title">Multimodal Contrastive Trainer</div>
+      <div class="card-desc">Dual-encoder (ResNet-50 + BERT-Tiny) contrastive learning with InfoNCE and focal loss. Trains to align image-text pairs. Retrieval eval with Recall@K and Mean Rank.</div>
+      <div class="card-tags"><span class="card-tag">PyTorch</span><span class="card-tag">ResNet-50</span><span class="card-tag">BERT</span><span class="card-tag">Contrastive</span></div>
+      <a class="card-link" href="https://github.com/deepak1212194/ai-related-work/tree/main/09-multimodal-contrastive-trainer" target="_blank">View Code →</a>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════ PRODUCTION MAP ═══════════════ -->
+<section class="section">
+  <div class="section-header">
+    <h2>How Demos Map to Production</h2>
+    <p>Simplified, public versions of patterns shipped in production systems</p>
+  </div>
+  <div class="map-grid">
+    <div class="map-card"><div class="map-arrow">🔍</div><div><div class="map-demo">Semantic Search & Classification</div><div class="map-prod">Domain mapping — classifying jobs into taxonomy via embedding nearest-neighbour voting</div></div></div>
+    <div class="map-card"><div class="map-arrow">🤖</div><div><div class="map-demo">Multi-Agent Research Crew</div><div class="map-prod">Multi-agent compliance review with tool use (GTC 2026 demo)</div></div></div>
+    <div class="map-card"><div class="map-arrow">🧠</div><div><div class="map-demo">SBERT Pair Trainer</div><div class="map-prod">Sentence-encoder fine-tuning for job-talent matching and ranking</div></div></div>
+    <div class="map-card"><div class="map-arrow">📷</div><div><div class="map-demo">Person Tracker + Dwell Analytics</div><div class="map-prod">Real-time edge CV on RTSP streams with DeepStream + IoT Hub alerting</div></div></div>
+    <div class="map-card"><div class="map-arrow">⚡</div><div><div class="map-demo">ReAct Weather Agent</div><div class="map-prod">Tool-calling agents for domain-specific Q&A with structured tool schemas</div></div></div>
+    <div class="map-card"><div class="map-arrow">📊</div><div><div class="map-demo">Energy Forecaster</div><div class="map-prod">Time-series forecasting for operational planning with model comparison</div></div></div>
+    <div class="map-card"><div class="map-arrow">🖼️</div><div><div class="map-demo">Multimodal Contrastive Trainer</div><div class="map-prod">Multimodal retrieval & document understanding with contrastive objectives</div></div></div>
+  </div>
+</section>
+
+<!-- ═══════════════ HIGHLIGHTS ═══════════════ -->
+<section class="section">
+  <div class="section-header">
+    <h2>Highlights</h2>
+  </div>
+  <div class="map-grid">
+    <div class="map-card"><div class="map-arrow">🧠</div><div><div class="map-demo">NVIDIA GTC 2026</div><div class="map-prod">Multi-agent system demonstrated live at NVIDIA's flagship AI conference</div></div></div>
+    <div class="map-card"><div class="map-arrow">🛰️</div><div><div class="map-demo">Indian Patent (Granted)</div><div class="map-prod">Co-inventor on UAV-based disaster management system</div></div></div>
+    <div class="map-card"><div class="map-arrow">🎓</div><div><div class="map-demo">M.Tech, CS — ISI Kolkata</div><div class="map-prod">Indian Statistical Institute — one of India's premier research institutions</div></div></div>
+    <div class="map-card"><div class="map-arrow">🏗️</div><div><div class="map-demo">Platform Scale</div><div class="map-prod">AI systems serving 1.8M+ users on a production talent platform</div></div></div>
+  </div>
+</section>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer class="footer">
+  <p>Built and maintained by <a href="https://www.linkedin.com/in/deepak-chaudhary-285810b7" target="_blank">Deepak Chaudhary</a> · 2026</p>
+  <p style="margin-top:6px"><a href="https://github.com/deepak1212194/ai-related-work" target="_blank">GitHub</a> · <a href="mailto:deepak1212194@gmail.com">Email</a></p>
+</footer>
+
+<script>
+function filterProjects(tag) {
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+
+  document.querySelectorAll('.project-card').forEach(card => {
+    if (tag === 'all') {
+      card.style.display = '';
+    } else {
+      const tags = card.dataset.tags || '';
+      card.style.display = tags.includes(tag) ? '' : 'none';
+    }
+  });
+}
+
+// Animate stats on scroll
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.style.animationPlayState = 'running';
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.project-card').forEach(el => observer.observe(el));
+</script>
 </body>
 </html>

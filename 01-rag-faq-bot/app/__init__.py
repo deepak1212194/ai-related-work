@@ -1,1 +1,1 @@
-"""FastAPI service layer for the RAG FAQ Bot."""
+"""Semantic Search & Classification Service — app package."""

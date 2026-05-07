@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ReAct Weather Agent</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0c0f1a; --surface: #151929; --surface-2: #1c2137;
+      --border: #2a3150; --text: #e0e6f0; --text-soft: #7b88a5;
+      --blue: #4f9cf7; --green: #34d399; --orange: #fb923c;
+      --purple: #a78bfa; --red: #f43f5e; --yellow: #fbbf24;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    .app { max-width: 800px; margin: 0 auto; padding: 32px 20px; }
+
+    .header { text-align: center; margin-bottom: 32px; }
+    .header h1 { font-size: 1.5rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--blue), var(--purple)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .header p { color: var(--text-soft); font-size: 0.85rem; margin-top: 4px; }
+
+    .mode-badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 0.72rem;
+      font-weight: 600; margin-top: 8px; }
+    .mode-badge.online { background: rgba(52,211,153,0.15); color: var(--green); border: 1px solid rgba(52,211,153,0.3); }
+    .mode-badge.offline { background: rgba(251,146,60,0.15); color: var(--orange); border: 1px solid rgba(251,146,60,0.3); }
+
+    .input-area { display: flex; gap: 10px; margin-bottom: 24px; }
+    .input-area input { flex: 1; padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); font-size: 0.95rem; outline: none; }
+    .input-area input:focus { border-color: var(--blue); }
+    .input-area button { padding: 12px 20px; border-radius: var(--radius); border: none;
+      background: var(--blue); color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9rem;
+      transition: transform 0.1s; }
+    .input-area button:hover { transform: translateY(-1px); }
+    .input-area button:disabled { opacity: 0.5; }
+
+    .examples { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+    .examples button { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-soft); font-size: 0.78rem; cursor: pointer; }
+    .examples button:hover { border-color: var(--blue); color: var(--text); }
+
+    /* Trace area */
+    .trace { margin-bottom: 24px; }
+    .trace-step { display: flex; gap: 12px; margin-bottom: 2px; animation: fadeIn 0.3s ease; }
+    .trace-step .icon { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center;
+      justify-content: center; font-size: 0.85rem; flex-shrink: 0; margin-top: 2px; }
+    .trace-step .content { flex: 1; padding: 10px 14px; border-radius: 10px; font-size: 0.85rem; line-height: 1.5; }
+
+    .step-thought .icon { background: rgba(79,156,247,0.15); }
+    .step-thought .content { background: var(--surface); color: var(--text-soft); border: 1px solid var(--border); }
+
+    .step-action .icon { background: rgba(167,139,250,0.15); }
+    .step-action .content { background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.2);
+      font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--purple); }
+
+    .step-observation .icon { background: rgba(251,191,36,0.15); }
+    .step-observation .content { background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.15);
+      font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--yellow); }
+
+    .step-answer .icon { background: rgba(52,211,153,0.15); }
+    .step-answer .content { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.2);
+      color: var(--green); font-weight: 500; }
+
+    .connector { width: 2px; height: 12px; background: var(--border); margin-left: 13px; margin-bottom: 2px; }
+
+    /* Answer card */
+    .answer-card { background: var(--surface); border: 1px solid var(--green);
+      border-radius: var(--radius); padding: 18px; margin-top: 16px; }
+    .answer-card .label { font-size: 0.72rem; color: var(--green); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .answer-card .text { line-height: 1.6; white-space: pre-wrap; }
+
+    .status-bar { display: flex; gap: 8px; margin-top: 8px; }
+    .status-pill { font-size: 0.72rem; padding: 3px 8px; border-radius: 6px;
+      background: var(--surface-2); color: var(--text-soft); }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+    .thinking { animation: pulse 1s infinite; color: var(--blue); }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>🤖 ReAct Weather Agent</h1>
+    <p>Reasoning + Acting loop with tool calling</p>
+    <div class="mode-badge" id="modeBadge">checking...</div>
+  </div>
+
+  <div class="input-area">
+    <input type="text" id="queryInput" placeholder="Ask about weather: e.g. 'What's the weather in Tokyo and Mumbai?'" />
+    <button id="sendBtn" onclick="runAgent()">Ask</button>
+  </div>
+
+  <div class="examples">
+    <button onclick="setQuery('What is the weather in Hyderabad?')">Hyderabad</button>
+    <button onclick="setQuery('Compare weather in London, Paris and Berlin')">Multi-city</button>
+    <button onclick="setQuery('Is it raining in Tokyo?')">Tokyo</button>
+    <button onclick="setQuery('What is 2+2?')">Non-weather (test)</button>
+  </div>
+
+  <div class="trace" id="traceArea"></div>
+  <div id="answerArea"></div>
+</div>
+
+<script>
+const API = '';
+
+function setQuery(q) { document.getElementById('queryInput').value = q; }
+
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    const badge = document.getElementById('modeBadge');
+    badge.textContent = d.mode === 'online' ? `Online · ${d.model}` : 'Offline · Mock Data';
+    badge.className = 'mode-badge ' + d.mode;
+  } catch(e) {
+    document.getElementById('modeBadge').textContent = '❌ Offline';
+  }
+}
+
+async function runAgent() {
+  const question = document.getElementById('queryInput').value.trim();
+  if (!question) return;
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  document.getElementById('traceArea').innerHTML = '';
+  document.getElementById('answerArea').innerHTML = '';
+
+  try {
+    const evtSource = new EventSource(`${API}/api/stream?question=${encodeURIComponent(question)}`);
+    let stepCount = 0;
+
+    evtSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.step_type === 'done') {
+        evtSource.close();
+        btn.disabled = false;
+        return;
+      }
+
+      stepCount++;
+      const trace = document.getElementById('traceArea');
+
+      if (stepCount > 1) {
+        trace.innerHTML += '<div class="connector"></div>';
+      }
+
+      const icons = { thought: '💭', action: '⚡', observation: '👁', answer: '✅' };
+      const icon = icons[data.step_type] || '•';
+
+      let content = data.content;
+      if (data.step_type === 'observation') {
+        try {
+          const parsed = JSON.parse(content);
+          content = `${parsed.location}: ${parsed.temperature}°C, ${parsed.humidity}% humidity, ${parsed.description}`;
+        } catch(e) {}
+      }
+
+      trace.innerHTML += `
+        <div class="trace-step step-${data.step_type}">
+          <div class="icon">${icon}</div>
+          <div class="content">${escapeHtml(content)}</div>
+        </div>`;
+
+      if (data.step_type === 'answer') {
+        document.getElementById('answerArea').innerHTML = `
+          <div class="answer-card">
+            <div class="label">Final Answer</div>
+            <div class="text">${escapeHtml(content)}</div>
+            <div class="status-bar">
+              <span class="status-pill">${stepCount} steps</span>
+              <span class="status-pill">Iteration ${data.iteration}</span>
+            </div>
+          </div>`;
+      }
+
+      trace.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    };
+
+    evtSource.onerror = () => {
+      evtSource.close();
+      btn.disabled = false;
+    };
+  } catch(e) {
+    document.getElementById('answerArea').innerHTML = `<div class="answer-card"><div class="text">Error: ${e.message}</div></div>`;
+    btn.disabled = false;
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+document.getElementById('queryInput').addEventListener('keydown', e => { if (e.key === 'Enter') runAgent(); });
+checkHealth();
+</script>
+</body>
+</html>

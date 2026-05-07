@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Energy Forecasting Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0b0e18; --surface: #131829; --surface-2: #1a2035;
+      --border: #252d45; --text: #e2e8f4; --text-soft: #7a86a3;
+      --amber: #f59e0b; --green: #22c55e; --blue: #3b82f6;
+      --red: #ef4444; --purple: #8b5cf6;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .app { max-width: 1000px; margin: 0 auto; padding: 28px 20px; }
+
+    .header { text-align: center; margin-bottom: 28px; }
+    .header h1 { font-size: 1.5rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--amber), var(--red)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .header p { color: var(--text-soft); font-size: 0.85rem; margin-top: 4px; }
+
+    .status-row { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
+    .pill { padding: 5px 12px; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
+      background: var(--surface); border: 1px solid var(--border); color: var(--text-soft); }
+    .pill.ok { border-color: var(--green); color: var(--green); }
+
+    .actions { display: flex; gap: 10px; justify-content: center; margin-bottom: 24px; flex-wrap: wrap; }
+    .btn { padding: 10px 20px; border-radius: var(--radius); border: none; font-weight: 600;
+      cursor: pointer; font-size: 0.85rem; transition: transform 0.1s; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--amber); color: #000; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+
+    /* Metric cards */
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .metric .label { font-size: 0.7rem; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.06em; }
+    .metric .value { font-size: 1.6rem; font-weight: 700; margin-top: 4px; }
+    .metric .sub { font-size: 0.75rem; color: var(--text-soft); margin-top: 2px; }
+
+    /* Comparison table */
+    .comp-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .comp-table th, .comp-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+    .comp-table th { color: var(--text-soft); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .comp-table .winner { color: var(--green); font-weight: 600; }
+
+    /* Feature importance */
+    .fi-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 20px; }
+    .fi-section h3 { font-size: 0.9rem; margin-bottom: 12px; color: var(--text-soft); }
+    .fi-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 0.8rem; }
+    .fi-bar .name { width: 140px; color: var(--text-soft); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fi-bar .bar { height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--amber), var(--red)); }
+    .fi-bar .val { width: 45px; font-size: 0.75rem; color: var(--text-soft); }
+
+    /* Panels */
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 16px; }
+    .panel h3 { font-size: 0.9rem; margin-bottom: 10px; }
+
+    .log { background: var(--surface-2); border-radius: 8px; padding: 12px; font-size: 0.78rem;
+      font-family: monospace; max-height: 200px; overflow-y: auto; color: var(--text-soft); white-space: pre-wrap; }
+
+    .empty { text-align: center; padding: 48px; color: var(--text-soft); }
+    .empty .icon { font-size: 2.4rem; margin-bottom: 10px; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .metric, .fi-section, .panel { animation: fadeIn 0.3s ease; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>⚡ Energy Forecasting Dashboard</h1>
+    <p>SARIMA vs XGBoost — 24h-ahead electricity demand forecasting</p>
+  </div>
+
+  <div class="status-row" id="statusRow">
+    <span class="pill" id="sHealth">⏳ Loading</span>
+    <span class="pill" id="sData">Data: —</span>
+    <span class="pill" id="sModel">Models: —</span>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-secondary" id="btnPrep" onclick="runPrepare()">📊 Prepare Data</button>
+    <button class="btn btn-primary" id="btnTrain" onclick="runTrain()">🚀 Train & Compare</button>
+    <button class="btn btn-secondary" id="btnResults" onclick="loadResults()">📈 Load Results</button>
+  </div>
+
+  <div id="content">
+    <div class="empty"><div class="icon">📊</div><p>Prepare data and train models to see comparison results</p></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    el('sHealth').textContent = '✅ Online'; el('sHealth').classList.add('ok');
+    el('sData').textContent = d.data_prepared ? '✅ Data Ready' : '⚠️ No Data';
+    if (d.data_prepared) el('sData').classList.add('ok');
+    el('sModel').textContent = d.models_trained ? '✅ Trained' : '⚠️ Not Trained';
+    if (d.models_trained) el('sModel').classList.add('ok');
+    if (d.models_trained) loadResults();
+  } catch(e) { el('sHealth').textContent = '❌ Offline'; }
+}
+
+async function runPrepare() {
+  el('btnPrep').disabled = true; el('btnPrep').textContent = '⏳ Preparing...';
+  try {
+    const r = await fetch(`${API}/api/prepare`, {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Failed');
+    el('content').innerHTML = `
+      <div class="metrics-grid">
+        <div class="metric"><div class="label">Total Rows</div><div class="value">${d.total_rows.toLocaleString()}</div></div>
+        <div class="metric"><div class="label">Train Set</div><div class="value">${d.train_rows.toLocaleString()}</div></div>
+        <div class="metric"><div class="label">Test Set</div><div class="value">${d.test_rows.toLocaleString()}</div></div>
+        <div class="metric"><div class="label">Anomalies</div><div class="value">${d.anomaly_count}</div><div class="sub">3×IQR threshold</div></div>
+      </div>
+      <div class="panel"><h3>Data Quality</h3><div class="log">${JSON.stringify(d.quality_report, null, 2)}</div></div>`;
+    checkHealth();
+  } catch(e) { el('content').innerHTML = `<div class="panel"><p>Error: ${e.message}</p></div>`; }
+  finally { el('btnPrep').disabled = false; el('btnPrep').textContent = '📊 Prepare Data'; }
+}
+
+async function runTrain() {
+  el('btnTrain').disabled = true; el('btnTrain').textContent = '⏳ Training...';
+  try {
+    const r = await fetch(`${API}/api/train`, {method:'POST'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Failed');
+    renderComparison(d.comparison);
+    checkHealth();
+  } catch(e) { el('content').innerHTML = `<div class="panel"><p>Error: ${e.message}</p></div>`; }
+  finally { el('btnTrain').disabled = false; el('btnTrain').textContent = '🚀 Train & Compare'; }
+}
+
+async function loadResults() {
+  try {
+    const r = await fetch(`${API}/api/results`);
+    if (!r.ok) return;
+    const d = await r.json();
+    renderComparison(d.comparison, d.anomaly_bounds);
+  } catch(e) {}
+}
+
+function renderComparison(comp, bounds) {
+  let html = '';
+  const s = comp.sarima?.metrics || {};
+  const x = comp.xgboost?.metrics || {};
+  const winner = comp.winner || '—';
+
+  html += `<div class="metrics-grid">
+    <div class="metric"><div class="label">Winner</div><div class="value" style="color:var(--green)">${winner}</div></div>
+    <div class="metric"><div class="label">MAE Improvement</div><div class="value">${comp.mae_improvement || '—'}%</div></div>
+    <div class="metric"><div class="label">SARIMA MAE</div><div class="value">${s.mae ?? s.error ?? '—'}</div></div>
+    <div class="metric"><div class="label">XGBoost MAE</div><div class="value">${x.mae ?? x.error ?? '—'}</div></div>
+  </div>`;
+
+  // Comparison table
+  html += `<div class="panel"><h3>Model Comparison</h3>
+    <table class="comp-table">
+      <tr><th>Metric</th><th>SARIMA</th><th>XGBoost</th></tr>
+      <tr><td>MAE</td><td${winner==='SARIMA'?' class="winner"':''}>${s.mae??'—'}</td><td${winner==='XGBoost'?' class="winner"':''}>${x.mae??'—'}</td></tr>
+      <tr><td>RMSE</td><td>${s.rmse??'—'}</td><td>${x.rmse??'—'}</td></tr>
+      <tr><td>MAPE</td><td>${s.mape??'—'}%</td><td>${x.mape??'—'}%</td></tr>
+    </table></div>`;
+
+  // Feature importance
+  const fi = comp.xgboost?.feature_importance;
+  if (fi && Object.keys(fi).length) {
+    const sorted = Object.entries(fi).sort((a,b) => b[1]-a[1]);
+    const maxVal = sorted[0][1];
+    html += `<div class="fi-section"><h3>XGBoost Feature Importance (Top 15)</h3>`;
+    for (const [name, val] of sorted) {
+      const w = (val / maxVal * 100).toFixed(0);
+      html += `<div class="fi-bar">
+        <span class="name">${name}</span>
+        <div class="bar" style="width:${w}%;min-width:4px"></div>
+        <span class="val">${val.toFixed(4)}</span>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  if (bounds && bounds.lower_bound !== undefined) {
+    html += `<div class="panel"><h3>Anomaly Bounds (Training Set)</h3>
+      <div class="metrics-grid">
+        <div class="metric"><div class="label">Lower</div><div class="value">${bounds.lower_bound}</div></div>
+        <div class="metric"><div class="label">Upper</div><div class="value">${bounds.upper_bound}</div></div>
+        <div class="metric"><div class="label">IQR</div><div class="value">${bounds.IQR}</div></div>
+        <div class="metric"><div class="label">Flagged</div><div class="value">${bounds.n_anomalies}</div><div class="sub">${bounds.anomaly_pct}%</div></div>
+      </div></div>`;
+  }
+
+  el('content').innerHTML = html;
+}
+
+function el(id) { return document.getElementById(id); }
+checkHealth();
+</script>
+</body>
+</html>

@@ -45,12 +45,15 @@ Every project is a **runnable service** — FastAPI backend, built-in browser UI
 
 | # | Project | What it shows | Stack |
 |---|---|---|---|
-| **01** | [**RAG FAQ Service**](./01-rag-faq-bot/) | RAG with **hallucination guard** + chat UI | FastAPI · FAISS · SBERT · OpenAI · Docker |
+| **01** | [**Semantic Search & Classification**](./01-rag-faq-bot/) | Embedding retrieval + **weighted-vote domain classification** with eval metrics | FastAPI · FAISS · SBERT · Pydantic · Docker |
 | **02** | [**Multi-Agent Research API**](./02-multi-agent-research-crew/) | 4-agent crew with **live SSE streaming** dashboard | FastAPI · SSE · OpenAI · Docker |
 | **03** | [**SBERT Training Pipeline**](./03-sbert-pair-trainer/) | 4-stage fine-tuning pipeline + **metrics dashboard** + filesystem registry | YAML configs · Pydantic · Docker |
 | **04** | [**CLIP Visual Search**](./04-clip-image-text-search/) | Multimodal retrieval with **drag-drop UI** + similarity scores | FastAPI · CLIP · Docker |
-| **05** | [**Edge Person Tracker**](./05-person-tracker-mini/) | YOLO + IoU tracker over **WebSocket** with live canvas overlay | FastAPI · WebSocket · YOLOv8 · OpenCV · Docker |
-| **06** | [**Resume Enhancer App**](./06-resume-enhancer-app/) | PDF / .tex resume → enhanced .tex + .pdf via senior-grade rules; HF default, Claude swap | FastAPI · PyMuPDF · Hugging Face · Claude · Jinja · pdflatex · Docker |
+| **05** | [**Edge Person Tracker + Dwell Analytics**](./05-person-tracker-mini/) | YOLO + IoU tracker with **dwell-time monitoring**, zone occupancy, heatmap over **WebSocket** | FastAPI · WebSocket · YOLOv8 · OpenCV · Docker |
+| **06** | [**Resume Enhancer App**](./06-resume-enhancer-app/) | PDF / .tex resume → enhanced .tex + .pdf via senior-grade rules | FastAPI · PyMuPDF · HF · Claude · pdflatex · Docker |
+| **07** | [**ReAct Weather Agent**](./07-react-weather-agent/) | Pure **ReAct loop** with tool calling, SSE trace streaming, offline mode | FastAPI · OpenAI · SSE · Pydantic |
+| **08** | [**Energy Forecaster**](./08-energy-forecaster/) | **SARIMA vs XGBoost** 24h-ahead demand forecasting with anomaly detection | FastAPI · XGBoost · statsmodels · pandas |
+| **09** | [**Multimodal Contrastive Trainer**](./09-multimodal-contrastive-trainer/) | **ResNet-50 + BERT** dual encoder with InfoNCE & focal loss, Recall@K eval | FastAPI · PyTorch · torchvision · HF |
 
 > Architecture is consistent across projects: typed Pydantic schemas, env-driven config, singleton models warmed at startup, healthchecks, and a single-file UI per service.
 
@@ -65,6 +68,7 @@ Every project is a **runnable service** — FastAPI backend, built-in browser UI
   <img src="https://img.shields.io/badge/LangChain-1C3C3C?style=flat" />
   <img src="https://img.shields.io/badge/CrewAI-FF6F00?style=flat" />
   <img src="https://img.shields.io/badge/FAISS-005571?style=flat" />
+  <img src="https://img.shields.io/badge/XGBoost-006400?style=flat" />
   <img src="https://img.shields.io/badge/Azure%20ML-0078D4?style=flat&logo=microsoftazure&logoColor=white" />
   <img src="https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white" />
   <img src="https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white" />
@@ -73,7 +77,7 @@ Every project is a **runnable service** — FastAPI backend, built-in browser UI
   <img src="https://img.shields.io/badge/NVIDIA-76B900?style=flat&logo=nvidia&logoColor=white" />
 </p>
 
-**Day-to-day:** PyTorch · Hugging Face · SentenceTransformers · LangChain · CrewAI · FAISS · Azure ML / OpenAI · AKS · Docker · NVIDIA NIM / DGX Spark · YOLO · DeepStream
+**Day-to-day:** PyTorch · Hugging Face · SentenceTransformers · LangChain · CrewAI · FAISS · Azure ML / OpenAI · AKS · Docker · NVIDIA NIM / DGX Spark · YOLO · DeepStream · XGBoost
 
 ---
 
@@ -83,20 +87,26 @@ The repo shows **simplified, public versions** of patterns I've shipped in produ
 
 ```mermaid
 flowchart LR
-    P1[01 · RAG FAQ Bot] -.mirrors.-> D1[LLM-assisted classification<br/>over a constrained domain set]
+    P1[01 · Semantic Search] -.mirrors.-> D1[LLM-assisted classification<br/>over a constrained domain set]
     P2[02 · Multi-Agent Crew] -.mirrors.-> D2[Multi-agent compliance review<br/>with tool use]
     P3[03 · SBERT Pair Trainer] -.mirrors.-> D3[Sentence-encoder fine-tuning<br/>for matching / ranking]
     P4[04 · CLIP Search] -.mirrors.-> D4[Multimodal retrieval & blueprint<br/>understanding]
-    P5[05 · Person Tracker] -.mirrors.-> D5[Real-time edge CV<br/>on RTSP camera streams]
+    P5[05 · Person Tracker] -.mirrors.-> D5[Real-time edge CV with<br/>dwell-time analytics]
+    P7[07 · ReAct Agent] -.mirrors.-> D7[Tool-calling agents for<br/>domain-specific Q&A]
+    P8[08 · Energy Forecaster] -.mirrors.-> D8[Time-series forecasting<br/>for operational planning]
+    P9[09 · Contrastive Trainer] -.mirrors.-> D9[Multimodal encoder training<br/>with contrastive objectives]
 ```
 
 | Demo here | Pattern in production |
 |---|---|
-| RAG FAQ Bot | LLM-assisted classification over a constrained domain set |
+| Semantic Search & Classification | LLM-assisted classification over a constrained domain set |
 | Multi-Agent Research Crew | Multi-agent compliance review with tool use |
 | SBERT Pair Trainer | Sentence-encoder fine-tuning for matching / ranking |
 | CLIP Image-Text Search | Multimodal retrieval & document understanding |
-| Person Tracker Mini | Real-time edge CV on RTSP camera streams |
+| Person Tracker + Dwell Analytics | Real-time edge CV on RTSP camera streams with IoT alerting |
+| ReAct Weather Agent | Tool-calling agents for domain-specific Q&A |
+| Energy Forecaster | Time-series forecasting with model comparison |
+| Multimodal Contrastive Trainer | Multimodal encoder training with contrastive objectives |
 
 ---
 
