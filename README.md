@@ -50,6 +50,7 @@ Every project is a **runnable service** — FastAPI backend, built-in browser UI
 | **03** | [**SBERT Training Pipeline**](./03-sbert-pair-trainer/) | 4-stage fine-tuning pipeline + **metrics dashboard** + filesystem registry | YAML configs · Pydantic · Docker |
 | **04** | [**CLIP Visual Search**](./04-clip-image-text-search/) | Multimodal retrieval with **drag-drop UI** + similarity scores | FastAPI · CLIP · Docker |
 | **05** | [**Edge Person Tracker**](./05-person-tracker-mini/) | YOLO + IoU tracker over **WebSocket** with live canvas overlay | FastAPI · WebSocket · YOLOv8 · OpenCV · Docker |
+| **06** | [**Resume Enhancer App**](./06-resume-enhancer-app/) | PDF / .tex resume → enhanced .tex + .pdf via senior-grade rules; HF default, Claude swap | FastAPI · PyMuPDF · Hugging Face · Claude · Jinja · pdflatex · Docker |
 
 > Architecture is consistent across projects: typed Pydantic schemas, env-driven config, singleton models warmed at startup, healthchecks, and a single-file UI per service.
 

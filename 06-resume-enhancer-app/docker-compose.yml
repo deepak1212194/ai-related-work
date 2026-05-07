@@ -1,0 +1,14 @@
+services:
+  enhancer:
+    build: .
+    container_name: resume-enhancer
+    ports:
+      - "8005:8005"
+    environment:
+      RESUME_LLM_BACKEND: ${RESUME_LLM_BACKEND:-huggingface}
+      HF_API_KEY:        ${HF_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      RESUME_LOG_LEVEL:  INFO
+    volumes:
+      - ./data/jobs:/app/data/jobs   # persist enhanced .tex/.pdf across restarts
+    restart: unless-stopped
