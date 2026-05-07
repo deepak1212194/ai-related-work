@@ -45,6 +45,19 @@ class Settings(BaseSettings):
     max_bullets_to_enhance: int = Field(default=30, ge=1, le=100)
     max_skills_buckets_to_enhance: int = Field(default=10, ge=1, le=20)
 
+    # --- Agentic Enhancer→Critic loop ---
+    # When enabled, every drafted section is graded by a Critic agent and
+    # iterated up to `agent_max_iterations` times. Hard-bounded by the
+    # overall job timeout above, so enabling cannot cause runaway.
+    agent_critic_enabled: bool = Field(default=True)
+    agent_max_iterations: int = Field(default=3, ge=1, le=5)
+    agent_accept_threshold: float = Field(default=80.0, ge=0.0, le=100.0)
+    agent_min_delta_to_continue: float = Field(default=3.0, ge=0.0, le=20.0)
+    # Sections to which the critic loop applies (others use single-call path)
+    agent_critique_sections: list[str] = Field(
+        default_factory=lambda: ["summary", "bullet"]
+    )
+
     # --- LaTeX compilation ---
     pdflatex_cmd: str = Field(default="pdflatex")
     compile_timeout_seconds: int = Field(default=60, ge=5, le=300)

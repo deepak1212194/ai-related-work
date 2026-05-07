@@ -178,17 +178,56 @@
     /* ── Skill info ── */
     .skill-badge { font-size: .72rem; padding: 2px 6px; border-radius: 4px;
       background: rgba(110,168,254,.1); color: var(--accent); border: 1px solid rgba(110,168,254,.25); }
+
+    /* ── Agent iteration trace ── */
+    .score-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: .72rem; padding: 2px 8px; border-radius: 999px;
+      font-weight: 600; font-variant-numeric: tabular-nums;
+    }
+    .score-chip.high { background: rgba(52,211,153,.18); color: var(--ok); }
+    .score-chip.med  { background: rgba(251,191,36,.18); color: var(--warn); }
+    .score-chip.low  { background: rgba(248,113,113,.18); color: var(--err); }
+
+    .trace-block {
+      margin-top: 12px; padding-top: 10px;
+      border-top: 1px dashed var(--border);
+    }
+    .trace-block h4 {
+      margin: 0 0 8px; font-size: .72rem; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .iter {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 6px 0; font-size: .82rem; line-height: 1.5;
+      border-left: 2px solid var(--border); padding-left: 10px;
+      margin-bottom: 4px;
+    }
+    .iter.accepted { border-left-color: var(--ok); }
+    .iter.rejected { border-left-color: var(--warn); }
+    .iter-head {
+      font-weight: 600; flex-shrink: 0; min-width: 70px;
+      color: var(--muted);
+    }
+    .iter-head.accepted { color: var(--ok); }
+    .iter-body { flex: 1; min-width: 0; }
+    .iter-violations {
+      list-style: disc inside; padding: 0; margin: 4px 0 0;
+      font-size: .76rem; color: var(--muted);
+    }
+    .iter-violations li { margin-bottom: 2px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>📄 Resume Enhancer</h1>
     <p class="sub">
-      <strong>Skill-file-driven AI agent</strong> — enhancement rules are loaded from
-      editable <code>skills/*.md</code> files (like Claude's skill system). Drop a PDF
-      or .tex resume, pick a target role, and get a polished
-      <code>.tex</code> + <code>.pdf</code> with ATS keyword scoring.
-      <strong>Never weakens, never fabricates.</strong>
+      <strong>2-agent skill-driven loop</strong> — an Enhancer drafts each section;
+      a Critic scores it on a 5-dim, 100-point rubric; the Orchestrator iterates
+      up to 3 times (early-stop on accept ≥ 80 or Δ &lt; 3). Rules live in editable
+      <code>skills/*.md</code> files. Output is always gated by deterministic Python
+      guards. <strong>Never weakens, never fabricates.</strong>
     </p>
 
     <!-- ────────── Status panel ────────── -->
@@ -420,6 +459,43 @@
     }[c]));
   }
 
+  function scoreClass(s) {
+    if (s >= 80) return "high";
+    if (s >= 60) return "med";
+    return "low";
+  }
+
+  function renderTrace(p) {
+    if (!p.iterations || !p.iterations.length) return "";
+    const rows = p.iterations.map(it => {
+      const cls = it.accepted ? "accepted" : "rejected";
+      const label = it.accepted ? "ACCEPTED" : (it.verdict === "error" ? "ERROR" : "iterate");
+      const dims = Object.entries(it.dim_scores || {})
+        .map(([k, v]) => `${k}:${v}`)
+        .join(" · ");
+      const violations = (it.violations && it.violations.length)
+        ? `<ul class="iter-violations">${it.violations.map(v => `<li>${escapeHtml(v)}</li>`).join("")}</ul>`
+        : "";
+      return `
+        <div class="iter ${cls}">
+          <div class="iter-head ${it.accepted ? "accepted" : ""}">
+            #${it.iteration} · ${label}
+          </div>
+          <div class="iter-body">
+            <div><strong>${Math.round(it.score)}/100</strong>${dims ? ` <span class="meta-line">(${escapeHtml(dims)})</span>` : ""}</div>
+            ${violations}
+          </div>
+        </div>
+      `;
+    }).join("");
+    return `
+      <div class="trace-block">
+        <h4>Agent loop · ${p.iterations.length} iteration(s)</h4>
+        ${rows}
+      </div>
+    `;
+  }
+
   function renderResult(data) {
     $("resultPanel").style.display = "";
 
@@ -446,25 +522,34 @@
     }
 
     // Section previews
-    $("previews").innerHTML = (data.previews || []).map(p => `
-      <details>
-        <summary>
-          <span class="badge ${p.changed ? "changed" : "kept"}">
-            ${p.changed ? "enhanced" : "kept"}
-          </span>
-          <span>${escapeHtml(p.section)}</span>
-          ${p.note ? `<span class="meta-line" style="margin-left:auto;">${escapeHtml(p.note)}</span>` : ""}
-        </summary>
-        <div class="diff">
-          <div>
-            <h4>Before</h4>${escapeHtml(p.before)}
+    $("previews").innerHTML = (data.previews || []).map(p => {
+      const scoreChip = p.iterations_used > 0
+        ? `<span class="score-chip ${scoreClass(p.final_score)}">
+             ${Math.round(p.final_score)}/100 · ${p.iterations_used} iter${p.iterations_used > 1 ? "s" : ""}
+           </span>`
+        : "";
+      return `
+        <details>
+          <summary>
+            <span class="badge ${p.changed ? "changed" : "kept"}">
+              ${p.changed ? "enhanced" : "kept"}
+            </span>
+            <span>${escapeHtml(p.section)}</span>
+            ${scoreChip}
+            ${p.note ? `<span class="meta-line" style="margin-left:auto;">${escapeHtml(p.note)}</span>` : ""}
+          </summary>
+          <div class="diff">
+            <div>
+              <h4>Before</h4>${escapeHtml(p.before)}
+            </div>
+            <div>
+              <h4>After</h4>${escapeHtml(p.after)}
+            </div>
           </div>
-          <div>
-            <h4>After</h4>${escapeHtml(p.after)}
-          </div>
-        </div>
-      </details>
-    `).join("") || `<div class="meta-line">No section previews available.</div>`;
+          ${renderTrace(p)}
+        </details>
+      `;
+    }).join("") || `<div class="meta-line">No section previews available.</div>`;
 
     // ATS Score
     if (data.ats_score) {

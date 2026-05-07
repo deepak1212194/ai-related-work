@@ -17,6 +17,18 @@ class RoleInfo(BaseModel):
     description: str
 
 
+class IterationStep(BaseModel):
+    """One pass of the Enhancer→Critic loop for a section."""
+
+    iteration: int                                  # 1, 2, 3
+    draft: str                                      # text produced this iteration
+    score: float = 0.0                              # critic total score (0-100)
+    dim_scores: Dict[str, float] = Field(default_factory=dict)
+    violations: List[str] = Field(default_factory=list)
+    verdict: Literal["accept", "iterate", "error"] = "accept"
+    accepted: bool = False                          # this is the chosen iteration
+
+
 class SectionPreview(BaseModel):
     """Before/after snapshot for one section, shown inline in the UI."""
 
@@ -25,6 +37,10 @@ class SectionPreview(BaseModel):
     after: str
     changed: bool
     note: str = ""        # e.g. "kept (guard tripped)"
+    # Agentic loop trace (empty if critic disabled or section uses single-call path)
+    iterations: List[IterationStep] = Field(default_factory=list)
+    final_score: float = 0.0
+    iterations_used: int = 0
 
 
 class ATSScore(BaseModel):
