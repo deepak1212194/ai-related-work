@@ -4,17 +4,13 @@ enhancer.py — Section-by-section orchestration with safety guards
 
 Hard guarantees:
   - Every LLM call is wrapped in try/except. The app never raises.
-  - Bullet count is capped at settings.max_bullets_to_enhance; the
-    excess is preserved verbatim (with a note appended).
-  - Overall wall-clock is bounded; if total elapsed exceeds
-    settings.overall_job_timeout_seconds, remaining sections are kept
-    as-is.
-  - Per-section output is length-checked (>= 50% of input length)
-    AND keyword-checked (no protected term may disappear). On either
-    failure, the input is preserved.
-  - Returns a list of SectionPreview objects so the UI can show
-    before/after for every section, with explicit "kept (reason)"
-    notes when an enhancement was rejected.
+  - Bullet count is capped; excess is preserved verbatim.
+  - Overall wall-clock is bounded; if total elapsed exceeds timeout,
+    remaining sections are kept as-is.
+  - Per-section output is length-checked AND keyword-checked.
+  - Returns previews for the UI with before/after + ATS score.
+
+Now uses skill-file-driven task templates loaded from skills/*.md.
 """
 
 from __future__ import annotations
@@ -27,11 +23,11 @@ from typing import Iterable
 from .config import settings
 from .llm import LLMClient, LLMError
 from .rules import (
-    ACHIEVEMENT_TASK,
-    BULLET_TASK,
-    SKILLS_TASK,
-    SUMMARY_TASK,
     compose_system_prompt,
+    get_summary_task,
+    get_bullet_task,
+    get_skills_task,
+    get_achievement_task,
 )
 from .schemas import ParsedResume, SectionPreview
 
@@ -46,6 +42,20 @@ PROTECTED_TERMS_RE = re.compile(
     r"\d{2,}K\+?|\d+\.\d+|R\^?\d|MAE|RMSE|fine[- ]?tun\w+)",
     re.IGNORECASE,
 )
+
+# ATS keyword list — common terms recruiters search for
+ATS_KEYWORDS = {
+    "python", "java", "javascript", "typescript", "go", "rust", "sql",
+    "pytorch", "tensorflow", "scikit-learn", "pandas", "numpy",
+    "docker", "kubernetes", "aws", "azure", "gcp", "terraform",
+    "fastapi", "flask", "django", "react", "node.js",
+    "postgresql", "mongodb", "redis", "kafka", "elasticsearch",
+    "ci/cd", "git", "linux", "agile", "scrum",
+    "llm", "rag", "nlp", "computer vision", "deep learning",
+    "machine learning", "data pipeline", "etl", "api",
+    "microservices", "distributed systems", "rest",
+    "fine-tuning", "model training", "inference",
+}
 
 
 def _safe_replace(original: str, candidate: str, *,
@@ -79,6 +89,70 @@ def _call_safe(llm: LLMClient, system: str, user: str) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────
+# ATS Keyword Scoring
+# ──────────────────────────────────────────────────────────────────────
+def compute_ats_score(text: str, role_keywords: list[str] | None = None) -> dict:
+    """
+    Compute ATS (Applicant Tracking System) keyword coverage score.
+
+    Returns:
+        - score: 0-100 percentage
+        - matched: keywords found
+        - missing: important keywords not found
+        - suggestions: improvement hints
+    """
+    text_lower = text.lower()
+
+    # Base ATS keywords
+    check_keywords = set(ATS_KEYWORDS)
+
+    # Add role-specific keywords
+    if role_keywords:
+        check_keywords.update(k.lower() for k in role_keywords)
+
+    matched = []
+    missing = []
+
+    for kw in sorted(check_keywords):
+        # Check for the keyword or close variants
+        if kw in text_lower or kw.replace("-", " ") in text_lower or kw.replace(" ", "-") in text_lower:
+            matched.append(kw)
+        else:
+            missing.append(kw)
+
+    total = len(check_keywords)
+    score = round(len(matched) / total * 100, 1) if total > 0 else 0
+
+    # Generate suggestions
+    suggestions = []
+    if score < 30:
+        suggestions.append("Very low keyword coverage — consider adding more technical terms")
+    elif score < 50:
+        suggestions.append("Below average coverage — add relevant technologies to Skills section")
+    elif score < 70:
+        suggestions.append("Good coverage — consider adding missing domain-specific terms")
+    else:
+        suggestions.append("Strong keyword coverage — well-optimized for ATS")
+
+    # Highlight top missing keywords (most impactful)
+    high_impact = [k for k in missing if k in {
+        "python", "docker", "kubernetes", "aws", "azure", "sql",
+        "machine learning", "deep learning", "llm", "api", "ci/cd",
+    }]
+    if high_impact:
+        suggestions.append(f"High-impact missing: {', '.join(high_impact[:5])}")
+
+    return {
+        "score": score,
+        "matched_count": len(matched),
+        "total_checked": total,
+        "matched": matched[:20],  # Cap for response size
+        "missing_high_impact": high_impact[:10],
+        "suggestions": suggestions,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Public — orchestrates everything with hard limits
 # ──────────────────────────────────────────────────────────────────────
 def enhance(parsed: ParsedResume, llm: LLMClient,
@@ -107,7 +181,8 @@ def enhance(parsed: ParsedResume, llm: LLMClient,
     # --- Summary ---
     if parsed.summary and not time_up():
         before = parsed.summary
-        cand = _call_safe(llm, system, SUMMARY_TASK.format(content=before))
+        task = get_summary_task(before)
+        cand = _call_safe(llm, system, task)
         new_text, replaced, reason = _safe_replace(before, cand)
         parsed.summary = new_text
         previews.append(SectionPreview(
@@ -132,7 +207,8 @@ def enhance(parsed: ParsedResume, llm: LLMClient,
             warnings.append(f"skills bucket '{bucket}' skipped — timeout")
             break
         skills_processed += 1
-        cand = _call_safe(llm, system, SKILLS_TASK.format(content=items))
+        task = get_skills_task(items)
+        cand = _call_safe(llm, system, task)
         new_text, replaced, reason = _safe_replace(items, cand, min_ratio=0.7)
         parsed.skills[bucket] = new_text
         if replaced:
@@ -154,7 +230,8 @@ def enhance(parsed: ParsedResume, llm: LLMClient,
                 new_bullets.append(bullet)
                 continue
             bullets_processed += 1
-            cand = _call_safe(llm, system, BULLET_TASK.format(content=bullet))
+            task = get_bullet_task(bullet)
+            cand = _call_safe(llm, system, task)
             new_text, replaced, reason = _safe_replace(bullet, cand)
             new_bullets.append(new_text)
             previews.append(SectionPreview(
@@ -180,7 +257,8 @@ def enhance(parsed: ParsedResume, llm: LLMClient,
         if time_up():
             new_ach.append(line)
             continue
-        cand = _call_safe(llm, system, ACHIEVEMENT_TASK.format(content=line))
+        task = get_achievement_task(line)
+        cand = _call_safe(llm, system, task)
         new_text, replaced, reason = _safe_replace(line, cand, min_ratio=0.7)
         new_ach.append(new_text)
         if replaced:

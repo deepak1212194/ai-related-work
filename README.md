@@ -50,7 +50,7 @@ Every project is a **runnable service** — FastAPI backend, built-in browser UI
 | **03** | [**SBERT Training Pipeline**](./03-sbert-pair-trainer/) | 4-stage fine-tuning pipeline + **metrics dashboard** + filesystem registry | YAML configs · Pydantic · Docker |
 | **04** | [**CLIP Visual Search**](./04-clip-image-text-search/) | Multimodal retrieval with **drag-drop UI** + similarity scores | FastAPI · CLIP · Docker |
 | **05** | [**Edge Person Tracker + Dwell Analytics**](./05-person-tracker-mini/) | YOLO + IoU tracker with **dwell-time monitoring**, zone occupancy, heatmap over **WebSocket** | FastAPI · WebSocket · YOLOv8 · OpenCV · Docker |
-| **06** | [**Resume Enhancer App**](./06-resume-enhancer-app/) | PDF / .tex resume → enhanced .tex + .pdf via senior-grade rules | FastAPI · PyMuPDF · HF · Claude · pdflatex · Docker |
+| **06** | [**Resume Enhancer — Skill-Driven Agent**](./06-resume-enhancer-app/) | AI agent with **editable skill files** (skills/*.md), **ATS scoring**, hot-reload | FastAPI · Skill Files · ATS · PyMuPDF · HF/Claude · Docker |
 | **07** | [**ReAct Weather Agent**](./07-react-weather-agent/) | Pure **ReAct loop** with tool calling, SSE trace streaming, offline mode | FastAPI · OpenAI · SSE · Pydantic |
 | **08** | [**Energy Forecaster**](./08-energy-forecaster/) | **SARIMA vs XGBoost** 24h-ahead demand forecasting with anomaly detection | FastAPI · XGBoost · statsmodels · pandas |
 | **09** | [**Multimodal Contrastive Trainer**](./09-multimodal-contrastive-trainer/) | **ResNet-50 + BERT** dual encoder with InfoNCE & focal loss, Recall@K eval | FastAPI · PyTorch · torchvision · HF |

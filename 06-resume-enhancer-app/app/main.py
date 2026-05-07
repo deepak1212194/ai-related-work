@@ -5,11 +5,17 @@ main.py — Resume Enhancer FastAPI app
 Endpoints:
   GET  /health                     liveness, lists available roles
   GET  /api/roles                  role catalog (used by the UI)
+  GET  /api/skills                 skill file loading status
+  POST /api/skills/reload          hot-reload skill files
   POST /api/enhance                multipart upload + role → enhanced
-                                   .tex + .pdf paths + previews + notes
+  POST /api/ats-score              compute ATS keyword score for text
   GET  /api/result/{job}.tex       download .tex
   GET  /api/result/{job}.pdf       download .pdf (404 if compile failed)
   GET  /                           drag-drop UI
+
+Skill-file-driven: all enhancement rules come from editable
+markdown files in the skills/ directory. Edit .md files to change
+agent behavior — no code changes needed.
 
 The enhance endpoint is GUARANTEED to return a structured response.
 On any internal error it returns an EnhanceResponse with status="error"
@@ -26,14 +32,19 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
 
 from .compiler import compile_pdf, render_tex
 from .config import UI_DIR, WORK_DIR, settings
-from .enhancer import count_sections, enhance
+from .enhancer import count_sections, enhance, compute_ats_score
 from .llm import LLMError, get_llm
 from .parser import parse_pdf, parse_tex
 from .rules import ROLE_PROFILES, list_roles
-from .schemas import EnhanceResponse, HealthResponse, RoleInfo
+from .schemas import (
+    ATSScore, EnhanceResponse, HealthResponse, RoleInfo,
+    SkillInfoResponse,
+)
+from .skill_loader import get_skill_info, load_skills, reload_skills
 
 logging.basicConfig(
     level=settings.log_level,
@@ -45,11 +56,14 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     WORK_DIR.mkdir(parents=True, exist_ok=True)
+    # Load skill files at startup
+    skills = load_skills()
     log.info(
-        "[STARTUP] %s · backend=%s · roles=%d",
+        "[STARTUP] %s · backend=%s · roles=%d · skill_files=%d",
         settings.service_name,
         settings.llm_backend,
-        len(ROLE_PROFILES),
+        len(skills.roles),
+        len(skills.loaded_files),
     )
     yield
     log.info("[SHUTDOWN]")
@@ -58,12 +72,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Resume Enhancer",
     description=(
-        "Senior-grade resume polisher across 5 role categories "
-        "(AI/ML, SWE, Data Science, PM, DevOps). Restrictive by "
-        "design — never weakens, never fabricates, always returns "
-        "a structured response."
+        "Skill-file-driven resume enhancement agent. Rules are loaded "
+        "from editable markdown files (skills/*.md) — edit them to change "
+        "agent behavior without code changes. Supports 5 role profiles, "
+        "ATS keyword scoring, and before/after previews."
     ),
-    version="2.0.0",
+    version="3.0.0",
     lifespan=lifespan,
 )
 app.add_middleware(
@@ -75,7 +89,7 @@ app.add_middleware(
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Module 1: Health + role catalog
+# Module 1: Health + role catalog + skill info
 # ──────────────────────────────────────────────────────────────────────
 @app.get("/health", response_model=HealthResponse, tags=["meta"])
 def health() -> HealthResponse:
@@ -83,18 +97,38 @@ def health() -> HealthResponse:
     if settings.llm_backend == "anthropic" and not settings.anthropic_api_key:
         backend_ok = False
     pdflatex_ok = shutil.which(settings.pdflatex_cmd) is not None
+    skill_info = get_skill_info()
     return HealthResponse(
         status="ok" if backend_ok else "degraded",
         backend=settings.llm_backend,
         backend_configured=backend_ok,
         pdflatex_available=pdflatex_ok,
         available_roles=[RoleInfo(**r) for r in list_roles()],
+        skill_files_loaded=len(skill_info.get("loaded_files", [])),
     )
 
 
 @app.get("/api/roles", response_model=list[RoleInfo], tags=["meta"])
 def get_roles() -> list[RoleInfo]:
     return [RoleInfo(**r) for r in list_roles()]
+
+
+@app.get("/api/skills", response_model=SkillInfoResponse, tags=["skills"])
+def skills_info() -> SkillInfoResponse:
+    """Show which skill files are loaded and their status."""
+    info = get_skill_info()
+    return SkillInfoResponse(**info)
+
+
+@app.post("/api/skills/reload", response_model=SkillInfoResponse, tags=["skills"])
+def skills_reload() -> SkillInfoResponse:
+    """Hot-reload all skill files from disk. Useful after editing .md files."""
+    # Clear the ROLE_PROFILES cache too
+    ROLE_PROFILES.clear()
+    reload_skills()
+    info = get_skill_info()
+    log.info("[SKILL] Reloaded: %s", info)
+    return SkillInfoResponse(**info)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -125,7 +159,12 @@ async def enhance_resume(
     job_id = uuid.uuid4().hex[:12]
     role_id = role or settings.default_role
     if role_id not in ROLE_PROFILES:
-        role_id = settings.default_role
+        # Try loading profiles if empty
+        if not ROLE_PROFILES:
+            from .rules import _ensure_loaded
+            _ensure_loaded()
+        if role_id not in ROLE_PROFILES:
+            role_id = settings.default_role
     started = time.perf_counter()
     backend_label = settings.llm_backend
 
@@ -195,6 +234,27 @@ async def enhance_resume(
             f"stopped: {e!s}. Your file is unchanged.",
         )
 
+    # --- ATS Score ---
+    ats_data = None
+    try:
+        # Build full text from parsed resume for ATS scoring
+        full_text_parts = [parsed.summary or ""]
+        for bucket, items in parsed.skills.items():
+            full_text_parts.append(f"{bucket}: {items}")
+        for block in parsed.experience_blocks:
+            full_text_parts.extend(block.bullets)
+        full_text = " ".join(full_text_parts)
+
+        role_keywords = None
+        profile = ROLE_PROFILES.get(role_id)
+        if profile:
+            role_keywords = profile.keywords
+
+        ats_result = compute_ats_score(full_text, role_keywords)
+        ats_data = ATSScore(**ats_result)
+    except Exception as e:                              # noqa: BLE001
+        log.warning("[ATS] scoring failed: %s", e)
+
     # --- Render .tex ---
     try:
         tex = render_tex(parsed)
@@ -238,11 +298,30 @@ async def enhance_resume(
         notes=notes,
         previews=previews,
         warnings=warnings,
+        ats_score=ats_data,
     )
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Module 3: Downloads
+# Module 3: Standalone ATS scoring
+# ──────────────────────────────────────────────────────────────────────
+class ATSRequest(BaseModel):
+    text: str
+    role: str | None = None
+
+
+@app.post("/api/ats-score", response_model=ATSScore, tags=["ats"])
+def ats_score_endpoint(req: ATSRequest) -> ATSScore:
+    """Compute ATS keyword score for any text. Useful for quick checks."""
+    role_keywords = None
+    if req.role and req.role in ROLE_PROFILES:
+        role_keywords = ROLE_PROFILES[req.role].keywords
+    result = compute_ats_score(req.text, role_keywords)
+    return ATSScore(**result)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Module 4: Downloads
 # ──────────────────────────────────────────────────────────────────────
 @app.get("/api/result/{job_id}.tex", tags=["enhance"])
 def download_tex(job_id: str) -> FileResponse:
@@ -267,7 +346,7 @@ def download_pdf(job_id: str) -> FileResponse:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Module 4: UI
+# Module 5: UI
 # ──────────────────────────────────────────────────────────────────────
 @app.get("/", include_in_schema=False)
 def root_ui():

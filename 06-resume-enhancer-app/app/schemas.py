@@ -3,7 +3,7 @@ schemas.py — API contracts
 ============================
 """
 
-from typing import Literal
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -27,6 +27,16 @@ class SectionPreview(BaseModel):
     note: str = ""        # e.g. "kept (guard tripped)"
 
 
+class ATSScore(BaseModel):
+    """ATS keyword coverage analysis."""
+    score: float = 0.0
+    matched_count: int = 0
+    total_checked: int = 0
+    matched: List[str] = Field(default_factory=list)
+    missing_high_impact: List[str] = Field(default_factory=list)
+    suggestions: List[str] = Field(default_factory=list)
+
+
 class EnhanceResponse(BaseModel):
     job_id: str
     status: Literal["complete", "partial", "error"]
@@ -41,6 +51,7 @@ class EnhanceResponse(BaseModel):
     notes: list[str] = Field(default_factory=list)
     previews: list[SectionPreview] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    ats_score: Optional[ATSScore] = None
 
 
 class HealthResponse(BaseModel):
@@ -49,6 +60,14 @@ class HealthResponse(BaseModel):
     backend_configured: bool
     pdflatex_available: bool
     available_roles: list[RoleInfo] = Field(default_factory=list)
+    skill_files_loaded: int = 0
+
+
+class SkillInfoResponse(BaseModel):
+    loaded_files: List[str] = Field(default_factory=list)
+    roles: List[str] = Field(default_factory=list)
+    section_tasks: List[str] = Field(default_factory=list)
+    core_rules_length: int = 0
 
 
 # ──────────────────────────────────────────────────────────────────────

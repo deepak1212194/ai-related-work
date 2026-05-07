@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Resume Enhancer · Senior-Grade Polish</title>
+  <title>Resume Enhancer · Skill-Driven Agent</title>
   <style>
     :root {
       --bg: #0d1117; --bg-elev: #161b22; --bg-soft: #1f2530;
@@ -157,16 +157,38 @@
       font-size: .92rem;
     }
     .error-box strong { color: var(--err); }
+
+    /* ── ATS Score ── */
+    .ats-section { margin-top: 18px; }
+    .ats-gauge { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+    .ats-circle { width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 1.3rem; font-weight: 700; flex-shrink: 0;
+      border: 4px solid var(--border); }
+    .ats-circle.high { border-color: var(--ok); color: var(--ok); }
+    .ats-circle.med { border-color: var(--warn); color: var(--warn); }
+    .ats-circle.low { border-color: var(--err); color: var(--err); }
+    .ats-details { flex: 1; font-size: .85rem; }
+    .ats-details .label { color: var(--muted); font-size: .75rem; text-transform: uppercase;
+      letter-spacing: .06em; margin-bottom: 4px; }
+    .ats-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+    .ats-tag { padding: 2px 8px; border-radius: 4px; font-size: .72rem;
+      background: var(--bg-soft); color: var(--muted); border: 1px solid var(--border); }
+    .ats-tag.missing { border-color: var(--err); color: var(--err); }
+
+    /* ── Skill info ── */
+    .skill-badge { font-size: .72rem; padding: 2px 6px; border-radius: 4px;
+      background: rgba(110,168,254,.1); color: var(--accent); border: 1px solid rgba(110,168,254,.25); }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>📄 Resume Enhancer</h1>
     <p class="sub">
-      Drop a PDF or .tex resume, pick a target role, and get a polished
-      <code>.tex</code> + <code>.pdf</code>. <strong>Restrictive by design</strong> —
-      never weakens, never fabricates. If a section can't be improved,
-      it's preserved verbatim with a note explaining why.
+      <strong>Skill-file-driven AI agent</strong> — enhancement rules are loaded from
+      editable <code>skills/*.md</code> files (like Claude's skill system). Drop a PDF
+      or .tex resume, pick a target role, and get a polished
+      <code>.tex</code> + <code>.pdf</code> with ATS keyword scoring.
+      <strong>Never weakens, never fabricates.</strong>
     </p>
 
     <!-- ────────── Status panel ────────── -->
@@ -175,6 +197,7 @@
       <div class="row" id="statusRow">
         <span class="pill" id="backendPill">backend: ?</span>
         <span class="pill" id="pdflatexPill">pdflatex: ?</span>
+        <span class="pill" id="skillPill">skills: ?</span>
       </div>
       <div class="meta-line" id="backendNote"></div>
     </div>
@@ -225,6 +248,19 @@
         <ul class="warnings" id="warningsList"></ul>
       </div>
 
+      <!-- ATS Score -->
+      <div class="ats-section" id="atsSection" style="display:none">
+        <h3 style="margin-top: 18px;">ATS Keyword Score</h3>
+        <div class="ats-gauge">
+          <div class="ats-circle" id="atsCircle">—</div>
+          <div class="ats-details">
+            <div id="atsSummary"></div>
+            <div id="atsSuggestions" style="margin-top:4px;color:var(--muted);font-size:.82rem"></div>
+          </div>
+        </div>
+        <div id="atsMissing"></div>
+      </div>
+
       <h3 style="margin-top: 18px;">Section-by-section preview</h3>
       <div id="previews"></div>
     </div>
@@ -251,12 +287,14 @@
       $("pdflatexPill").textContent = `pdflatex: ${r.pdflatex_available ? "available" : "missing"}`;
       $("pdflatexPill").classList.toggle("ok",   r.pdflatex_available);
       $("pdflatexPill").classList.toggle("warn", !r.pdflatex_available);
+      $("skillPill").textContent = `skills: ${r.skill_files_loaded || 0} files`;
+      $("skillPill").classList.toggle("ok", (r.skill_files_loaded || 0) > 0);
 
       const note = !r.backend_configured
         ? "⚠ Set the API key for your selected backend (HF_API_KEY or ANTHROPIC_API_KEY)."
         : (!r.pdflatex_available
             ? "ℹ pdflatex not on PATH — .tex will be returned, .pdf compilation will be skipped."
-            : "All systems go.");
+            : `All systems go. Agent loaded ${r.skill_files_loaded} skill files.`);
       $("backendNote").textContent = note;
 
       // Render role pills
@@ -427,6 +465,26 @@
         </div>
       </details>
     `).join("") || `<div class="meta-line">No section previews available.</div>`;
+
+    // ATS Score
+    if (data.ats_score) {
+      $("atsSection").style.display = "";
+      const s = data.ats_score;
+      const cls = s.score >= 60 ? 'high' : s.score >= 35 ? 'med' : 'low';
+      $("atsCircle").className = `ats-circle ${cls}`;
+      $("atsCircle").textContent = `${s.score}%`;
+      $("atsSummary").textContent = `${s.matched_count} of ${s.total_checked} keywords matched`;
+      $("atsSuggestions").innerHTML = (s.suggestions || []).map(t => escapeHtml(t)).join('<br>');
+      if (s.missing_high_impact && s.missing_high_impact.length) {
+        $("atsMissing").innerHTML = '<div class="ats-tags">' +
+          s.missing_high_impact.map(k => `<span class="ats-tag missing">${escapeHtml(k)}</span>`).join('') +
+          '</div>';
+      } else {
+        $("atsMissing").innerHTML = '';
+      }
+    } else {
+      $("atsSection").style.display = "none";
+    }
   }
 
   function renderError(message) {
