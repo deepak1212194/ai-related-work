@@ -1,0 +1,99 @@
+{
+  "role_id": "ai_ml_engineer",
+  "role_name": "AI / ML Engineer",
+  "samples": [
+    {
+      "title": "Senior AI Engineer (LLM / RAG)",
+      "archetype": "Frontier AI lab",
+      "seniority": "senior",
+      "must_have": [
+        "RAG", "fine-tuning", "embeddings", "vector database", "FAISS",
+        "LangChain", "Python", "PyTorch", "evaluation",
+        "Hugging Face", "production"
+      ],
+      "nice_to_have": [
+        "agentic AI", "multi-agent", "guardrails", "hallucination",
+        "Triton", "TensorRT", "ONNX", "FP8", "Azure OpenAI", "AWS Bedrock"
+      ],
+      "synonyms": {
+        "RAG": ["retrieval-augmented generation", "retrieval augmented", "hybrid search"],
+        "vector database": ["vector search", "vector index", "Azure AI Search", "pgvector"],
+        "fine-tuning": ["LoRA", "QLoRA", "instruction tuning", "PEFT"],
+        "evaluation": ["eval harness", "held-out", "offline metric"],
+        "embeddings": ["sentence embeddings", "SBERT", "Sentence-BERT", "mpnet", "BGE"]
+      }
+    },
+    {
+      "title": "Staff Applied Scientist (Recommendations)",
+      "archetype": "FAANG-tier product",
+      "seniority": "staff",
+      "must_have": [
+        "recommendation", "ranking", "embeddings", "ANN", "PyTorch",
+        "fine-tuning", "A/B testing", "Python", "evaluation"
+      ],
+      "nice_to_have": [
+        "two-tower", "matrix factorization", "BPR", "negative sampling",
+        "LLM", "feature store", "MLflow", "Kubernetes"
+      ],
+      "synonyms": {
+        "ANN": ["approximate nearest neighbor", "FAISS", "ScaNN", "HNSW"],
+        "ranking": ["learning-to-rank", "LTR", "re-ranker", "ranker"],
+        "A/B testing": ["online evaluation", "experimentation", "uplift"]
+      }
+    },
+    {
+      "title": "Senior ML Platform Engineer",
+      "archetype": "Mid-tier SaaS",
+      "seniority": "senior",
+      "must_have": [
+        "Kubernetes", "Docker", "MLflow", "model registry", "PyTorch",
+        "CI/CD", "Python", "FastAPI", "monitoring"
+      ],
+      "nice_to_have": [
+        "feature store", "Triton", "managed endpoints", "Azure ML",
+        "Vertex AI", "SageMaker", "Argo", "Helm"
+      ],
+      "synonyms": {
+        "managed endpoints": ["online inference", "real-time inference", "serving"],
+        "model registry": ["MLflow", "model store", "artifact registry"],
+        "CI/CD": ["Azure DevOps", "GitHub Actions", "GitLab CI"]
+      }
+    },
+    {
+      "title": "Senior Computer Vision Engineer",
+      "archetype": "Edge-AI / robotics",
+      "seniority": "senior",
+      "must_have": [
+        "YOLO", "OpenCV", "PyTorch", "object detection", "tracking",
+        "real-time", "Python", "edge deployment", "GPU"
+      ],
+      "nice_to_have": [
+        "DeepStream", "NVIDIA", "Jetson", "TensorRT", "ONNX", "Triton",
+        "INT8", "FP16", "RTSP", "OC-SORT", "ByteTrack"
+      ],
+      "synonyms": {
+        "YOLO": ["YOLOv5", "YOLOv7", "YOLOv8", "YOLOX"],
+        "tracking": ["multi-object tracking", "MOT", "SORT", "OC-SORT", "ByteTrack"],
+        "edge deployment": ["Jetson", "edge inference", "device inference"]
+      }
+    },
+    {
+      "title": "ML Engineer - Multi-Agent / Agentic AI",
+      "archetype": "Vertical-AI startup",
+      "seniority": "senior",
+      "must_have": [
+        "multi-agent", "agentic AI", "LLM", "tool use", "RAG",
+        "Python", "FastAPI", "evaluation", "LangChain"
+      ],
+      "nice_to_have": [
+        "CrewAI", "AutoGen", "LangGraph", "ReAct", "function calling",
+        "guardrails", "OpenTelemetry", "tracing", "Anthropic", "Claude"
+      ],
+      "synonyms": {
+        "multi-agent": ["multi-agent systems", "agent crew", "agent swarm"],
+        "agentic AI": ["autonomous agent", "ReAct", "agent loop"],
+        "tool use": ["function calling", "tool calling", "API call"]
+      }
+    }
+  ]
+}

@@ -25,6 +25,8 @@ checkpoints/
 *.bin
 *.faiss
 *.index
+.work/
+gradio_cached_examples/
 
 # ──────────────────────────────────────────────────────────────────────
 # Secrets / config

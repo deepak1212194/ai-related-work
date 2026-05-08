@@ -1,0 +1,93 @@
+{
+  "role_id": "product_manager",
+  "role_name": "Product Manager",
+  "samples": [
+    {
+      "title": "Senior PM - AI Products",
+      "archetype": "Frontier AI lab",
+      "seniority": "senior",
+      "must_have": [
+        "product strategy", "roadmap", "OKRs", "A/B testing",
+        "stakeholder management", "user research", "spec writing"
+      ],
+      "nice_to_have": [
+        "LLM", "RAG", "agentic AI", "prompt engineering", "evaluation",
+        "Mixpanel", "Amplitude", "SQL"
+      ],
+      "synonyms": {
+        "stakeholder management": ["cross-functional", "stakeholder communication"],
+        "user research": ["customer interview", "usability testing"],
+        "spec writing": ["PRD", "RFC", "design doc"]
+      }
+    },
+    {
+      "title": "Senior PM - Growth",
+      "archetype": "Consumer SaaS",
+      "seniority": "senior",
+      "must_have": [
+        "experimentation", "A/B testing", "funnel", "conversion",
+        "retention", "SQL", "OKRs", "stakeholder management"
+      ],
+      "nice_to_have": [
+        "uplift", "cohort analysis", "Mixpanel", "Amplitude",
+        "Looker", "north-star metric"
+      ],
+      "synonyms": {
+        "A/B testing": ["experimentation", "split test"],
+        "retention": ["LTV", "engagement"],
+        "stakeholder management": ["cross-functional"]
+      }
+    },
+    {
+      "title": "Senior PM - Platform",
+      "archetype": "AI infra / ML platform",
+      "seniority": "senior",
+      "must_have": [
+        "platform", "API", "developer experience", "roadmap",
+        "stakeholder management", "spec writing", "OKRs"
+      ],
+      "nice_to_have": [
+        "SDK", "OpenAPI", "documentation", "self-serve", "metrics",
+        "SLO", "Tableau", "Looker"
+      ],
+      "synonyms": {
+        "developer experience": ["DX", "developer-first"],
+        "platform": ["infra", "platform-as-a-service"]
+      }
+    },
+    {
+      "title": "Senior Technical PM",
+      "archetype": "FAANG-tier product",
+      "seniority": "senior",
+      "must_have": [
+        "technical PM", "spec writing", "cross-functional", "roadmap",
+        "experimentation", "stakeholder management", "SQL"
+      ],
+      "nice_to_have": [
+        "system design", "API", "OpenAPI", "data warehouse",
+        "MLflow", "Airflow"
+      ],
+      "synonyms": {
+        "technical PM": ["TPM"],
+        "cross-functional": ["XFN", "cross-team"]
+      }
+    },
+    {
+      "title": "Senior PM - Pricing & Packaging",
+      "archetype": "Enterprise SaaS",
+      "seniority": "senior",
+      "must_have": [
+        "pricing", "packaging", "GTM", "stakeholder management",
+        "experimentation", "roadmap", "OKRs"
+      ],
+      "nice_to_have": [
+        "elasticity", "competitive analysis", "TAM", "SAM", "SOM",
+        "Tableau", "Looker", "SQL"
+      ],
+      "synonyms": {
+        "pricing": ["pricing model", "monetization"],
+        "GTM": ["go-to-market", "launch"]
+      }
+    }
+  ]
+}

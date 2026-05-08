@@ -1,0 +1,93 @@
+{
+  "role_id": "devops_cloud_engineer",
+  "role_name": "DevOps / Cloud Engineer",
+  "samples": [
+    {
+      "title": "Senior SRE",
+      "archetype": "FAANG-tier product",
+      "seniority": "senior",
+      "must_have": [
+        "Kubernetes", "Terraform", "AWS", "observability", "on-call",
+        "CI/CD", "Linux", "Docker"
+      ],
+      "nice_to_have": [
+        "Helm", "ArgoCD", "OpenTelemetry", "Prometheus", "Grafana",
+        "SLO", "incident response", "service mesh", "Istio"
+      ],
+      "synonyms": {
+        "AWS": ["EKS", "S3", "EC2", "Lambda"],
+        "observability": ["Prometheus", "Grafana", "Datadog"],
+        "CI/CD": ["GitHub Actions", "GitLab CI", "Jenkins"]
+      }
+    },
+    {
+      "title": "Senior Platform Engineer",
+      "archetype": "AI infra",
+      "seniority": "senior",
+      "must_have": [
+        "Kubernetes", "Helm", "Terraform", "GitOps", "Docker",
+        "Linux", "CI/CD", "monitoring"
+      ],
+      "nice_to_have": [
+        "ArgoCD", "Flux", "Crossplane", "Vault", "KMS", "service mesh",
+        "Istio", "Linkerd", "Karpenter", "KEDA"
+      ],
+      "synonyms": {
+        "GitOps": ["ArgoCD", "Flux"],
+        "monitoring": ["Prometheus", "Grafana", "Datadog"],
+        "Terraform": ["IaC", "infrastructure-as-code"]
+      }
+    },
+    {
+      "title": "Cloud Engineer - Azure",
+      "archetype": "Enterprise SaaS",
+      "seniority": "senior",
+      "must_have": [
+        "Azure", "AKS", "Terraform", "Azure DevOps", "Docker",
+        "Kubernetes", "monitoring"
+      ],
+      "nice_to_have": [
+        "Bicep", "ARM", "Key Vault", "Azure Monitor", "Log Analytics",
+        "Helm", "ArgoCD"
+      ],
+      "synonyms": {
+        "Azure DevOps": ["ADO", "Azure Pipelines"],
+        "monitoring": ["Azure Monitor", "App Insights"]
+      }
+    },
+    {
+      "title": "DevOps Engineer - GitOps / GitHub Actions",
+      "archetype": "Mid-tier SaaS",
+      "seniority": "senior",
+      "must_have": [
+        "GitHub Actions", "Docker", "Kubernetes", "Terraform",
+        "CI/CD", "Linux", "AWS"
+      ],
+      "nice_to_have": [
+        "ArgoCD", "Helm", "OpenTelemetry", "Prometheus", "Grafana",
+        "shell scripting", "Python"
+      ],
+      "synonyms": {
+        "CI/CD": ["GitHub Actions", "GitLab CI", "Jenkins"],
+        "Kubernetes": ["EKS", "AKS", "GKE", "k8s"]
+      }
+    },
+    {
+      "title": "Senior Cloud Engineer - Cost & Reliability",
+      "archetype": "FinOps team",
+      "seniority": "senior",
+      "must_have": [
+        "AWS", "Kubernetes", "FinOps", "cost optimization", "Terraform",
+        "monitoring", "Linux"
+      ],
+      "nice_to_have": [
+        "Karpenter", "rightsizing", "Spot", "savings plan", "VPA",
+        "HPA", "Datadog"
+      ],
+      "synonyms": {
+        "FinOps": ["cloud cost", "cost optimization", "rightsizing"],
+        "monitoring": ["Prometheus", "Grafana", "Datadog"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "role_id": "software_engineer",
+  "role_name": "Software Engineer",
+  "samples": [
+    {
+      "title": "Senior Backend Engineer (Distributed Systems)",
+      "archetype": "FAANG-tier product",
+      "seniority": "senior",
+      "must_have": [
+        "distributed systems", "Go", "Java", "PostgreSQL", "Kafka",
+        "gRPC", "REST", "Kubernetes", "Docker", "observability"
+      ],
+      "nice_to_have": [
+        "Redis", "Cassandra", "DynamoDB", "OpenTelemetry", "Prometheus",
+        "service mesh", "Istio", "AWS", "GCP"
+      ],
+      "synonyms": {
+        "distributed systems": ["microservices", "event-driven"],
+        "REST": ["HTTP API", "REST API"],
+        "observability": ["tracing", "logging", "metrics"]
+      }
+    },
+    {
+      "title": "Senior Full-Stack Engineer",
+      "archetype": "Mid-tier SaaS",
+      "seniority": "senior",
+      "must_have": [
+        "TypeScript", "React", "Node.js", "PostgreSQL", "REST",
+        "Docker", "CI/CD", "unit test"
+      ],
+      "nice_to_have": [
+        "Next.js", "GraphQL", "Redis", "Kubernetes", "AWS",
+        "Tailwind", "Jest", "Playwright"
+      ],
+      "synonyms": {
+        "REST": ["HTTP API", "REST API", "OpenAPI"],
+        "unit test": ["Jest", "Vitest", "pytest", "JUnit"]
+      }
+    },
+    {
+      "title": "Senior Python Engineer (FastAPI)",
+      "archetype": "AI infra / ML platform",
+      "seniority": "senior",
+      "must_have": [
+        "Python", "FastAPI", "PostgreSQL", "Docker", "REST",
+        "unit test", "Kubernetes"
+      ],
+      "nice_to_have": [
+        "asyncio", "Pydantic", "SQLAlchemy", "Alembic", "Redis",
+        "Kafka", "OpenTelemetry", "Azure", "AWS"
+      ],
+      "synonyms": {
+        "REST": ["HTTP API", "REST API", "OpenAPI"],
+        "Kubernetes": ["AKS", "EKS", "GKE", "k8s"]
+      }
+    },
+    {
+      "title": "Backend Engineer - Event-Driven",
+      "archetype": "Fintech",
+      "seniority": "senior",
+      "must_have": [
+        "Java", "Kafka", "PostgreSQL", "REST", "Kubernetes",
+        "Docker", "observability", "unit test"
+      ],
+      "nice_to_have": [
+        "Spring Boot", "gRPC", "Avro", "Schema Registry", "Redis",
+        "AWS", "Terraform"
+      ],
+      "synonyms": {
+        "REST": ["HTTP API", "REST API"],
+        "observability": ["Prometheus", "Grafana", "OpenTelemetry"]
+      }
+    },
+    {
+      "title": "Senior Software Engineer (Search)",
+      "archetype": "Enterprise SaaS",
+      "seniority": "senior",
+      "must_have": [
+        "search", "ElasticSearch", "Python", "PostgreSQL", "REST",
+        "Docker", "observability"
+      ],
+      "nice_to_have": [
+        "OpenSearch", "Lucene", "ranking", "embeddings", "vector search",
+        "FAISS", "Kubernetes", "Redis"
+      ],
+      "synonyms": {
+        "search": ["full-text search", "lexical search"],
+        "vector search": ["semantic search", "ANN", "FAISS"],
+        "ranking": ["BM25", "learning-to-rank", "LTR"]
+      }
+    }
+  ]
+}

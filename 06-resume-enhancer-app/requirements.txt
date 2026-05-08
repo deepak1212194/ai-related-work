@@ -1,9 +1,12 @@
-fastapi>=0.111
-uvicorn[standard]>=0.30
-pydantic>=2.5
-pydantic-settings>=2.2
-python-multipart>=0.0.9
-pymupdf>=1.24             # PDF parsing (fitz)
-huggingface-hub>=0.24     # HF Inference Client (default LLM backend)
-anthropic>=0.39           # Optional: Claude API (swap-in)
-jinja2>=3.1               # LaTeX templating
+# Core dependencies (always required)
+gradio>=4.40.0
+jinja2>=3.1.0
+pydantic>=2.6.0
+requests>=2.31.0
+
+# Direct Anthropic API (optional - only needed for the 'anthropic' backend)
+anthropic>=0.40.0
+
+# Claude Code SDK (optional - enables the 'claude_code' backend that uses
+# your existing Claude Code login. Requires the `claude` CLI on PATH.)
+claude-agent-sdk>=0.0.14

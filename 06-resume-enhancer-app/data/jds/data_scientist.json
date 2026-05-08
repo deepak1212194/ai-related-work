@@ -1,0 +1,93 @@
+{
+  "role_id": "data_scientist",
+  "role_name": "Data Scientist",
+  "samples": [
+    {
+      "title": "Senior Data Scientist (Experimentation)",
+      "archetype": "FAANG-tier product",
+      "seniority": "senior",
+      "must_have": [
+        "A/B testing", "experimentation", "causal inference", "Python",
+        "SQL", "statistics", "metric design", "scikit-learn"
+      ],
+      "nice_to_have": [
+        "uplift modeling", "diff-in-diff", "propensity score", "Bayesian",
+        "Stan", "PyMC", "Looker", "dbt", "Airflow", "Snowflake"
+      ],
+      "synonyms": {
+        "A/B testing": ["experimentation", "online experiment", "split test"],
+        "causal inference": ["counterfactual", "treatment effect", "ATE"],
+        "metric design": ["KPI", "north-star metric", "guardrail metric"]
+      }
+    },
+    {
+      "title": "Data Scientist - Forecasting",
+      "archetype": "Logistics / supply-chain",
+      "seniority": "senior",
+      "must_have": [
+        "time-series", "forecasting", "Python", "pandas", "scikit-learn",
+        "SQL", "feature engineering"
+      ],
+      "nice_to_have": [
+        "Prophet", "ARIMA", "SARIMAX", "XGBoost", "LightGBM",
+        "GluonTS", "MLflow", "Airflow"
+      ],
+      "synonyms": {
+        "forecasting": ["demand forecasting", "time-series forecasting"],
+        "time-series": ["temporal", "sequential", "rolling-window"]
+      }
+    },
+    {
+      "title": "Senior Data Scientist - Growth / Retention",
+      "archetype": "Consumer SaaS",
+      "seniority": "senior",
+      "must_have": [
+        "churn", "retention", "cohort", "segmentation", "Python", "SQL",
+        "scikit-learn", "metric design", "stakeholder communication"
+      ],
+      "nice_to_have": [
+        "uplift modeling", "lift", "Mixpanel", "Amplitude", "dbt",
+        "Tableau", "Looker", "BigQuery"
+      ],
+      "synonyms": {
+        "churn": ["churn modeling", "attrition"],
+        "retention": ["LTV", "lifetime value"],
+        "segmentation": ["clustering", "k-means", "RFM"]
+      }
+    },
+    {
+      "title": "Applied Data Scientist - LLM / Search",
+      "archetype": "Enterprise SaaS",
+      "seniority": "senior",
+      "must_have": [
+        "Python", "embeddings", "evaluation", "SQL", "LLM",
+        "PyTorch", "Hugging Face"
+      ],
+      "nice_to_have": [
+        "RAG", "vector database", "FAISS", "fine-tuning",
+        "prompt engineering", "agentic AI"
+      ],
+      "synonyms": {
+        "embeddings": ["sentence embeddings", "SBERT", "Sentence-BERT"],
+        "evaluation": ["eval harness", "held-out", "offline metric"]
+      }
+    },
+    {
+      "title": "Senior Data Scientist - Pricing & Promotions",
+      "archetype": "E-commerce",
+      "seniority": "senior",
+      "must_have": [
+        "pricing", "elasticity", "experimentation", "causal inference",
+        "Python", "SQL", "statistics"
+      ],
+      "nice_to_have": [
+        "uplift modeling", "Bayesian", "Stan", "PyMC", "XGBoost",
+        "stakeholder communication", "Tableau"
+      ],
+      "synonyms": {
+        "elasticity": ["price elasticity", "demand elasticity"],
+        "pricing": ["pricing model", "promotion optimization"]
+      }
+    }
+  ]
+}

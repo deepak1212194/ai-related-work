@@ -1,0 +1,85 @@
+% Sample resume in the v2 (Jake's-Resume) macro style. Used for smoke tests.
+\documentclass[letterpaper,11pt]{article}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+
+\newcommand{\resumeItem}[1]{\item\small{{#1}}}
+\newcommand{\resumeSubheading}[4]{
+  \item
+  \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+    \textbf{#1} & #2 \\
+    \textit{\small#3} & \textit{\small #4} \\
+  \end{tabular*}
+}
+\newcommand{\achieveRow}[3]{\small\textbf{#1}\ \ \ \ #2 \hfill \textit{\small #3}\\}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}}
+
+\begin{document}
+
+\begin{center}
+{\Huge \textbf{Jane Doe}} \\
+{\small AI / ML Engineer  -  LLMs, Recommender Systems, MLOps} \\
+\href{mailto:jane.doe@example.com}{\faEnvelope\ jane.doe@example.com} \quad
+\href{https://linkedin.com/in/janedoe}{\faLinkedin\ linkedin.com/in/janedoe} \quad
+\href{https://github.com/janedoe}{\faGithub\ github.com/janedoe}
+\end{center}
+
+\section{Professional Summary}
+ML engineer with 5 years building production ML systems. Worked on retrieval
+and ranking. Used PyTorch and Hugging Face. Helped with MLOps on AWS.
+
+\section{Technical Skills}
+\begin{itemize}[leftmargin=0.15in, label={}]
+  \small{\item{
+    \textbf{Languages}{: Python, SQL, Bash} \\
+    \textbf{ML \& Deep Learning}{: PyTorch, Hugging Face Transformers, scikit-learn, FAISS, SBERT} \\
+    \textbf{LLMs \& GenAI}{: RAG, embeddings, prompt engineering, LangChain} \\
+    \textbf{Cloud \& MLOps}{: AWS, EKS, Lambda, S3, Terraform, Docker, FastAPI}
+  }}
+\end{itemize}
+
+\section{Professional Experience}
+\resumeSubHeadingListStart
+
+  \resumeSubheading
+    {Senior ML Engineer}{Aug 2022 -- Present}
+    {Acme Search}{Remote}
+    \resumeItemListStart
+      \resumeItem{Worked on recommendation system using embeddings.}
+      \resumeItem{Built RAG pipeline for documentation search.}
+      \resumeItem{Helped with MLOps deployment on EKS.}
+    \resumeItemListEnd
+
+  \resumeSubheading
+    {ML Engineer}{Jul 2019 -- Jul 2022}
+    {DataCo}{City, Country}
+    \resumeItemListStart
+      \resumeItem{Developed churn prediction model in PyTorch.}
+      \resumeItem{Productionized model with FastAPI and Docker.}
+    \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+\section{Education}
+\begin{itemize}[leftmargin=0.15in, label={}]
+  \item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{B.Tech, Computer Science} & \textit{2015 -- 2019} \\
+      {\small Some University} & {\small City, Country} \\
+    \end{tabular*}
+\end{itemize}
+
+\section{Achievements \& Recognition}
+\begin{itemize}[leftmargin=0.15in, label={}]
+  \item\small{
+    \achieveRow{Patent (Granted)}{Indian patent on a search-ranking method}{2023}
+    \achieveRow{Best Paper}{Best paper at ConferenceX}{2022}
+  }
+\end{itemize}
+
+\end{document}

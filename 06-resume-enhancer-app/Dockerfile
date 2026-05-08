@@ -1,34 +1,35 @@
-# syntax=docker/dockerfile:1.6
-FROM python:3.11-slim AS base
+FROM python:3.11-slim
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    RESUME_UI_PORT=7860
 
 WORKDIR /app
 
-# Install system deps:
-#   - texlive-latex-recommended + sourcesanspro + fontawesome5: for pdflatex
-#   - libgl1: PyMuPDF transitive
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        texlive-latex-recommended \
-        texlive-fonts-recommended \
-        texlive-fonts-extra \
-        texlive-latex-extra \
-        libgl1 \
+# System packages
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Python deps first for layer cache
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-COPY app/ ./app
-COPY templates/ ./templates
-COPY ui/ ./ui
+# Application code
+COPY app ./app
+COPY skills ./skills
+COPY data ./data
+COPY ui ./ui
+COPY examples ./examples
 
-EXPOSE 8005
+# Non-root user
+RUN useradd -ms /bin/bash resume && chown -R resume:resume /app
+USER resume
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request,sys; \
-        sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8005/health').status==200 else 1)"
+EXPOSE 7860
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8005", "--workers", "1"]
+HEALTHCHECK --interval=30s --timeout=4s --start-period=15s --retries=3 \
+    CMD curl -fsS http://localhost:7860/ || exit 1
+
+CMD ["python", "-m", "ui.gradio_app"]
