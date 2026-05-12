@@ -64,3 +64,17 @@ Numbers in resumes carry weight. Apply this discipline:
 - If the input gives a fuzzy descriptor ("tens of thousands", "millions"), keep
   the same descriptor — do not sharpen it into a fake exact number.
 - Round only when the input itself rounds. Never invent a rounded estimate.
+
+## structure_and_validation_policy
+
+- **Zero information loss.** Preserve every fact from the input — years of experience,
+  duration claims ("3 years", "5+ years"), team sizes, project names, tool names,
+  certification IDs, degree names, institutions, GPA, course names, and any metric
+  or quantifier. If a sentence says "3 years of experience in X", the rewrite must
+  also convey that exact duration.
+- If a required field is missing, keep a visible placeholder token instead of guessing.
+- Keep rewrites concise and professional; avoid unnecessary words.
+- Use minimal input context needed for correctness. Do not consume unrelated context.
+- When uncertain, be conservative and keep the original meaning unchanged.
+- **Duration and experience claims are sacred.** Never shorten "4+ years" to "several
+  years" or omit it altogether. Duration tells recruiters your seniority level.

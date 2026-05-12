@@ -25,6 +25,17 @@ downstream renderer has everything it needs.
 
 5. **Output format.** Respond with a JSON object matching the ResumeIR schema.
    No prose, no markdown.
+6. **Minimal patching.** Return only fields that need repair. Do not re-emit
+   unchanged data.
+7. **Links (LinkedIn / GitHub).** If `header.links` is missing a LinkedIn or
+   GitHub entry but the raw .tex contains `linkedin.com/...` or `github.com/...`
+   (inside `\href`, a bare URL, or a social command), add those links to
+   `link_repairs` as `{kind, label, url}`. `kind` must be one of:
+   `linkedin`, `github`, `email`, `website`, `twitter`, `scholar`, `portfolio`, `other`.
+8. **Certifications.** If a `\section{Certifications}` or `\section{Licenses}` or
+   similar block appears in the raw .tex but `certifications` is empty, extract
+   each item as `{name, issuer, year}` into `certification_repairs`.
+   Year should be a 4-digit string if present, otherwise empty string.
 
 ## schema_hints
 
@@ -32,3 +43,5 @@ downstream renderer has everything it needs.
 - Experience bullets are full sentences, one verb each.
 - An experience `summary_line` is the optional one-line context after the
   company name (e.g. "OneForma AI Platform - Global Crowd-Work Marketplace").
+- `link_repairs` items: `{"kind": "linkedin", "label": "LinkedIn", "url": "https://linkedin.com/in/..."}`
+- `certification_repairs` items: `{"name": "AWS Solutions Architect", "issuer": "Amazon", "year": "2023"}`

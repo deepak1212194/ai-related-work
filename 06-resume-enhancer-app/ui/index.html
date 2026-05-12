@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ResumeAI — Land Your Dream Job</title>
+<style>
+/* ════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — Teal/Emerald × Deep Slate
+   ════════════════════════════════════════════════════════════════ */
+:root {
+  /* Backgrounds */
+  --bg:#030d0f;
+  --bg2:rgba(5,18,20,.97);
+  --bg3:rgba(8,24,26,.98);
+  --bg4:rgba(3,12,14,.93);
+
+  /* Primary — Teal */
+  --t1:#0d9488;--t1l:#2dd4bf;--t1d:#0f766e;--t1x:#134e4a;
+
+  /* Secondary — Emerald */
+  --g1:#059669;--g1l:#34d399;--g1d:#047857;
+
+  /* Accent — Cyan */
+  --cy:#0891b2;--cyl:#38bdf8;
+
+  /* Warm gold — for achievements, scores */
+  --go:#d97706;--gol:#fbbf24;
+
+  /* Rose — errors */
+  --ro:#e11d48;--rol:#fb7185;
+
+  /* Text */
+  --tx:#f0fdfa;--tx2:#99f6e4;--tx3:#5eead4;--tx4:#2dd4bf;
+  --dim:#334155;--dim2:#1e293b;
+
+  /* Borders */
+  --b1:rgba(45,212,191,.18);--b2:rgba(255,255,255,.05);--b3:rgba(255,255,255,.025);
+
+  /* Glows */
+  --glow:0 0 40px rgba(13,148,136,.35);
+  --glow2:0 0 40px rgba(5,150,105,.3);
+  --glow3:0 0 24px rgba(8,145,178,.3);
+
+  /* Radii */
+  --r6:6px;--r8:8px;--r10:10px;--r12:12px;--r16:16px;--r20:20px;--r24:24px;
+
+  /* Sidebar */
+  --side:300px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  background:var(--bg);color:var(--tx);
+  font-family:'Inter','Segoe UI',system-ui,sans-serif;
+  font-size:14px;line-height:1.5;min-height:100vh;overflow-x:hidden;
+}
+a{color:var(--t1l);text-decoration:none}
+a:hover{color:var(--cyl);text-decoration:underline}
+
+/* ════════ ANIMATED BG ════════ */
+.bg-wrap{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.orb{position:absolute;border-radius:50%;filter:blur(130px);opacity:0;
+  animation:ob-in 2s ease forwards}
+.o1{width:700px;height:700px;top:-250px;left:-200px;
+  background:radial-gradient(circle,rgba(13,148,136,.5),rgba(15,118,110,.15) 50%,transparent 70%);
+  animation:ob-in 2s ease forwards,od1 38s ease-in-out 2s infinite}
+.o2{width:600px;height:600px;bottom:-200px;right:-150px;
+  background:radial-gradient(circle,rgba(5,150,105,.4),transparent 65%);
+  animation:ob-in 2s .4s ease forwards,od2 30s ease-in-out 2s infinite}
+.o3{width:400px;height:400px;top:45%;left:40%;
+  background:radial-gradient(circle,rgba(8,145,178,.25),transparent 65%);
+  animation:ob-in 2s .7s ease forwards,od3 45s ease-in-out 2s infinite}
+@keyframes ob-in{to{opacity:1}}
+@keyframes od1{0%,100%{transform:translate(0,0)}33%{transform:translate(60px,-50px)}66%{transform:translate(-40px,60px)}}
+@keyframes od2{0%,100%{transform:translate(0,0)}50%{transform:translate(-60px,40px)}}
+@keyframes od3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-30px,-40px) scale(1.15)}}
+
+/* Scanline grid */
+.grid{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(45,212,191,.02) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(45,212,191,.02) 1px,transparent 1px);
+  background-size:48px 48px;
+  mask-image:radial-gradient(ellipse 80% 80% at 50% 50%,black,transparent)}
+
+/* ════════ LAYOUT ════════ */
+#app{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh}
+main{display:grid;grid-template-columns:var(--side) 1fr;flex:1;align-items:start}
+
+/* ════════ HEADER ════════ */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  height:56px;padding:0 24px;
+  background:rgba(3,12,14,.8);
+  border-bottom:1px solid var(--b2);
+  backdrop-filter:blur(20px) saturate(160%);
+  position:sticky;top:0;z-index:50;
+}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-mark{
+  width:30px;height:30px;border-radius:8px;font-size:16px;
+  background:linear-gradient(135deg,var(--t1),var(--g1));
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--glow);
+  animation:lm-pulse 4s ease-in-out infinite;
+}
+@keyframes lm-pulse{0%,100%{box-shadow:0 0 12px rgba(13,148,136,.5)}50%{box-shadow:0 0 30px rgba(13,148,136,.9),0 0 60px rgba(5,150,105,.3)}}
+.logo-name{font-size:15px;font-weight:800;letter-spacing:-.04em;
+  background:linear-gradient(90deg,var(--tx),var(--t1l) 50%,var(--cyl));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo-tagline{font-size:10px;color:var(--dim);background:var(--bg3);border:1px solid var(--b2);
+  border-radius:20px;padding:2px 9px;margin-left:6px}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.hdr-chip{
+  font-size:11px;padding:3px 10px;border-radius:20px;
+  background:var(--bg3);border:1px solid var(--b2);color:var(--dim);
+  transition:all .3s;display:flex;align-items:center;gap:5px;
+}
+.hdr-chip.live{
+  border-color:rgba(45,212,191,.3);color:var(--t1l);
+  background:rgba(13,148,136,.08);
+}
+.hdr-dot{width:5px;height:5px;border-radius:50%;background:currentColor;
+  transition:all .3s}
+.hdr-chip.live .hdr-dot{box-shadow:0 0 5px currentColor;animation:dot-blink .8s ease infinite}
+@keyframes dot-blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* ════════ SIDEBAR ════════ */
+aside{
+  padding:14px 12px;
+  border-right:1px solid var(--b2);
+  position:sticky;top:56px;
+  max-height:calc(100vh - 56px);
+  overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:var(--b1) transparent;
+}
+
+.card{
+  background:rgba(5,18,20,.65);
+  border:1px solid var(--b2);
+  border-radius:var(--r12);
+  padding:12px;margin-bottom:9px;
+  position:relative;overflow:hidden;
+  backdrop-filter:blur(8px);
+  transition:border-color .25s;
+}
+.card::before{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(135deg,rgba(255,255,255,.02),transparent 60%)}
+.card:hover{border-color:var(--b1)}
+
+.label{font-size:10px;font-weight:800;color:var(--tx3);text-transform:uppercase;
+  letter-spacing:.1em;margin-bottom:7px;display:flex;align-items:center;gap:5px}
+
+/* Key tabs */
+.ktabs{display:flex;gap:2px;background:var(--bg3);border-radius:var(--r8);padding:3px;margin-bottom:8px}
+.ktab{flex:1;background:none;border:none;border-radius:6px;
+  color:var(--dim);font:inherit;font-size:11px;font-weight:700;
+  padding:5px 4px;cursor:pointer;transition:all .2s;text-align:center}
+.ktab.on{background:linear-gradient(135deg,rgba(13,148,136,.3),rgba(8,145,178,.2));
+  color:var(--tx);box-shadow:0 0 10px rgba(13,148,136,.15)}
+
+.badge-free{display:inline-flex;align-items:center;gap:2px;
+  background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);
+  color:var(--g1l);font-size:9px;font-weight:800;padding:1px 6px;
+  border-radius:10px;vertical-align:middle;margin-left:4px}
+.key-hint{font-size:10px;color:var(--dim);margin-top:6px;line-height:1.5}
+.key-hint a{color:var(--t1l)}
+
+/* Form elements */
+input,select{
+  background:rgba(255,255,255,.03);border:1px solid var(--b2);
+  border-radius:var(--r8);color:var(--tx);font:inherit;
+  padding:7px 10px;width:100%;outline:none;transition:all .2s;
+}
+input::placeholder{color:var(--dim)}
+input:focus,select:focus{
+  border-color:var(--t1);
+  box-shadow:0 0 0 3px rgba(13,148,136,.1),0 0 12px rgba(13,148,136,.07);
+  background:rgba(13,148,136,.04);
+}
+select option{background:#040f10}
+
+/* Drop zone */
+.dz{
+  border:1.5px dashed rgba(45,212,191,.25);border-radius:var(--r12);
+  padding:18px 12px;text-align:center;cursor:pointer;
+  transition:all .25s;position:relative;
+  background:rgba(13,148,136,.02);
+}
+.dz:hover,.dz.over{border-color:var(--t1l);border-style:solid;
+  background:rgba(13,148,136,.07);box-shadow:inset 0 0 20px rgba(13,148,136,.04)}
+.dz input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-ico{font-size:22px;margin-bottom:5px;transition:transform .2s}
+.dz:hover .dz-ico{transform:scale(1.1) translateY(-2px)}
+.dz-txt{color:var(--tx2);font-size:12px;line-height:1.45}
+.dz-fmt{font-size:10px;color:var(--dim);margin-top:3px}
+.fc{display:inline-flex;align-items:center;gap:6px;
+  background:rgba(13,148,136,.1);border:1px solid var(--b1);
+  border-radius:20px;padding:3px 10px;font-size:11px;color:var(--t1l);
+  margin-top:7px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fc-rm{cursor:pointer;color:var(--dim);font-size:14px;transition:color .15s;margin-left:2px}
+.fc-rm:hover{color:var(--rol)}
+
+/* Role select */
+.role-wrap{position:relative}
+.role-wrap::after{content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  font-size:10px;color:var(--dim);pointer-events:none}
+.role-wrap select{padding-right:24px;appearance:none}
+
+/* CTA button */
+.go-btn{
+  width:100%;padding:13px;margin-bottom:9px;
+  background:linear-gradient(135deg,var(--t1x),var(--t1),var(--cy));
+  background-size:200%;animation:btn-grad 5s ease infinite;
+  border:none;border-radius:var(--r12);
+  color:#fff;font:inherit;font-size:14px;font-weight:800;letter-spacing:-.02em;
+  cursor:pointer;transition:all .25s;
+  position:relative;overflow:hidden;
+  box-shadow:0 4px 20px rgba(13,148,136,.3);
+}
+@keyframes btn-grad{0%,100%{background-position:0%}50%{background-position:100%}}
+.go-btn::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(rgba(255,255,255,.08),rgba(255,255,255,.01));
+  border-radius:inherit;pointer-events:none}
+.go-btn::after{content:'';position:absolute;top:0;left:-100%;width:50%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);
+  transform:skewX(-20deg);transition:left .5s ease}
+.go-btn:hover:not(:disabled)::after{left:140%}
+.go-btn:hover:not(:disabled){transform:translateY(-2px);
+  box-shadow:0 8px 36px rgba(13,148,136,.55),0 0 60px rgba(8,145,178,.15)}
+.go-btn:disabled{opacity:.3;cursor:not-allowed;animation:none;
+  background:var(--dim2);box-shadow:none}
+.btn-inner{display:flex;align-items:center;justify-content:center;gap:7px;
+  position:relative;z-index:1}
+
+/* Advanced */
+.adv{border:1px solid var(--b2);border-radius:var(--r12);
+  margin-bottom:9px;background:var(--bg3);overflow:hidden}
+.adv summary{font-size:11px;font-weight:700;color:var(--dim);padding:9px 12px;
+  display:flex;align-items:center;gap:5px;cursor:pointer;list-style:none;
+  transition:color .15s}
+.adv summary::-webkit-details-marker{display:none}
+.adv summary:hover{color:var(--tx2)}
+.adv-arrow{font-size:8px;margin-left:auto;transition:transform .2s}
+.adv[open] summary .adv-arrow{transform:rotate(90deg)}
+.adv-body{padding:0 12px 12px;border-top:1px solid var(--b2)}
+.adv-body .label{margin-top:10px}
+
+/* ════════ MAIN PANEL ════════ */
+section#main{padding:24px;min-height:calc(100vh - 56px)}
+
+/* ════════ IDLE HERO ════════ */
+.hero{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;min-height:70vh;text-align:center;padding:32px 16px;
+}
+/* Animated icon */
+.hero-orb{position:relative;width:88px;height:88px;margin-bottom:24px}
+.hero-core{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;font-size:40px;
+  filter:drop-shadow(0 0 20px rgba(13,148,136,.6));
+  animation:h-float 3.5s ease-in-out infinite}
+@keyframes h-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.hero-ring{position:absolute;inset:-8px;border-radius:50%;
+  border:1.5px dashed rgba(45,212,191,.2);
+  animation:ring-spin 14s linear infinite}
+.hero-ring2{position:absolute;inset:-22px;border-radius:50%;
+  border:1px dashed rgba(8,145,178,.12);
+  animation:ring-spin 22s linear reverse infinite}
+.hero-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--t1);
+  top:-4px;left:50%;transform:translateX(-50%);
+  box-shadow:0 0 8px var(--t1);animation:ring-spin 14s linear infinite,dot-glow 2s ease-in-out infinite}
+@keyframes ring-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes dot-glow{0%,100%{box-shadow:0 0 6px var(--t1)}50%{box-shadow:0 0 18px var(--t1l),0 0 36px rgba(13,148,136,.4)}}
+
+.hero-title{
+  font-size:34px;font-weight:900;letter-spacing:-.06em;margin-bottom:14px;line-height:1.1;
+  background:linear-gradient(135deg,#fff 0%,var(--t1l) 35%,var(--cyl) 65%,var(--g1l) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero-sub{color:var(--tx2);max-width:500px;font-size:14.5px;line-height:1.7;margin-bottom:28px}
+.hero-sub strong{color:var(--t1l)}
+
+/* Feature grid */
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:580px;margin-bottom:28px}
+.feat{
+  background:rgba(255,255,255,.02);border:1px solid var(--b3);
+  border-radius:var(--r12);padding:12px;
+  text-align:left;transition:all .25s;cursor:default;
+}
+.feat:hover{border-color:var(--b1);background:rgba(13,148,136,.05);
+  transform:translateY(-2px);box-shadow:0 4px 16px rgba(13,148,136,.08)}
+.feat-ico{font-size:18px;margin-bottom:6px}
+.feat-ttl{font-size:12px;font-weight:700;color:var(--tx);margin-bottom:2px}
+.feat-dsc{font-size:11px;color:var(--dim);line-height:1.4}
+
+/* "For students" banner */
+.student-banner{
+  display:flex;align-items:flex-start;gap:12px;
+  background:rgba(217,119,6,.06);border:1px solid rgba(251,191,36,.15);
+  border-radius:var(--r12);padding:13px 15px;max-width:560px;text-align:left;
+  margin-bottom:0;
+}
+.sb-ico{font-size:20px;flex-shrink:0;margin-top:1px}
+.sb-title{font-size:12.5px;font-weight:700;color:var(--gol);margin-bottom:3px}
+.sb-body{font-size:11.5px;color:var(--tx2);line-height:1.55}
+
+/* ════════ PROCESSING ════════ */
+.brew{
+  display:flex;gap:24px;padding:0;min-height:calc(100vh - 56px);
+  align-items:flex-start;
+}
+.brew-left{
+  flex:0 0 340px;
+  position:sticky;top:80px;
+  display:flex;flex-direction:column;align-items:center;
+  text-align:center;padding:32px 16px;
+}
+.brew-robot{font-size:52px;margin-bottom:6px;
+  filter:drop-shadow(0 0 18px rgba(13,148,136,.5));
+  animation:bot-bob 1.5s ease-in-out infinite}
+@keyframes bot-bob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-8px) rotate(1deg)}}
+.brew-timer{
+  font-size:48px;font-weight:900;letter-spacing:-.06em;
+  font-variant-numeric:tabular-nums;line-height:1;margin-bottom:4px;
+  background:linear-gradient(90deg,var(--t1l),var(--cyl));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.brew-stage-name{font-size:14px;font-weight:700;color:var(--tx);margin-bottom:4px}
+.brew-hint{font-size:12px;color:var(--tx2);height:18px;margin-bottom:20px;
+  transition:opacity .4s,transform .4s}
+.brew-hint.fade{opacity:0;transform:translateY(-4px)}
+
+/* Pipeline steps */
+.pipeline{display:flex;align-items:center;margin-bottom:18px;width:100%}
+.pn{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:50px}
+.pd{width:36px;height:36px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;border:2px solid var(--b2);
+  background:rgba(255,255,255,.02);transition:all .4s}
+.pl{font-size:9px;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.pe{flex:1;min-width:10px;height:2px;background:var(--b2);
+  align-self:flex-start;margin-top:17px;transition:all .5s;position:relative;overflow:hidden}
+.pe.run{background:var(--b2);animation:edge-flow .8s linear infinite}
+.pe.done{background:linear-gradient(90deg,var(--t1),var(--g1));opacity:.7}
+@keyframes edge-flow{
+  0%{box-shadow:inset 0 0 0 0 var(--t1l)}
+  100%{box-shadow:inset 80px 0 0 0 rgba(13,148,136,.4)}
+}
+.pn.active .pd{border-color:var(--t1);background:rgba(13,148,136,.15);
+  box-shadow:0 0 0 4px rgba(13,148,136,.1),0 0 18px rgba(13,148,136,.3);
+  animation:pn-pulse 1s ease infinite}
+@keyframes pn-pulse{0%{box-shadow:0 0 0 0 rgba(13,148,136,.7),0 0 18px rgba(13,148,136,.3)}
+  100%{box-shadow:0 0 0 10px rgba(13,148,136,0),0 0 18px rgba(13,148,136,.3)}}
+.pn.done .pd{border-color:var(--g1);background:rgba(5,150,105,.12);color:var(--g1l);
+  box-shadow:0 0 12px rgba(52,211,153,.2)}
+.pn.done .pl{color:var(--g1l)}
+
+/* Progress bar */
+.prog-track{width:100%;height:5px;background:rgba(255,255,255,.04);
+  border-radius:3px;overflow:hidden;position:relative;margin-bottom:6px}
+.prog-fill{height:100%;border-radius:3px;width:3%;
+  background:linear-gradient(90deg,var(--t1),var(--cy),var(--g1l));
+  background-size:200%;animation:pg-grad 2s linear infinite;
+  transition:width .5s cubic-bezier(.4,0,.2,1)}
+@keyframes pg-grad{from{background-position:0%}to{background-position:200%}}
+.prog-fill::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);
+  animation:pg-shimmer 1.5s linear infinite}
+@keyframes pg-shimmer{from{transform:translateX(-200%)}to{transform:translateX(200%)}}
+.prog-pct{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+
+/* Live activity feed */
+.brew-right{
+  flex:1;min-width:0;
+  padding:24px 0 24px 0;
+  display:flex;flex-direction:column;gap:0;
+}
+.feed-title{font-size:11px;font-weight:800;color:var(--tx3);
+  text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;
+  display:flex;align-items:center;gap:6px}
+.feed-title::after{content:'';flex:1;height:1px;background:var(--b2)}
+.feed-wrap{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--b1) transparent}
+
+/* Activity card */
+.act{
+  border-radius:var(--r10);margin-bottom:8px;overflow:hidden;
+  border:1px solid var(--b2);background:rgba(5,18,20,.7);
+  animation:act-in .35s cubic-bezier(.34,1.56,.64,1);
+  transition:border-color .2s;
+}
+@keyframes act-in{from{opacity:0;transform:translateY(8px) scale(.98)}}
+.act.chg{border-color:var(--b1)}
+.act.run{border-color:rgba(13,148,136,.15)}
+.act-head{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer}
+.act-ico{font-size:13px;width:22px;text-align:center;flex-shrink:0}
+.act-lbl{flex:1;font-size:12.5px;font-weight:600;color:var(--tx)}
+.act-meta{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.act-score{font-size:10px;font-weight:800;padding:2px 7px;border-radius:8px;
+  background:rgba(13,148,136,.12);border:1px solid rgba(45,212,191,.2);color:var(--t1l)}
+.act-changed{font-size:10px;color:var(--g1l);font-weight:700}
+.act-spin{display:inline-block;animation:act-rotate .8s linear infinite;color:var(--t1l);font-size:13px}
+@keyframes act-rotate{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+/* Diff pane */
+.act-diff{padding:0 10px 10px;border-top:1px solid var(--b2);display:none}
+.act.open .act-diff{display:block}
+.diff-cols{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.diff-hdr{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:4px;display:flex;align-items:center;gap:4px}
+.diff-hdr.b{color:var(--dim)}
+.diff-hdr.a{color:var(--g1l)}
+.diff-box{background:rgba(0,0,0,.3);border-radius:var(--r8);padding:9px 10px;
+  font-size:11.5px;line-height:1.55;color:var(--tx2);
+  white-space:pre-wrap;word-break:break-word;border:1px solid var(--b2);min-height:52px}
+.diff-box.bef{border-left:3px solid var(--dim)}
+.diff-box.aft{border-left:3px solid var(--g1);color:var(--tx)}
+
+/* Empty feed state */
+.feed-empty{text-align:center;color:var(--dim);font-size:12.5px;
+  padding:40px 20px;font-style:italic}
+
+/* ════════ RESULTS ════════ */
+/* Banner */
+.banner{
+  background:linear-gradient(135deg,rgba(13,148,136,.1),rgba(5,150,105,.06));
+  border:1px solid rgba(45,212,191,.2);border-radius:var(--r20);
+  padding:16px 20px;margin-bottom:18px;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  animation:ban-in .5s cubic-bezier(.34,1.56,.64,1);position:relative;overflow:hidden;
+}
+.banner::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 90% 50%,rgba(13,148,136,.04),transparent 60%)}
+@keyframes ban-in{from{opacity:0;transform:translateY(-10px)}}
+.ban-l{display:flex;align-items:center;gap:12px}
+.ban-ico{font-size:26px;animation:trop .7s cubic-bezier(.34,1.56,.64,1) forwards}
+@keyframes trop{0%{transform:scale(0) rotate(-20deg)}100%{transform:scale(1) rotate(0)}}
+.ban-title{font-size:16px;font-weight:800;letter-spacing:-.03em}
+.ban-sub{font-size:12px;color:var(--tx2);margin-top:2px}
+.ban-badge{font-size:10.5px;font-weight:800;padding:4px 12px;border-radius:20px;
+  white-space:nowrap;letter-spacing:.03em}
+.ban-badge.ok{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);color:var(--g1l)}
+.ban-badge.warn{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);color:var(--gol)}
+
+/* Download hero */
+.dl{
+  background:linear-gradient(135deg,rgba(13,148,136,.1),rgba(8,145,178,.07));
+  border:1.5px solid rgba(45,212,191,.25);border-radius:var(--r20);
+  padding:18px 22px;margin-bottom:18px;
+  display:flex;align-items:center;gap:16px;
+  position:relative;overflow:hidden;
+  animation:dl-glow 4s ease-in-out infinite;
+}
+@keyframes dl-glow{0%,100%{box-shadow:0 0 16px rgba(13,148,136,.12)}
+  50%{box-shadow:0 0 40px rgba(13,148,136,.25),0 0 80px rgba(8,145,178,.1)}}
+.dl-ico{font-size:36px;flex-shrink:0;
+  filter:drop-shadow(0 0 10px rgba(13,148,136,.5));
+  animation:doc-pop 2s ease-in-out infinite}
+@keyframes doc-pop{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.dl-body{flex:1}
+.dl-title{font-size:15px;font-weight:800;letter-spacing:-.03em;color:var(--tx);margin-bottom:3px}
+.dl-meta{font-size:12px;color:var(--tx2);margin-bottom:5px}
+.dl-hint{font-size:11px;color:var(--dim)}
+
+/* Tex issues warning */
+.tex-warn{
+  background:rgba(217,119,6,.07);border:1px solid rgba(251,191,36,.2);
+  border-radius:var(--r10);padding:10px 14px;margin-top:10px;
+}
+.tex-warn-title{font-size:11px;font-weight:800;color:var(--gol);margin-bottom:5px}
+.tex-warn-item{font-size:11.5px;color:var(--tx2);padding:2px 0;
+  display:flex;align-items:flex-start;gap:5px}
+
+.dl-btn{
+  background:linear-gradient(135deg,var(--t1),var(--cy));
+  border:none;border-radius:var(--r12);color:#fff;cursor:pointer;
+  font:inherit;font-size:13px;font-weight:800;padding:11px 18px;
+  white-space:nowrap;transition:all .25s;
+  box-shadow:var(--glow);text-decoration:none;display:inline-block;
+  position:relative;overflow:hidden;
+}
+.dl-btn:hover{transform:translateY(-2px);box-shadow:0 8px 36px rgba(13,148,136,.55);color:#fff}
+
+/* KPI grid */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:18px}
+.kpi{
+  border-radius:var(--r16);padding:14px;border:1px solid var(--b2);
+  background:rgba(5,18,20,.6);backdrop-filter:blur(8px);
+  position:relative;overflow:hidden;
+  transition:all .3s;cursor:default;
+  animation:kpi-in .6s cubic-bezier(.34,1.56,.64,1) var(--d,.1s) both;
+}
+@keyframes kpi-in{from{opacity:0;transform:translateY(10px) scale(.97)}}
+.kpi::before{content:'';position:absolute;top:-25%;right:-15%;
+  width:90px;height:90px;border-radius:50%;filter:blur(28px);opacity:.12}
+.k1::before{background:var(--t1)}.k2::before{background:var(--cy)}
+.k3::before{background:var(--g1)}.k4::before{background:var(--go)}
+.kpi:hover{transform:translateY(-2px);border-color:rgba(45,212,191,.12)}
+.kpi-ico{font-size:16px;margin-bottom:7px;opacity:.6}
+.kpi-val{font-size:22px;font-weight:900;letter-spacing:-.05em;margin-bottom:3px}
+.k1 .kpi-val{background:linear-gradient(90deg,var(--t1l),var(--t1));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.k2 .kpi-val{background:linear-gradient(90deg,var(--cyl),var(--cy));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.k3 .kpi-val{background:linear-gradient(90deg,var(--g1l),var(--g1));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.k4 .kpi-val{background:linear-gradient(90deg,var(--gol),var(--go));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.kpi-lbl{font-size:11px;font-weight:700;color:var(--tx);margin-bottom:2px}
+.kpi-sub{font-size:10px;color:var(--dim);line-height:1.35}
+
+/* Tabs */
+.tabs{display:flex;gap:2px;margin-bottom:16px;
+  background:rgba(255,255,255,.02);border-radius:var(--r10);
+  padding:3px;border:1px solid var(--b2)}
+.tab{background:none;border:none;border-radius:8px;
+  color:var(--dim);cursor:pointer;font:inherit;font-size:12px;font-weight:700;
+  padding:7px 14px;transition:all .2s;white-space:nowrap;flex:1}
+.tab:hover{color:var(--tx2);background:rgba(255,255,255,.02)}
+.tab.on{background:linear-gradient(135deg,rgba(13,148,136,.18),rgba(8,145,178,.1));
+  color:var(--t1l);box-shadow:0 2px 10px rgba(13,148,136,.12)}
+.tp{display:none;animation:tp-in .3s ease}
+.tp.on{display:block}
+@keyframes tp-in{from{opacity:0;transform:translateY(3px)}}
+.no-data{color:var(--dim);padding:40px;text-align:center;font-size:13px;font-style:italic}
+
+/* Section trace cards */
+.sc{background:rgba(5,18,20,.7);border:1px solid var(--b2);
+  border-radius:var(--r10);margin-bottom:7px;overflow:hidden;transition:all .2s}
+.sc.chg{border-color:rgba(45,212,191,.15)}
+.sc summary{display:flex;align-items:center;gap:8px;padding:10px 13px;
+  cursor:pointer;list-style:none;user-select:none;transition:background .15s}
+.sc summary::-webkit-details-marker{display:none}
+.sc summary:hover{background:rgba(255,255,255,.02)}
+.sc[open] summary{border-bottom:1px solid var(--b2)}
+.sc-arrow{font-size:8px;color:var(--dim);transition:transform .2s;margin-left:auto}
+.sc[open] .sc-arrow{transform:rotate(90deg)}
+.sc-lbl{flex:1;font-size:13px;font-weight:600;color:var(--tx)}
+.sc-chips{display:flex;gap:4px;flex-shrink:0}
+.chip{font-size:10px;padding:2px 7px;border-radius:8px;font-weight:700}
+.c-score{background:rgba(13,148,136,.12);color:var(--t1l);border:1px solid rgba(45,212,191,.15)}
+.c-iter{background:rgba(8,145,178,.1);color:var(--cyl);border:1px solid rgba(56,189,248,.12)}
+.c-unch{background:rgba(255,255,255,.04);color:var(--dim);border:1px solid var(--b2)}
+.sc-body{padding:12px 13px}
+.diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.diff-head{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:4px;display:flex;align-items:center;gap:4px}
+.diff-head.b{color:var(--dim)}.diff-head.a{color:var(--g1l)}
+.d-box{background:rgba(0,0,0,.3);border-radius:var(--r8);padding:9px 11px;
+  font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;
+  color:var(--tx2);border:1px solid var(--b2)}
+.d-box.bef{border-left:3px solid var(--dim)}
+.d-box.aft{border-left:3px solid var(--g1);color:var(--tx)}
+.d-box.unc{color:var(--dim);font-style:italic}
+.sc-note{font-size:11px;color:var(--gol);margin-top:7px;padding:6px 10px;
+  background:rgba(217,119,6,.07);border-radius:var(--r8);border:1px solid rgba(251,191,36,.12);
+  display:flex;align-items:flex-start;gap:5px}
+
+/* Keywords */
+.kw-sec{margin-bottom:18px}
+.kw-hdr{font-size:11px;font-weight:800;color:var(--tx2);
+  margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--b2);
+  display:flex;align-items:center;gap:6px}
+.kw-cnt{font-size:10px;background:var(--bg3);border:1px solid var(--b2);
+  border-radius:10px;padding:1px 7px;color:var(--dim)}
+.chips-wrap{display:flex;flex-wrap:wrap;gap:4px}
+.ck{padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;
+  transition:transform .15s;cursor:default}
+.ck:hover{transform:translateY(-1px)}
+.ck-g{background:rgba(5,150,105,.08);border:1px solid rgba(52,211,153,.2);color:var(--g1l)}
+.ck-r{background:rgba(225,29,72,.07);border:1px solid rgba(251,113,133,.15);color:var(--rol)}
+.ck-a{background:rgba(217,119,6,.07);border:1px solid rgba(251,191,36,.15);color:var(--gol)}
+.empty-chips{color:var(--dim);font-size:12.5px;font-style:italic}
+
+/* Analysis */
+.as-card{background:rgba(5,18,20,.7);border:1px solid var(--b2);
+  border-radius:var(--r12);padding:15px;margin-bottom:11px;transition:border-color .2s}
+.as-card:hover{border-color:rgba(45,212,191,.12)}
+.as-title{font-size:10px;font-weight:800;color:var(--tx3);
+  text-transform:uppercase;letter-spacing:.1em;
+  margin-bottom:12px;padding-bottom:7px;border-bottom:1px solid var(--b2);
+  display:flex;align-items:center;gap:5px}
+.sum-g{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.sum-c{text-align:center;padding:12px;background:rgba(255,255,255,.02);
+  border:1px solid var(--b2);border-radius:var(--r10);transition:all .2s}
+.sum-c:hover{border-color:var(--b1);background:rgba(13,148,136,.03)}
+.sum-v{font-size:22px;font-weight:900;letter-spacing:-.04em;
+  background:linear-gradient(90deg,var(--t1l),var(--cyl));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:3px}
+.sum-l{font-size:10.5px;color:var(--dim);font-weight:600}
+.jd-item{margin-bottom:13px;padding-bottom:13px;border-bottom:1px solid var(--b2)}
+.jd-item:last-child{border:none;padding:0;margin:0}
+.jd-name{font-size:12.5px;color:var(--tx);font-weight:600;margin-bottom:6px}
+.bar-r{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.bar-lbl{font-size:10px;color:var(--dim);width:34px;flex-shrink:0;font-weight:600}
+.bar-track{flex:1;height:7px;background:rgba(255,255,255,.04);
+  border-radius:4px;overflow:hidden;border:1px solid var(--b2)}
+.bar-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+.b-bef{background:rgba(255,255,255,.12)}
+.b-aft{background:linear-gradient(90deg,var(--t1),var(--cy))}
+.bar-pct{font-size:11px;color:var(--tx2);width:70px;flex-shrink:0;font-weight:600}
+.delta{font-size:11px;font-weight:800;margin-left:3px}
+.delta.pos{color:var(--g1l)}.delta.neg{color:var(--rol)}
+.jd-avg{font-size:12px;color:var(--tx2);margin-top:9px;padding:8px 11px;
+  background:rgba(13,148,136,.04);border-radius:var(--r8);border:1px solid rgba(45,212,191,.08)}
+.verd{font-size:13.5px;color:var(--tx);line-height:1.6;
+  padding:11px 14px;background:rgba(13,148,136,.05);
+  border-radius:var(--r8);border-left:3px solid var(--t1);margin-bottom:11px}
+.rs-row{display:flex;align-items:baseline;gap:8px;margin-bottom:12px}
+.rs-num{font-size:34px;font-weight:900;letter-spacing:-.05em;
+  background:linear-gradient(90deg,var(--t1l),var(--cyl));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.rs-denom{font-size:13px;color:var(--dim)}
+.str-hdr{font-size:10px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.07em;margin-bottom:5px;margin-top:11px}
+.str-hdr.g{color:var(--g1l)}.str-hdr.r{color:var(--rol)}
+.str-item{font-size:12.5px;color:var(--tx2);padding:3px 0 3px 4px;
+  display:flex;align-items:flex-start;gap:5px}
+.ats-row{display:flex;align-items:center;gap:16px;margin-bottom:11px}
+.ats-ring{width:70px;height:70px;flex-shrink:0;position:relative}
+.ats-ring svg{transform:rotate(-90deg)}
+.ats-ring-val{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;font-size:14px;font-weight:900;
+  background:linear-gradient(90deg,var(--t1l),var(--cyl));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.warn-item{font-size:12px;color:var(--gol);padding:3px 0;
+  display:flex;align-items:flex-start;gap:5px}
+
+/* LaTeX preview */
+.tex-pre{
+  font-family:'JetBrains Mono','Fira Code','Consolas',monospace;
+  font-size:11.5px;line-height:1.6;color:var(--tx2);
+  background:rgba(0,0,0,.4);border:1px solid var(--b2);
+  border-radius:var(--r10);padding:14px;
+  white-space:pre-wrap;word-break:break-all;overflow-y:auto;
+  max-height:520px;scrollbar-width:thin;scrollbar-color:var(--b1) transparent;
+}
+.tex-info{font-size:11.5px;color:var(--tx2);padding:12px;
+  background:rgba(13,148,136,.04);border:1px solid rgba(45,212,191,.08);
+  border-radius:var(--r8);margin-bottom:12px;line-height:1.55}
+.tex-info strong{color:var(--t1l)}
+.tex-copy-btn{
+  font-size:12px;font-weight:700;padding:7px 14px;
+  background:rgba(13,148,136,.12);border:1px solid var(--b1);
+  border-radius:var(--r8);color:var(--t1l);cursor:pointer;
+  font:inherit;transition:all .2s;margin-bottom:10px;
+}
+.tex-copy-btn:hover{background:rgba(13,148,136,.2);color:var(--tx)}
+
+/* Toast */
+.toast{position:fixed;bottom:22px;right:22px;
+  background:rgba(4,12,14,.97);border:1px solid rgba(251,113,133,.3);
+  border-radius:var(--r10);padding:12px 16px;
+  max-width:360px;font-size:13px;color:var(--rol);
+  box-shadow:0 8px 36px rgba(0,0,0,.7);z-index:200;
+  animation:toast-in .3s cubic-bezier(.34,1.56,.64,1);
+  backdrop-filter:blur(12px)}
+@keyframes toast-in{from{transform:translateY(14px) scale(.95);opacity:0}}
+.toast.ok{border-color:rgba(52,211,153,.3);color:var(--g1l)}
+
+.hidden{display:none!important}
+@media(max-width:920px){
+  :root{--side:100%}
+  main{grid-template-columns:1fr}
+  aside{position:static;max-height:none;border-right:none;border-bottom:1px solid var(--b2)}
+  .kpi-grid{grid-template-columns:1fr 1fr}
+  .diff-grid,.diff-cols{grid-template-columns:1fr}
+  .feat-grid{grid-template-columns:1fr 1fr}
+  .sum-g{grid-template-columns:1fr 1fr}
+  .brew{flex-direction:column}
+  .brew-left{position:static;width:100%}
+}
+</style>
+</head>
+<body>
+<div class="bg-wrap">
+  <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+</div>
+<div class="grid"></div>
+
+<div id="app">
+  <!-- ══════ HEADER ══════ -->
+  <header>
+    <div class="logo">
+      <div class="logo-mark">🎯</div>
+      <span class="logo-name">ResumeAI</span>
+      <span class="logo-tagline">Multi-Agent Enhancer</span>
+    </div>
+    <div class="hdr-right">
+      <div class="hdr-chip" id="hdrChip">
+        <span class="hdr-dot"></span>
+        <span id="hdrTxt">Ready to help you land the job</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- ══════ SIDEBAR ══════ -->
+    <aside>
+      <!-- API Key -->
+      <div class="card">
+        <div class="label">🔑 API Key <span class="badge-free">FREE</span></div>
+        <div class="ktabs">
+          <button class="ktab on" data-kt="groq" onclick="switchKeyTab('groq')">⚡ Groq</button>
+          <button class="ktab" data-kt="hf" onclick="switchKeyTab('hf')">🤗 HuggingFace</button>
+        </div>
+        <div id="kt-groq">
+          <input type="password" id="groqKey" placeholder="gsk_… paste Groq key here">
+          <div class="key-hint">Free · Fast · 14,400 req/day — no credit card<br>
+            → <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a></div>
+        </div>
+        <div id="kt-hf" class="hidden">
+          <input type="password" id="hfKey" placeholder="hf_… HuggingFace token">
+          <div class="key-hint">Free tier — slower inference<br>
+            → <a href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co/tokens</a></div>
+        </div>
+      </div>
+
+      <!-- File upload -->
+      <div class="card">
+        <div class="label">📄 Your Resume</div>
+        <div class="dz" id="dz">
+          <input type="file" id="fi" accept=".tex">
+          <div class="dz-ico">📂</div>
+          <div class="dz-txt">Drop your <strong>.tex</strong> file or click</div>
+          <div class="dz-fmt">LaTeX source only · max 512 KB</div>
+        </div>
+        <div id="fc" class="fc hidden">
+          <span id="fcName"></span>
+          <span class="fc-rm" onclick="clearFile()" title="Remove">✕</span>
+        </div>
+      </div>
+
+      <!-- Target role -->
+      <div class="card">
+        <div class="label">🎯 Target Role</div>
+        <div class="role-wrap">
+          <select id="role">
+            <option value="ai_ml_engineer">AI / ML Engineer</option>
+            <option value="data_scientist">Data Scientist</option>
+            <option value="software_engineer">Software Engineer</option>
+            <option value="devops_cloud_engineer">DevOps / Cloud Engineer</option>
+            <option value="product_manager">Product Manager</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <button id="goBtn" class="go-btn" disabled>
+        <div class="btn-inner">
+          <span style="font-size:17px">🚀</span>
+          <span id="btnTxt">Enhance My Resume</span>
+        </div>
+      </button>
+
+      <!-- Advanced -->
+      <details class="adv" id="advPanel">
+        <summary>⚙ Advanced <span class="adv-arrow">▶</span></summary>
+        <div class="adv-body">
+          <div class="label">Groq Model</div>
+          <select id="groqModel">
+            <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B — 30K TPM (recommended)</option>
+            <option value="llama-3.3-70b-versatile">Llama 3.3 70B — best quality</option>
+            <option value="llama-3.1-8b-instant">Llama 3.1 8B — fastest</option>
+          </select>
+          <div class="label">HuggingFace Model</div>
+          <input type="text" id="hfModel" value="mistralai/Mistral-7B-Instruct-v0.3">
+          <div class="label">Iterations (1–4)</div>
+          <input type="number" id="maxIter" value="3" min="1" max="4">
+        </div>
+      </details>
+    </aside>
+
+    <!-- ══════ MAIN PANEL ══════ -->
+    <section id="main">
+
+      <!-- ── IDLE ── -->
+      <div id="vIdle">
+        <div class="hero">
+          <div class="hero-orb">
+            <div class="hero-ring"></div>
+            <div class="hero-ring2"></div>
+            <div class="hero-dot"></div>
+            <div class="hero-core">🎯</div>
+          </div>
+          <div class="hero-title">Your Dream Job Starts<br>With a Better Resume</div>
+          <div class="hero-sub">
+            Upload your <strong>LaTeX resume</strong>, pick the role you're applying for, and let
+            specialized AI agents rewrite every bullet point, score your keywords, and simulate
+            how a <strong>hiring manager</strong> would read your resume.
+          </div>
+
+          <div class="feat-grid">
+            <div class="feat">
+              <div class="feat-ico">🔍</div>
+              <div class="feat-ttl">Smart Parsing</div>
+              <div class="feat-dsc">Reads any LaTeX template — no reformatting needed</div>
+            </div>
+            <div class="feat">
+              <div class="feat-ico">✍️</div>
+              <div class="feat-ttl">Bullet Rewriting</div>
+              <div class="feat-dsc">Stronger action verbs, clearer outcomes</div>
+            </div>
+            <div class="feat">
+              <div class="feat-ico">🎯</div>
+              <div class="feat-ttl">Keyword Matching</div>
+              <div class="feat-dsc">Aligns your resume with the job's language</div>
+            </div>
+            <div class="feat">
+              <div class="feat-ico">🔄</div>
+              <div class="feat-ttl">Quality Critic</div>
+              <div class="feat-dsc">AI reviews its own output until it's good</div>
+            </div>
+            <div class="feat">
+              <div class="feat-ico">👔</div>
+              <div class="feat-ttl">HM Simulation</div>
+              <div class="feat-dsc">See your resume through recruiter eyes</div>
+            </div>
+            <div class="feat">
+              <div class="feat-ico">🛡</div>
+              <div class="feat-ttl">No Hallucinations</div>
+              <div class="feat-dsc">Facts, dates, numbers are never changed</div>
+            </div>
+          </div>
+
+          <div class="student-banner">
+            <div class="sb-ico">💡</div>
+            <div>
+              <div class="sb-title">First resume or student? Here's what helps most</div>
+              <div class="sb-body">
+                The more bullets you write in your .tex file, the better the AI can help.
+                Even thin experience helps — describe <em>what you built</em>, <em>what tech you used</em>,
+                and <em>how many people used it</em>. The AI will turn that into polished bullet points.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PROCESSING ── -->
+      <div id="vBrew" class="hidden">
+        <div class="brew">
+          <!-- Left: timer + pipeline -->
+          <div class="brew-left">
+            <div class="brew-robot">🤖</div>
+            <div class="brew-timer" id="brewTimer">0:00</div>
+            <div class="brew-stage-name" id="stageName">Starting…</div>
+            <div class="brew-hint" id="brewHint">Setting up the agent pipeline…</div>
+            <div class="pipeline" id="pipeline"></div>
+            <div class="prog-track">
+              <div class="prog-fill" id="progFill"></div>
+            </div>
+            <div class="prog-pct" id="progPct">3%</div>
+          </div>
+          <!-- Right: live activity feed -->
+          <div class="brew-right">
+            <div class="feed-title">Live Changes <span style="color:var(--t1l);font-size:10px;font-weight:700">REAL-TIME</span></div>
+            <div class="feed-wrap" id="feedWrap">
+              <div class="feed-empty" id="feedEmpty">Waiting for first section to process…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── RESULTS ── -->
+      <div id="vResults" class="hidden">
+        <div class="banner">
+          <div class="ban-l">
+            <span class="ban-ico" id="banIco">🏆</span>
+            <div>
+              <div class="ban-title">Your Resume is Ready!</div>
+              <div class="ban-sub" id="banSub"></div>
+            </div>
+          </div>
+          <span class="ban-badge ok" id="banBadge">Complete</span>
+        </div>
+
+        <div class="dl" id="dlCard">
+          <div class="dl-ico">📄</div>
+          <div class="dl-body">
+            <div class="dl-title">Download Enhanced Resume</div>
+            <div class="dl-meta" id="dlMeta">Optimised .tex · Overleaf-ready</div>
+            <div class="dl-hint">💡 Overleaf → New Project → Upload → Compile with pdfLaTeX</div>
+            <div id="texIssues"></div>
+          </div>
+          <a id="dlBtn" href="#" class="dl-btn" download="enhanced_resume.tex">⬇ Download .tex</a>
+        </div>
+
+        <div class="kpi-grid" id="kpiGrid"></div>
+
+        <div class="tabs">
+          <button class="tab on" data-t="changes">✨ Changes</button>
+          <button class="tab" data-t="keywords">🔑 Keywords</button>
+          <button class="tab" data-t="analysis">📊 Analysis</button>
+          <button class="tab" data-t="latex">📝 LaTeX Preview</button>
+        </div>
+        <div id="tp-changes" class="tp on"></div>
+        <div id="tp-keywords" class="tp"></div>
+        <div id="tp-analysis" class="tp"></div>
+        <div id="tp-latex" class="tp"></div>
+      </div>
+
+    </section>
+  </main>
+</div>
+
+<script>
+const S = {
+  file:null, jobId:null, keyTab:'groq',
+  session:Math.random().toString(36).slice(2),
+  pct:3, done:0, total:0, startTs:0,
+  timerRef:null, hintRef:null, hintIdx:0,
+  texContent:'',
+};
+
+const STAGES = ['parse','repair','plan','enhance','render','jd_match'];
+const SM = {
+  parse:{l:'Parse',i:'📄'},repair:{l:'Repair',i:'🔧'},
+  plan:{l:'Plan',i:'📐'},enhance:{l:'Enhance',i:'✨'},
+  render:{l:'Render',i:'🖨'},jd_match:{l:'Score',i:'🎯'},
+};
+const SW = {parse:10,repair:8,complete:6,plan:7,enhance_plan:4,render:14,jd_match:14};
+
+const HINTS = [
+  'Parsing your LaTeX structure…',
+  'Extracting all sections and bullets…',
+  'Aligning keywords with the target role…',
+  'Rewriting experience bullets…',
+  'AI critic checking quality…',
+  'Scoring against job descriptions…',
+  'Strengthening action verbs…',
+  'Safety guards verifying: no facts changed…',
+  'Polishing your professional narrative…',
+  'Running iterative quality loops…',
+  'Simulating hiring manager review…',
+  'Generating ATS keyword report…',
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+  setupDrop();
+  setupTabs();
+  buildPipeline();
+  document.getElementById('goBtn').addEventListener('click', run);
+});
+
+/* ── Key tab ── */
+function switchKeyTab(tab) {
+  S.keyTab = tab;
+  document.querySelectorAll('.ktab').forEach(b => b.classList.toggle('on', b.dataset.kt === tab));
+  document.getElementById('kt-groq').classList.toggle('hidden', tab !== 'groq');
+  document.getElementById('kt-hf').classList.toggle('hidden', tab !== 'hf');
+}
+
+/* ── Drop zone ── */
+function setupDrop() {
+  const dz = document.getElementById('dz'), fi = document.getElementById('fi');
+  ['dragover','dragenter'].forEach(e => dz.addEventListener(e, v => { v.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave','drop'].forEach(e => dz.addEventListener(e, () => dz.classList.remove('over')));
+  dz.addEventListener('drop', e => { e.preventDefault(); pickFile(e.dataTransfer.files[0]); });
+  fi.addEventListener('change', () => pickFile(fi.files[0]));
+}
+function pickFile(f) {
+  if (!f || !f.name.endsWith('.tex')) { toast('Please upload a .tex file.'); return; }
+  S.file = f;
+  document.getElementById('fcName').textContent = `📄 ${f.name}  (${(f.size/1024).toFixed(1)} KB)`;
+  document.getElementById('fc').classList.remove('hidden');
+  document.getElementById('goBtn').disabled = false;
+}
+function clearFile() {
+  S.file = null;
+  document.getElementById('fc').classList.add('hidden');
+  document.getElementById('fi').value = '';
+  document.getElementById('goBtn').disabled = true;
+}
+
+/* ── Tabs ── */
+function setupTabs() {
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('.tp').forEach(x => x.classList.remove('on'));
+    t.classList.add('on');
+    document.getElementById('tp-' + t.dataset.t).classList.add('on');
+  }));
+}
+
+/* ── Pipeline nodes ── */
+function buildPipeline() {
+  document.getElementById('pipeline').innerHTML = STAGES.map((s, i) => `
+    <div class="pn" id="pn-${s}"><div class="pd">${SM[s].i}</div><div class="pl">${SM[s].l}</div></div>
+    ${i < STAGES.length-1 ? `<div class="pe" id="pe-${s}"></div>` : ''}
+  `).join('');
+}
+function resetPipeline() {
+  STAGES.forEach(s => {
+    const n = document.getElementById('pn-'+s); if(n) n.className = 'pn';
+    const e = document.getElementById('pe-'+s); if(e) e.className = 'pe';
+  });
+}
+
+/* ── Header ── */
+function setHeader(txt, live) {
+  document.getElementById('hdrTxt').textContent = txt;
+  document.getElementById('hdrChip').classList.toggle('live', !!live);
+}
+
+/* ── Run ── */
+async function run() {
+  if (!S.file) return;
+  document.getElementById('goBtn').disabled = true;
+  document.getElementById('btnTxt').textContent = 'Running…';
+  setHeader('AI agents working on your resume…', true);
+  showView('brew');
+  resetBrew();
+
+  const fd = new FormData();
+  fd.append('file', S.file);
+  fd.append('role_id', document.getElementById('role').value);
+  fd.append('groq_api_key', document.getElementById('groqKey').value);
+  fd.append('groq_model', document.getElementById('groqModel').value);
+  fd.append('hf_api_key', document.getElementById('hfKey').value);
+  fd.append('hf_model', document.getElementById('hfModel').value);
+  fd.append('max_iter', document.getElementById('maxIter').value);
+  fd.append('session_id', S.session);
+
+  try {
+    const res = await fetch('/api/enhance', {method:'POST', body:fd});
+    const data = await res.json();
+    if (!res.ok) { showError(data.error || 'Enhancement failed'); return; }
+    S.jobId = data.job_id;
+    streamJob(S.jobId);
+  } catch(e) { showError(`Network error: ${e.message}`); }
+}
+
+/* ── Brew reset ── */
+function resetBrew() {
+  S.pct=3; S.done=0; S.total=0; S.startTs=Date.now(); S.hintIdx=0;
+  setPct(3);
+  document.getElementById('feedWrap').innerHTML = '<div class="feed-empty" id="feedEmpty">Waiting for first section to process…</div>';
+  document.getElementById('brewHint').textContent = HINTS[0];
+  document.getElementById('stageName').textContent = 'Starting up…';
+  resetPipeline();
+  clearInterval(S.timerRef); clearInterval(S.hintRef);
+  S.timerRef = setInterval(() => {
+    const sec = Math.floor((Date.now()-S.startTs)/1000);
+    document.getElementById('brewTimer').textContent =
+      `${Math.floor(sec/60)}:${(sec%60).toString().padStart(2,'0')}`;
+  }, 500);
+  S.hintRef = setInterval(() => {
+    const el = document.getElementById('brewHint');
+    el.classList.add('fade');
+    setTimeout(() => {
+      S.hintIdx = (S.hintIdx+1) % HINTS.length;
+      el.textContent = HINTS[S.hintIdx];
+      el.classList.remove('fade');
+    }, 400);
+  }, 4000);
+}
+
+/* ── SSE ── */
+function streamJob(jobId) {
+  const es = new EventSource(`/api/stream/${jobId}`);
+  es.onmessage = ev => {
+    const {event, data} = JSON.parse(ev.data);
+    handleEvent(event, data);
+    if (event === 'done') { es.close(); loadResult(jobId); }
+  };
+  es.onerror = () => { es.close(); setTimeout(() => loadResult(jobId), 2000); };
+}
+
+function handleEvent(event, data) {
+  if (event === 'stage') {
+    const name = data.name || '', status = data.status || '';
+    const norm = name === 'enhance_plan' ? 'enhance' : name;
+    const pn = document.getElementById('pn-'+norm);
+    const pe = document.getElementById('pe-'+norm);
+    if (status === 'done') {
+      if (pn) pn.className = 'pn done';
+      if (pe) pe.className = 'pe done';
+      S.pct = Math.min(92, S.pct + (SW[name] || 2));
+    } else if (status === 'start' || status === 'running') {
+      if (pn) pn.className = 'pn active';
+      if (pe) pe.className = 'pe run';
+      const labels = {parse:'Parsing LaTeX…',repair:'Repairing fields…',plan:'Planning sections…',
+        enhance:'Enhancing bullets…',render:'Rendering LaTeX…',jd_match:'Scoring JD match…'};
+      document.getElementById('stageName').textContent = labels[name] || name;
+    }
+    if (name === 'enhance_plan' && status === 'done') {
+      S.total = data.total_units || 0;
+      S.pct = Math.max(S.pct, 35);
+    }
+    if (status === 'done' && data.tex_preview) {
+      S.texContent = data.tex_preview;
+    }
+    setPct(S.pct);
+  }
+
+  if (event === 'section' && data.status === 'done') {
+    S.done++;
+    if (S.total > 0) setPct(Math.max(S.pct, Math.min(88, 35 + Math.round((S.done/S.total)*35))));
+    addFeedItem(data);
+  }
+}
+
+/* ── Live activity feed ── */
+function addFeedItem(data) {
+  const wrap = document.getElementById('feedWrap');
+  const empty = document.getElementById('feedEmpty');
+  if (empty) empty.remove();
+
+  const changed = data.changed;
+  const before = data.before || data.sample_before || '';
+  const after = data.after || data.sample_after || '';
+  const hasDiff = changed && before && after;
+  const id = 'act-' + Date.now();
+
+  const div = document.createElement('div');
+  div.className = `act ${changed ? 'chg' : ''} ${hasDiff ? 'open' : ''}`;
+  div.id = id;
+  div.innerHTML = `
+    <div class="act-head" onclick="toggleAct('${id}')">
+      <span class="act-ico">${changed ? '✨' : '◦'}</span>
+      <span class="act-lbl">${esc(data.label)}</span>
+      <span class="act-meta">
+        ${changed && data.score ? `<span class="act-score">${Math.round(data.score)}/100</span>` : ''}
+        ${changed ? `<span class="act-changed">✓ improved</span>` : `<span style="font-size:10px;color:var(--dim)">no change</span>`}
+      </span>
+    </div>
+    ${hasDiff ? `
+    <div class="act-diff">
+      <div class="diff-cols">
+        <div>
+          <div class="diff-hdr b">◦ Before</div>
+          <div class="diff-box bef">${esc(before)}</div>
+        </div>
+        <div>
+          <div class="diff-hdr a">✨ After</div>
+          <div class="diff-box aft">${esc(after)}</div>
+        </div>
+      </div>
+    </div>` : ''}
+  `;
+  wrap.appendChild(div);
+  // Auto-scroll
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function toggleAct(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+
+/* ── Progress ── */
+function setPct(p) {
+  S.pct = p;
+  document.getElementById('progFill').style.width = p + '%';
+  document.getElementById('progPct').textContent = Math.round(p) + '%';
+}
+
+/* ── Load result ── */
+async function loadResult(jobId) {
+  clearInterval(S.timerRef); clearInterval(S.hintRef);
+  setPct(100);
+  try {
+    const res = await fetch(`/api/result/${jobId}`);
+    const data = await res.json();
+    if (!res.ok || data.error) { showError(data.error || 'Failed to load results'); return; }
+    renderResults(data, jobId);
+  } catch(e) { showError(`Failed to load results: ${e.message}`); }
+}
+
+function renderResults(r, jobId) {
+  showView('results');
+  setHeader(`${r.role} — ${r.changed}/${r.total} sections improved in ${r.elapsed_s}s`, false);
+  document.getElementById('goBtn').disabled = false;
+  document.getElementById('btnTxt').textContent = 'Enhance Again';
+
+  // Store tex
+  if (r.tex_content) S.texContent = r.tex_content;
+
+  // Banner
+  document.getElementById('banSub').textContent =
+    `${r.changed} sections rewritten · ${r.elapsed_s}s · targeting ${r.role}`;
+  const badge = document.getElementById('banBadge');
+  if (r.status === 'complete') { badge.textContent = '✅ Complete'; badge.className = 'ban-badge ok'; }
+  else { badge.textContent = '⚠ Partial'; badge.className = 'ban-badge warn'; }
+
+  // Download
+  document.getElementById('dlBtn').href = `/api/download/${jobId}`;
+  document.getElementById('dlMeta').textContent =
+    `Optimised for ${r.role} · ${r.changed} sections improved · ${r.elapsed_s}s`;
+
+  // Tex issues
+  const ti = document.getElementById('texIssues');
+  if (r.tex_issues && r.tex_issues.length) {
+    ti.innerHTML = `<div class="tex-warn">
+      <div class="tex-warn-title">⚠ LaTeX warnings — check before compiling</div>
+      ${r.tex_issues.map(w => `<div class="tex-warn-item"><span>⚠</span>${esc(w)}</div>`).join('')}
+    </div>`;
+  } else {
+    ti.innerHTML = `<div style="font-size:11px;color:var(--g1l);margin-top:8px">✓ LaTeX structure looks clean</div>`;
+  }
+
+  renderKPIs(r);
+  renderChanges(r.traces || []);
+  renderKeywords(r);
+  renderAnalysis(r);
+  renderLatex(r);
+  document.querySelector('.tab[data-t="changes"]').click();
+}
+
+/* ── KPIs ── */
+function renderKPIs(r) {
+  const ats = r.ats_score > 0 ? r.ats_score+'%' : '—';
+  const atsSub = r.ats_matched?.length ? `${r.ats_matched.length} keywords matched` : 'run to check';
+  const jdD = r.jd_delta != null ? (r.jd_delta>=0?'+':'')+r.jd_delta+' pts' : '—';
+  const jdSub = r.jd_before && r.jd_after ? `${r.jd_before}% → ${r.jd_after}%` : 'vs real job descriptions';
+  const rs = r.role_score > 0 ? r.role_score+'/100' : '—';
+  const rSub = r.role_verdict ? r.role_verdict.slice(0,48)+(r.role_verdict.length>48?'…':'') : 'recruiter simulation';
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi k1" style="--d:.05s">
+      <div class="kpi-ico">🎯</div><div class="kpi-val">${esc(ats)}</div>
+      <div class="kpi-lbl">ATS Match</div><div class="kpi-sub">${esc(atsSub)}</div>
+    </div>
+    <div class="kpi k2" style="--d:.15s">
+      <div class="kpi-ico">✨</div><div class="kpi-val">${r.changed}</div>
+      <div class="kpi-lbl">Sections Improved</div><div class="kpi-sub">of ${r.total||0} total</div>
+    </div>
+    <div class="kpi k3" style="--d:.25s">
+      <div class="kpi-ico">📊</div><div class="kpi-val">${esc(jdD)}</div>
+      <div class="kpi-lbl">JD Match Δ</div><div class="kpi-sub">${esc(jdSub)}</div>
+    </div>
+    <div class="kpi k4" style="--d:.35s">
+      <div class="kpi-ico">👔</div><div class="kpi-val">${esc(rs)}</div>
+      <div class="kpi-lbl">Recruiter Score</div><div class="kpi-sub">${esc(rSub)}</div>
+    </div>`;
+}
+
+/* ── Changes tab (post-run final section list) ── */
+function renderChanges(traces) {
+  const p = document.getElementById('tp-changes');
+  if (!traces.length) { p.innerHTML = '<div class="no-data">No section data available.</div>'; return; }
+  p.innerHTML = traces.map((t, i) => `
+    <details class="sc ${t.changed?'chg':''}" ${i===0?'open':''}>
+      <summary>
+        <span style="font-size:13px">${t.changed?'✨':'◦'}</span>
+        <span class="sc-lbl">${esc(t.label)}</span>
+        <span class="sc-chips">
+          ${t.changed ? `<span class="chip c-score">${Math.round(t.score)}/100</span>` : ''}
+          ${t.iters > 1 ? `<span class="chip c-iter">${t.iters} iter</span>` : ''}
+          ${!t.changed ? `<span class="chip c-unch">unchanged</span>` : ''}
+        </span>
+        <span class="sc-arrow">▶</span>
+      </summary>
+      <div class="sc-body">
+        ${t.changed ? `
+          <div class="diff-grid">
+            <div><div class="diff-head b">◦ Before</div><div class="d-box bef">${esc(t.before)}</div></div>
+            <div><div class="diff-head a">✨ After</div><div class="d-box aft">${esc(t.after)}</div></div>
+          </div>` : `<div class="d-box unc">${esc(t.before||'(no content)')}</div>`}
+        ${t.note ? `<div class="sc-note"><span>⚠</span>${esc(t.note)}</div>` : ''}
+      </div>
+    </details>`).join('');
+}
+
+/* ── Keywords ── */
+function renderKeywords(r) {
+  const m = r.ats_matched||[], ms = r.ats_missing||[], g = r.jd_gaps||[];
+  document.getElementById('tp-keywords').innerHTML = `
+    <div class="kw-sec">
+      <div class="kw-hdr">✅ Keywords in Your Resume <span class="kw-cnt">${m.length}</span></div>
+      <div class="chips-wrap">${m.map(k=>`<span class="ck ck-g">${esc(k)}</span>`).join('')
+        ||'<span class="empty-chips">None detected yet.</span>'}</div>
+    </div>
+    <div class="kw-sec">
+      <div class="kw-hdr">🚨 High-Impact Keywords Missing <span class="kw-cnt">${ms.length}</span></div>
+      <div class="chips-wrap">${ms.map(k=>`<span class="ck ck-r">${esc(k)}</span>`).join('')
+        ||'<span class="empty-chips">Great coverage — nothing critical missing!</span>'}</div>
+    </div>
+    ${g.length?`<div class="kw-sec">
+      <div class="kw-hdr">📋 Top JD Keyword Gaps <span class="kw-cnt">${g.length}</span></div>
+      <div class="chips-wrap">${g.map(k=>`<span class="ck ck-a">${esc(k)}</span>`).join('')}</div>
+    </div>`:''}`;
+}
+
+/* ── Analysis ── */
+function renderAnalysis(r) {
+  let html = '';
+  const enh = (r.traces||[]).filter(t=>t.changed);
+  const avg = enh.length ? (enh.reduce((s,t)=>s+t.score,0)/enh.length).toFixed(1) : 0;
+
+  html += `<div class="as-card">
+    <div class="as-title">✨ Enhancement Summary</div>
+    <div class="sum-g">
+      <div class="sum-c"><div class="sum-v">${enh.length}/${r.total||0}</div><div class="sum-l">Sections Rewritten</div></div>
+      <div class="sum-c"><div class="sum-v">${avg}</div><div class="sum-l">Avg Quality Score</div></div>
+      <div class="sum-c"><div class="sum-v">${r.elapsed_s}s</div><div class="sum-l">Total Time</div></div>
+    </div></div>`;
+
+  if (r.jd_samples?.length) {
+    html += `<div class="as-card">
+      <div class="as-title">📊 How Your Resume Improved vs Real Job Descriptions</div>
+      ${r.jd_samples.map(s=>`
+        <div class="jd-item">
+          <div class="jd-name">${esc(s.title)}</div>
+          <div class="bar-r"><div class="bar-lbl">Before</div>
+            <div class="bar-track"><div class="bar-fill b-bef" style="width:${s.before}%"></div></div>
+            <div class="bar-pct">${s.before}%</div></div>
+          <div class="bar-r"><div class="bar-lbl">After</div>
+            <div class="bar-track"><div class="bar-fill b-aft" style="width:${s.after}%"></div></div>
+            <div class="bar-pct">${s.after}% <span class="delta ${s.delta>=0?'pos':'neg'}">${s.delta>=0?'+':''}${s.delta}%</span></div></div>
+        </div>`).join('')}
+      ${r.jd_before&&r.jd_after?`<div class="jd-avg">
+        Average match: <strong>${r.jd_before}%</strong> →
+        <strong style="color:var(--g1l)">${r.jd_after}%</strong>
+        <span class="delta pos" style="margin-left:5px">+${r.jd_delta}%</span></div>`:''}
+    </div>`;
+  }
+
+  if (r.role_verdict) {
+    html += `<div class="as-card">
+      <div class="as-title">👔 What a Recruiter Would Think</div>
+      <div class="verd">${esc(r.role_verdict)}</div>
+      ${r.role_score?`<div class="rs-row"><span class="rs-num">${r.role_score}</span><span class="rs-denom">/100</span></div>`:''}
+      ${r.role_strengths?.length?`<div class="str-hdr g">💪 What's Working</div>
+        ${r.role_strengths.map(s=>`<div class="str-item"><span>✓</span>${esc(s)}</div>`).join('')}`:''}
+      ${r.role_weaknesses?.length?`<div class="str-hdr r">🎯 Gaps to Address</div>
+        ${r.role_weaknesses.map(s=>`<div class="str-item"><span>→</span>${esc(s)}</div>`).join('')}`:''}
+    </div>`;
+  }
+
+  if (r.ats_score > 0) {
+    const pct = Math.round(r.ats_score);
+    const circ = 2*Math.PI*28, dash = circ*(pct/100);
+    html += `<div class="as-card">
+      <div class="as-title">🔍 ATS Keyword Scan</div>
+      <div class="ats-row">
+        <div class="ats-ring">
+          <svg width="70" height="70" viewBox="0 0 70 70">
+            <circle cx="35" cy="35" r="28" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="5"/>
+            <circle cx="35" cy="35" r="28" fill="none" stroke="url(#ag)" stroke-width="5"
+              stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-linecap="round"/>
+            <defs><linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#0d9488"/><stop offset="100%" stop-color="#38bdf8"/>
+            </linearGradient></defs>
+          </svg>
+          <div class="ats-ring-val">${pct}%</div>
+        </div>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:3px">Keyword Match Rate</div>
+          <div style="font-size:12px;color:var(--dim)">${r.ats_matched?.length||0} matched · ${r.ats_missing?.length||0} missing</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if (r.warnings?.length) {
+    html += `<div class="as-card" style="border-color:rgba(251,191,36,.15)">
+      <div class="as-title">⚠ Notices</div>
+      ${r.warnings.map(w=>`<div class="warn-item"><span>⚠</span>${esc(w)}</div>`).join('')}
+    </div>`;
+  }
+
+  document.getElementById('tp-analysis').innerHTML =
+    html || '<div class="no-data">No analysis data available.</div>';
+}
+
+/* ── LaTeX Preview tab ── */
+function renderLatex(r) {
+  const p = document.getElementById('tp-latex');
+  const content = r.tex_content || S.texContent || '';
+  const issues = r.tex_issues || [];
+  p.innerHTML = `
+    <div class="tex-info">
+      <strong>This is the raw LaTeX file</strong> your enhanced resume will compile to.
+      To turn it into a PDF: paste it into <a href="https://overleaf.com" target="_blank">Overleaf</a>,
+      create a new project, upload this file, and click Recompile (pdfLaTeX).
+      If you see errors in Overleaf, check that all packages are available.
+    </div>
+    ${issues.length ? `<div class="tex-warn" style="margin-bottom:12px">
+      <div class="tex-warn-title">⚠ Structural warnings detected</div>
+      ${issues.map(w=>`<div class="tex-warn-item"><span>⚠</span>${esc(w)}</div>`).join('')}
+    </div>` : `<div style="font-size:11px;color:var(--g1l);margin-bottom:10px">✓ No structural issues detected</div>`}
+    <button class="tex-copy-btn" onclick="copyTex()">📋 Copy LaTeX to clipboard</button>
+    <div class="tex-pre" id="texPre">${content ? esc(content) : '(LaTeX content will appear here after enhancement)'}</div>`;
+}
+
+function copyTex() {
+  const content = S.texContent;
+  if (!content) { toast('No LaTeX content yet'); return; }
+  navigator.clipboard.writeText(content).then(() => {
+    toast('Copied to clipboard!', true);
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = content; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    toast('Copied!', true);
+  });
+}
+
+/* ── View helpers ── */
+function showView(v) {
+  document.getElementById('vIdle').classList.toggle('hidden', v !== 'idle');
+  document.getElementById('vBrew').classList.toggle('hidden', v !== 'brew');
+  document.getElementById('vResults').classList.toggle('hidden', v !== 'results');
+}
+function showError(msg) {
+  clearInterval(S.timerRef); clearInterval(S.hintRef);
+  document.getElementById('goBtn').disabled = false;
+  document.getElementById('btnTxt').textContent = 'Enhance My Resume';
+  setHeader('Ready to help you land the job', false);
+  showView('idle');
+  toast(msg);
+}
+function toast(msg, ok) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (ok?' ok':'');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 6000);
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

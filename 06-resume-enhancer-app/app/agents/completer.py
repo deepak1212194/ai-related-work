@@ -33,14 +33,21 @@ def _ensure_name(ir: ResumeIR, completed: List[str]) -> None:
 
 def _ensure_headline(ir: ResumeIR, completed: List[str]) -> None:
     if not ir.header.headline:
-        # Derive a soft headline from the most recent experience if possible
+        # Derive headline from the most senior experience title available
         if ir.experience and ir.experience[0].title:
             blk = ir.experience[0]
-            parts = [blk.title]
-            if blk.summary_line:
-                parts.append(blk.summary_line)
-            ir.header.headline = "  -  ".join(parts)[:160]
+            headline = blk.title
+            # Add company domain context if available
+            if blk.company:
+                headline = f"{blk.title} at {blk.company}"
+            ir.header.headline = headline[:160]
             completed.append("header.headline (derived)")
+        elif ir.summary:
+            # Extract first clause of summary (up to the first period or 100 chars)
+            first_clause = ir.summary.split(".")[0].strip()
+            if first_clause and len(first_clause) > 10:
+                ir.header.headline = first_clause[:160]
+                completed.append("header.headline (derived from summary)")
         else:
             ir.header.headline = PLACEHOLDER_HEADLINE
             completed.append("header.headline (placeholder)")
@@ -126,7 +133,12 @@ def _ensure_education(ir: ResumeIR, completed: List[str]) -> None:
 
 class CompleterAgent(Agent):
     def fill(self, ir: ResumeIR) -> ResumeIR:
-        """Return the IR with required-field placeholders filled in."""
+        """Return the IR with required-field placeholders filled in.
+
+        Education is NOT auto-filled: if the source resume has no
+        education section we do not invent one.  Every other required
+        field gets a visible [PLACEHOLDER] token.
+        """
         completed: List[str] = []
         _ensure_name(ir, completed)
         _ensure_links(ir, completed)
@@ -134,7 +146,12 @@ class CompleterAgent(Agent):
         _ensure_summary(ir, completed)
         _ensure_skills(ir, completed)
         _ensure_experience(ir, completed)
-        _ensure_education(ir, completed)
+        # Education: only patch partial blocks, never create from scratch.
+        for ed in ir.education:
+            if not ed.degree and not ed.placeholder:
+                ed.degree = "[DEGREE NAME]"
+                ed.placeholder = True
+                completed.append("education.degree (placeholder)")
         if completed:
             log.info("[Completer] filled %d placeholder field(s): %s",
                      len(completed), ", ".join(completed))

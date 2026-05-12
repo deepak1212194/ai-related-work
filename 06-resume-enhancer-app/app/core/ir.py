@@ -93,6 +93,7 @@ class CertificationItem(BaseModel):
     name: str = ""
     issuer: str = ""
     year: str = ""
+    description: str = ""   # credential ID, skills covered, expiry, or other details
     placeholder: bool = False
 
 
@@ -177,7 +178,7 @@ class ResumeIR(BaseModel):
         for ed in self.education:
             parts.append(f"{ed.degree} {ed.institution} {ed.dates} {ed.coursework} {ed.dissertation}")
         for c in self.certifications:
-            parts.append(f"{c.name} {c.issuer} {c.year}")
+            parts.append(f"{c.name} {c.issuer} {c.year} {c.description}")
         for a in self.achievements:
             parts.append(f"{a.title} {a.description} {a.year_or_org}")
         for pb in self.publications:

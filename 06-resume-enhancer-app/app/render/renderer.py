@@ -114,3 +114,25 @@ def render_ir_to_file(ir: ResumeIR, path: str | Path) -> Path:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(render_ir_to_tex(ir), encoding="utf-8")
     return p
+
+
+def validate_tex(tex: str) -> list[str]:
+    """Light structural checks on generated LaTeX. Returns list of warnings."""
+    issues: list[str] = []
+    if r"\begin{document}" not in tex:
+        issues.append("Missing \\begin{document}")
+    if r"\end{document}" not in tex:
+        issues.append("Missing \\end{document}")
+    # Unmatched braces — count { vs }
+    open_b = tex.count("{") - tex.count(r"\{")
+    close_b = tex.count("}") - tex.count(r"\}")
+    if abs(open_b - close_b) > 4:
+        issues.append(f"Brace mismatch: {open_b} open vs {close_b} close — check for truncated output")
+    # Sentinel bleed-through
+    for sentinel in ("BOLDBEGIN", "BOLDEND", "ITALBEGIN", "ITALEND"):
+        if sentinel in tex:
+            issues.append(f"Rendering artefact '{sentinel}' leaked into output — bold/italic markup issue")
+    # Placeholder bleed-through
+    if "[YOUR FULL NAME]" in tex or "[ADD 2-3 LINE SUMMARY" in tex:
+        issues.append("Unfilled placeholder text in output — name or summary is missing from your resume")
+    return issues

@@ -94,7 +94,7 @@ _KEEP_CONTENT_WRAPPERS = [
     "small", "large", "Large", "LARGE", "Huge", "huge",
     "footnotesize", "scriptsize", "tiny", "normalsize",
     "itshape", "bfseries", "mdseries", "rmfamily", "sffamily", "ttfamily",
-    "underline",
+    "underline", "cvlistitem", "cvitem", "cvcolumncell", "cventry",
 ]
 _KEEP_CONTENT_RE = re.compile(
     r"\\(" + "|".join(_KEEP_CONTENT_WRAPPERS) + r")\*?\{([^{}]*)\}"
@@ -153,7 +153,8 @@ def _strip_latex(s: str) -> str:
     # Drop remaining \cmd[...]{...} and standalone \cmd
     s = re.sub(r"\\[a-zA-Z]+\*?(\[[^\]]*\])?(\{[^}]*\})?", " ", s)
     s = re.sub(r"[\{\}]", "", s)
-    s = re.sub(r"\s+", " ", s).strip()
+    s = re.sub(r"[ \t]+", " ", s)
+    s = re.sub(r"\n\s*\n", "\n", s).strip()
     return s
 
 
@@ -165,6 +166,8 @@ def _normalize(s: str) -> str:
 # Header extraction
 # ----------------------------------------------------------------------
 _NAME_PATTERNS = [
+    # \documentTitle{Full Name}{...} — some custom Overleaf templates
+    re.compile(r"\\documentTitle\s*\{([^}]+)\}"),
     re.compile(r"\\Huge\s*\\textbf\{\s*\\color\{[^}]+\}\s*([^}]+?)\s*\}"),
     re.compile(r"\\Huge\s*\\textbf\{\s*([^}\\]+?)\s*\}"),
     re.compile(r"\\Huge\s+([^\\\n}]+?)(?=\s*\\\\)"),
@@ -215,7 +218,10 @@ def _extract_links(text: str) -> Tuple[List[ContactLink], str]:
     seen: set[str] = set()
 
     def _add(kind: str, label: str, url: str, icon: str) -> None:
-        key = f"{kind}:{(url or label).lower()}"
+        if kind in ("email", "phone", "linkedin", "github", "scholar", "twitter", "location"):
+            key = kind
+        else:
+            key = f"{kind}:{(url or label).lower()}"
         if key in seen:
             return
         seen.add(key)
@@ -286,7 +292,7 @@ def _extract_links(text: str) -> Tuple[List[ContactLink], str]:
 # Section splitting
 # ----------------------------------------------------------------------
 _SECTION_BODY_RE = re.compile(
-    r"\\section\*?\{(?P<title>[^}]+)\}(?P<body>.*?)(?=\\section\*?\{|\\end\{document\})",
+    r"(?:\\section\*?|\\cvsection|\\rSection|\\tinysection)\{(?P<title>[^}]+)\}(?P<body>.*?)(?=(?:\\section\*?|\\cvsection|\\rSection|\\tinysection)\{|\\end\{document\})",
     re.DOTALL,
 )
 
@@ -297,6 +303,16 @@ def _split_sections(text: str) -> List[Tuple[str, str]]:
         title = _strip_latex(m.group("title").strip())
         body = m.group("body").strip()
         out.append((title, body))
+    # Fallback for templates that use \section* Title (without braces)
+    if not out:
+        loose = re.compile(
+            r"\\(?:section|tinysection)\*?\s+(?P<title>[^\n\\]+)\n(?P<body>.*?)(?=\\(?:section|tinysection)\*?\s+[^\n\\]+|\\end\{document\})",
+            re.DOTALL,
+        )
+        for m in loose.finditer(text):
+            title = _strip_latex(m.group("title").strip())
+            body = m.group("body").strip()
+            out.append((title, body))
     return out
 
 
@@ -328,54 +344,203 @@ def _parse_skills(body: str) -> List[SkillBucket]:
     return out
 
 
-# ----------------------------------------------------------------------
-# Experience
-# ----------------------------------------------------------------------
-_SUB_RE = re.compile(
-    r"\\resumeSubheading\s*\{([^}]+)\}\s*\{([^}]+)\}\s*\{([^}]+)\}\s*\{([^}]+)\}"
-)
-_TOKEN_RE = re.compile(
-    r"\\resumeGroupHeading\s*\{([^}]+)\}|\\resumeItem\s*\{(.+?)\}"
-    r"(?=\s*(?:\\resumeItem|\\resumeGroupHeading|\\resumeItemListEnd|\\resumeSubheading"
-    r"|\\resumeSubHeadingListEnd|\\employerSeparator|$))",
-    re.DOTALL,
-)
+# -- Brace-balanced argument extractor (replaces fragile regex) --
+def _extract_brace_arg(text: str, start: int) -> Optional[Tuple[str, int]]:
+    """Given that text[start] == '{', return (content, end_pos).
+
+    Correctly handles arbitrarily nested braces so content like
+    \\textbf{Azure OpenAI} inside a \\resumeItem{...} is captured fully.
+    """
+    if start >= len(text) or text[start] != '{':
+        return None
+    depth = 0
+    i = start
+    while i < len(text):
+        ch = text[i]
+        if ch == '\\':
+            i += 2  # skip escaped char
+            continue
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start + 1 : i], i + 1
+        i += 1
+    return None  # unbalanced
+
+
+def _find_all_commands(text: str, cmd: str) -> List[Tuple[str, int, int]]:
+    """Find all \\cmd{...} in text using brace-balanced extraction.
+
+    Returns list of (content, start_of_cmd, end_of_closing_brace).
+    Handles optional arguments like \\cmd[opt]{...}
+    """
+    results: List[Tuple[str, int, int]] = []
+    pattern = re.compile(r'\\' + re.escape(cmd) + r'\*?(?:\s*\[[^\]]*\])?\s*\{')
+    for m in pattern.finditer(text):
+        brace_start = m.end() - 1  # position of the '{'
+        extracted = _extract_brace_arg(text, brace_start)
+        if extracted:
+            content, end_pos = extracted
+            results.append((content, m.start(), end_pos))
+    return results
+
+
+def _tokenize_experience_body(body: str) -> List[Tuple[str, str]]:
+    """Walk an experience body and yield (kind, content) tokens.
+
+    kind is 'group' or 'item'.
+    Uses brace-balanced extraction so nested braces are handled.
+    """
+    tokens: List[Tuple[str, int, str]] = []  # (kind, position, content)
+    for content, start, end in _find_all_commands(body, 'resumeGroupHeading'):
+        tokens.append(('group', start, content))
+    for content, start, end in _find_all_commands(body, 'resumeItem'):
+        tokens.append(('item', start, content))
+    for content, start, end in _find_all_commands(body, 'cvlistitem'):
+        tokens.append(('item', start, content))
+    # Sort by position in the source
+    tokens.sort(key=lambda t: t[1])
+    return [(kind, content) for kind, _, content in tokens]
+
+
+def _parse_headingbf_experience(body: str) -> List[ExperienceBlock]:
+    r"""Parse the headingBf/headingIt pattern used by some Overleaf templates.
+
+    Structure:
+        \headingBf{Employer Name}{Date Range}    <- employer header (bold)
+          \headingIt{Project Title}{Date Range}  <- sub-project (italic)
+          \begin{resume_list}
+            \item bullet ...
+          \end{resume_list}
+          \headingIt{Next Project}{Date Range}
+          ...
+
+    Each \headingIt + its following bullet list becomes one ExperienceBlock
+    with title=project, company=employer, dates=project dates.
+    If there are bullets *before* the first \headingIt they go on the employer block.
+    """
+    # Regex to find \headingBf{name}{dates} and \headingIt{name}{dates}
+    heading_re = re.compile(
+        r'\\(headingBf|headingIt)\s*\{([^}]*)\}\s*\{([^}]*)\}',
+        re.IGNORECASE,
+    )
+    # Collect bullet items from \begin{resume_list}...\end{resume_list} or \item lines
+    item_re = re.compile(r'\\item\s+(.+?)(?=\\item|\\end\{resume_list\}|$)', re.DOTALL)
+
+    headings: List[Tuple[int, str, str, str]] = []  # (pos, kind, name, dates)
+    for m in heading_re.finditer(body):
+        kind = m.group(1).lower()
+        name = _strip_latex(m.group(2)).strip()
+        dates = _strip_latex(m.group(3)).strip()
+        headings.append((m.start(), kind, name, dates))
+
+    if not headings:
+        return []
+
+    out: List[ExperienceBlock] = []
+    current_employer = ""
+    current_employer_dates = ""
+
+    for i, (pos, kind, name, dates) in enumerate(headings):
+        next_pos = headings[i + 1][0] if i + 1 < len(headings) else len(body)
+        chunk = body[pos:next_pos]
+        bullets: List[str] = []
+        for bm in item_re.finditer(chunk):
+            b = _strip_latex(bm.group(1)).strip()
+            if b:
+                bullets.append(b)
+
+        if kind == 'headingbf':
+            current_employer = name
+            current_employer_dates = dates
+            # Bullets directly under employer (before any headingIt) go on a top-level block
+            if bullets:
+                out.append(ExperienceBlock(
+                    title=name, company="", dates=dates, bullets=bullets,
+                ))
+        else:  # headingit = sub-project
+            out.append(ExperienceBlock(
+                title=name,
+                company=current_employer,
+                dates=dates or current_employer_dates,
+                bullets=bullets,
+            ))
+
+    return out
 
 
 def _parse_experience(body: str) -> List[ExperienceBlock]:
     out: List[ExperienceBlock] = []
-    chunks = re.split(r"(?=\\resumeSubheading)", body)
-    for chunk in chunks:
-        m = _SUB_RE.search(chunk)
-        if not m:
-            continue
-        title, dates, company, location = (_strip_latex(s).strip() for s in m.groups())
+
+    # headingBf/headingIt pattern (used by some Overleaf templates)
+    hbf_blocks = _parse_headingbf_experience(body)
+    if hbf_blocks:
+        return hbf_blocks
+
+    # Find all \resumeSubheading and \cventry commands with brace-balanced extraction
+    sub_positions: List[Tuple[int, str, str, str, str]] = []
+    sub_re = re.compile(r'\\(?:resumeSubheading|cventry)\s*\{')
+    for m in sub_re.finditer(body):
+        pos = m.start()
+        is_cventry = 'cventry' in m.group(0)
+        cursor = m.end() - 1  # the '{'
+        args: List[str] = []
+        num_args = 6 if is_cventry else 4
+        for _ in range(num_args):
+            # Skip whitespace
+            while cursor < len(body) and body[cursor] in ' \t\n\r':
+                cursor += 1
+            if cursor >= len(body) or body[cursor] != '{':
+                break
+            extracted = _extract_brace_arg(body, cursor)
+            if extracted:
+                args.append(extracted[0])
+                cursor = extracted[1]
+            else:
+                break
+        if len(args) == num_args:
+            if is_cventry:
+                loc = args[3].strip()
+                if args[4].strip(): loc += f", {args[4].strip()}"
+                if args[5].strip(): loc += f" - {args[5].strip()}"
+                sub_positions.append((
+                    pos,
+                    _strip_latex(args[1]).strip(), # title
+                    _strip_latex(args[0]).strip(), # dates
+                    _strip_latex(args[2]).strip(), # company
+                    _strip_latex(loc).strip()      # location
+                ))
+            else:
+                sub_positions.append((pos, *(_strip_latex(a).strip() for a in args)))
+
+    if not sub_positions:
+        return _parse_experience_plain(body)
+
+    for idx, (pos, title, dates, company, location) in enumerate(sub_positions):
         block = ExperienceBlock(
             title=title, dates=dates, company=company, location=location,
         )
-        body_part = chunk[m.end():]
+        # Get the body between this subheading and the next
+        next_pos = sub_positions[idx + 1][0] if idx + 1 < len(sub_positions) else len(body)
+        chunk = body[pos:next_pos]
+
+        # Tokenize the chunk for groups and items
+        tokens = _tokenize_experience_body(chunk)
         current_group: Optional[ExperienceGroup] = None
-        for tok in _TOKEN_RE.finditer(body_part):
-            grp_label = tok.group(1)
-            item_body = tok.group(2)
-            if grp_label is not None:
-                current_group = ExperienceGroup(label=_strip_latex(grp_label))
+        for kind, content in tokens:
+            if kind == 'group':
+                current_group = ExperienceGroup(label=_strip_latex(content))
                 block.groups.append(current_group)
-            elif item_body is not None:
-                bullet = _strip_latex(item_body)
+            elif kind == 'item':
+                bullet = _strip_latex(content)
                 if current_group is not None:
                     current_group.bullets.append(bullet)
                 else:
                     block.bullets.append(bullet)
-        # Greedy fallback if the lookahead missed everything
-        if not block.bullets and not block.groups:
-            for b in re.finditer(r"\\resumeItem\s*\{(.+?)\}\s*(?=\\)", body_part, re.DOTALL):
-                block.bullets.append(_strip_latex(b.group(1)))
         out.append(block)
-    if out:
-        return out
-    # Plain-text fallback - no \resumeSubheading template
-    return _parse_experience_plain(body)
+    return out
 
 
 def _parse_experience_plain(body: str) -> List[ExperienceBlock]:
@@ -476,6 +641,70 @@ def _parse_projects(body: str) -> List[ProjectBlock]:
 # ----------------------------------------------------------------------
 def _parse_education(body: str) -> List[EducationBlock]:
     blocks: List[EducationBlock] = []
+
+    # 1. ModernCV cvcolumns format
+    cvcols_re = re.compile(r'\\cvcolumn\*?(?:\s*\[[^\]]*\])?\s*\{')
+    col_cells = []
+    for m in cvcols_re.finditer(body):
+        cursor = m.end() - 1
+        args = []
+        for _ in range(2):
+            while cursor < len(body) and body[cursor] in ' \t\n\r':
+                cursor += 1
+            if cursor >= len(body) or body[cursor] != '{':
+                break
+            extracted = _extract_brace_arg(body, cursor)
+            if extracted:
+                args.append(extracted[0])
+                cursor = extracted[1]
+            else:
+                break
+        if len(args) == 2:
+            content = args[1]
+            cells = [_strip_latex(c).strip() for c, _, _ in _find_all_commands(content, 'cvcolumncell')]
+            if not cells:
+                cells = [line.strip() for line in _strip_latex(content).splitlines() if line.strip()]
+            col_cells.append(cells)
+            
+    if col_cells:
+        num_rows = max(len(c) for c in col_cells)
+        for i in range(num_rows):
+            degree = col_cells[0][i] if i < len(col_cells[0]) else ""
+            inst = col_cells[1][i] if len(col_cells) > 1 and i < len(col_cells[1]) else ""
+            dates = col_cells[2][i] if len(col_cells) > 2 and i < len(col_cells[2]) else ""
+            blocks.append(EducationBlock(degree=degree, institution=inst, dates=dates))
+        return blocks
+
+    # 2. ModernCV \cventry format
+    # Education can also be written using \cventry
+    sub_re = re.compile(r'\\cventry\s*\{')
+    sub_positions = []
+    for m in sub_re.finditer(body):
+        pos = m.start()
+        cursor = m.end() - 1
+        args: List[str] = []
+        for _ in range(6):
+            while cursor < len(body) and body[cursor] in ' \t\n\r':
+                cursor += 1
+            if cursor >= len(body) or body[cursor] != '{':
+                break
+            extracted = _extract_brace_arg(body, cursor)
+            if extracted:
+                args.append(extracted[0])
+                cursor = extracted[1]
+            else:
+                break
+        if len(args) == 6:
+            loc = args[3].strip()
+            if args[4].strip(): loc += f", {args[4].strip()}"
+            sub_positions.append((pos, _strip_latex(args[1]).strip(), _strip_latex(args[0]).strip(), _strip_latex(args[2]).strip(), _strip_latex(loc).strip()))
+    
+    if sub_positions:
+        for pos, degree, dates, institution, location in sub_positions:
+            blocks.append(EducationBlock(degree=degree, dates=dates, institution=institution, location=location))
+        return blocks
+
+    # 3. Jake's Resume format
     pattern = re.compile(
         r"\\textbf\s*\{([^}]+)\}\s*&\s*\\textit\s*\{([^}]+)\}\s*\\\\"
         r"\s*\{?\\small\s*([^&}]+?)\}?\s*&\s*\{?\\small\s*([^&}\\]+?)\}?\s*\\\\",
@@ -661,16 +890,23 @@ def parse_tex_string(text: str) -> ResumeIR:
 
     sections = _split_sections(text)
     seen_kinds: set[str] = set()
+    actual_order: List[str] = []
+
     for raw_title, body in sections:
         kind = _normalize_section(raw_title)
         if not kind:
             ir.extras.append(_parse_extra(raw_title, body))
+            if "extras" not in actual_order:
+                actual_order.append("extras")
             continue
         if kind in seen_kinds:
             # Same canonical section appearing twice - merge as extra
             ir.extras.append(_parse_extra(raw_title, body))
+            if "extras" not in actual_order:
+                actual_order.append("extras")
             continue
         seen_kinds.add(kind)
+        actual_order.append(kind)
         if kind == "summary":
             ir.summary = _parse_summary(body)
         elif kind == "skills":
@@ -687,5 +923,8 @@ def parse_tex_string(text: str) -> ResumeIR:
             ir.achievements = _parse_achievements(body)
         elif kind == "publications":
             ir.publications = _parse_publications(body)
+
+    if actual_order:
+        ir.section_order = actual_order
 
     return ir

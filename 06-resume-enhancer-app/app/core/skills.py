@@ -68,6 +68,24 @@ class SkillBundle:
             return ""
         return f.default or "\n\n".join(f.blocks.values())
 
+    def get_role_blocks(self, role_id: str, block_names: List[str]) -> str:
+        """Return only selected named blocks from a role profile.
+
+        Used for prompt token control: include only high-signal sections
+        (for example, priority keywords + hiring signals) instead of
+        always injecting the full role markdown file.
+        """
+        f = self.role_files.get(role_id)
+        if not f:
+            return ""
+        parts: List[str] = []
+        for raw in block_names:
+            key = raw.strip().lower().replace(" ", "_")
+            body = f.blocks.get(key, "")
+            if body:
+                parts.append(f"## {key}\n{body}")
+        return "\n\n".join(parts).strip()
+
     def list_roles(self) -> List[str]:
         return sorted(self.role_files.keys())
 

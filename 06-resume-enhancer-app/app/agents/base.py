@@ -50,14 +50,13 @@ _PREFIX_RE = re.compile(
 _TRAILING_NOISE_RE = re.compile(
     r"(?:\n\s*\n|\s*)("
     r"\(\s*note\s*:[\s\S]*$|"
-    r"note\s*:[\s\S]*$|"
+    r"(?<=\n)note\s*:[\s\S]*$|"
     r"\(\s*explanation[\s\S]*$|"
-    r"explanation\s*:[\s\S]*$|"
-    r"rationale\s*:[\s\S]*$|"
-    r"iteration\s+\d[\s\S]*$|"
+    r"(?<=\n)explanation\s*:[\s\S]*$|"
+    r"(?<=\n)rationale\s*:[\s\S]*$|"
+    r"(?<=\n)iteration\s+\d[\s\S]*$|"
     r"this (?:bullet|output|summary|version|rewrite) (?:passes|scores|achieves)[\s\S]*$|"
-    r"differentiation[\s\S]*$|"
-    r"action[_\s-]?verb[\s\S]*$"
+    r"(?<=\n)differentiation[\s\S]*$"
     r")",
     re.IGNORECASE,
 )
@@ -91,13 +90,17 @@ def coerce_score(value: Any, *, scale_to: float = 100.0) -> float:
 
     Handles: int, float, "82", "82/100", "8/10", "82%", "82 %", and stray
     whitespace. Anything unparseable returns 0.0.
+
+    Special care: a raw integer like 1, 2, 3 on a 0-100 scale is treated
+    as literal (not expanded). Only values strictly between 0 and 1
+    (exclusive) on a >=10 scale are treated as fractions and expanded.
     """
     if value is None:
         return 0.0
     if isinstance(value, (int, float)):
         n = float(value)
-        # If scale looks 0..1 (e.g. 0.82), expand it.
-        if 0.0 < n <= 1.0 and scale_to >= 10:
+        # Only expand true fractions (0 < n < 1.0), not integers like 1
+        if 0.0 < n < 1.0 and scale_to >= 10 and not isinstance(value, int):
             return round(n * scale_to, 1)
         return float(min(max(n, 0.0), scale_to))
     s = str(value).strip()
@@ -123,7 +126,8 @@ def coerce_score(value: Any, *, scale_to: float = 100.0) -> float:
             n = float(digits) if digits else 0.0
         except ValueError:
             return 0.0
-    if 0.0 < n <= 1.0 and scale_to >= 10:
+    # For string inputs, only expand true fractions
+    if 0.0 < n < 1.0 and scale_to >= 10:
         return round(n * scale_to, 1)
     return float(min(max(n, 0.0), scale_to))
 

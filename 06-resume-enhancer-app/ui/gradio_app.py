@@ -1,14 +1,15 @@
 """
-gradio_app.py - polished, multi-tab Gradio UI for the Resume Enhancer.
+gradio_app.py — Neural Canvas Edition (v5)
+
+Dark, animated, production-level UI for the Resume Enhancer multi-agent pipeline.
 
 Tabs:
-  - Enhance       upload .tex, pick role, run pipeline.
-  - Sections      per-section before/after with critic trace.
-  - Review        single-focus hiring-manager simulation for the target role.
-  - JD Matching   keyword score against curated JDs for the target role.
+  - Enhance       upload .tex, configure, run pipeline with live stage animation.
+  - Sections      per-section before/after with iteration trace.
+  - Review        hiring-manager simulation for the target role.
+  - JD Matching   keyword score against curated JDs.
   - Download      .tex output + Overleaf paste-ready helper.
-  - Setup         backend status + step-by-step auth options.
-  - About         architecture, agents, tech stack.
+  - Setup         backend status + auth instructions.
 
 Run with:
     python -m ui.gradio_app
@@ -31,611 +32,879 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.core.config import settings   # noqa: E402
-from app.core.ir import PipelineResult  # noqa: E402
-from app.core.llm import (best_available_backend, detect_available_backends,  # noqa: E402
+from app.core.config import settings                              # noqa: E402
+from app.core.ir import PipelineResult                           # noqa: E402
+from app.core.llm import (best_available_backend,               # noqa: E402
+                          detect_available_backends,
                           is_backend_configured)
-from app.core.skills import load_skills  # noqa: E402
-from app.pipeline import (PipelineConfig, ROLES, list_role_keywords,  # noqa: E402
-                          run_pipeline)
-
+from app.core.skills import load_skills                          # noqa: E402
+from app.pipeline import (PipelineConfig, ROLES,                # noqa: E402
+                          list_role_keywords, run_pipeline)
 
 logging.basicConfig(level=settings.log_level)
 log = logging.getLogger(__name__)
 
 load_skills()
 
+_rate_limit_store: dict[str, list[float]] = {}
 
-# ----------------------------------------------------------------------
-# CSS - designer-tier: refined typography, motion, depth, color system.
-# ----------------------------------------------------------------------
+
+def _check_rate_limit(session_id: str = "default") -> Optional[str]:
+    now = time.time()
+    window = 3600
+    max_runs = settings.max_runs_per_hour
+    if session_id not in _rate_limit_store:
+        _rate_limit_store[session_id] = []
+    _rate_limit_store[session_id] = [t for t in _rate_limit_store[session_id] if now - t < window]
+    if len(_rate_limit_store[session_id]) >= max_runs:
+        remaining = int(window - (now - _rate_limit_store[session_id][0]))
+        mins = max(1, remaining // 60)
+        return (
+            f"You've used all {max_runs} runs this hour. "
+            f"Please wait ~{mins} min before trying again."
+        )
+    _rate_limit_store[session_id].append(now)
+    return None
+
+
+_ERROR_MAP = {
+    "api key": "Your API key appears to be invalid or missing. Check the Setup tab.",
+    "rate limit": "The AI service is temporarily busy. Please wait a moment and try again.",
+    "timeout": "The AI service took too long to respond. Try again or switch backend.",
+    "connection": "Could not connect to the AI service. Check your internet connection.",
+    "not installed": "A required package is not installed. See the Setup tab.",
+}
+
+
+def _friendly_error(raw: str) -> str:
+    lower = raw.lower()
+    for key, msg in _ERROR_MAP.items():
+        if key in lower:
+            return msg
+    return f"Something went wrong: {raw[:200]}. Please try again or switch backends."
+
+
+# ─────────────────────────────────────────────────────────────
+#  CSS — Neural Canvas Dark Theme
+# ─────────────────────────────────────────────────────────────
 CSS = """
-/* ---------------- Design tokens ---------------- */
+/* ── Design tokens ─────────────────────────────────────────── */
 :root {
-  --rx-bg-page:   #f6f7fb;
-  --rx-bg-0:      #ffffff;
-  --rx-bg-1:      #fafbfd;
-  --rx-bg-2:      #f3f4f8;
-  --rx-line:      #e7e9ee;
-  --rx-line-2:    #d6d9e0;
-  --rx-ink:       #0f172a;
-  --rx-ink-2:     #475569;
-  --rx-ink-3:     #6b7280;
-  --rx-ink-4:     #94a3b8;
-  --rx-brand:     #4f46e5;
-  --rx-brand-2:   #6366f1;
-  --rx-brand-50:  #eef2ff;
-  --rx-mint:      #10b981;
-  --rx-amber:     #f59e0b;
-  --rx-rose:      #ef4444;
-  --rx-violet:    #8b5cf6;
-  --rx-teal:      #14b8a6;
-  --rx-shadow-1:  0 1px 2px rgba(15,23,42,.04), 0 0 0 1px rgba(15,23,42,.04);
-  --rx-shadow-2:  0 4px 16px -4px rgba(15,23,42,.10), 0 0 0 1px rgba(15,23,42,.05);
-  --rx-shadow-3:  0 22px 60px -22px rgba(15,23,42,.45), 0 0 0 1px rgba(15,23,42,.06);
-  --rx-radius:    14px;
-  --rx-radius-sm: 10px;
-  --rx-easing:    cubic-bezier(.2,.7,.2,1);
+  --nc-bg:          #07090f;
+  --nc-bg-card:     rgba(14, 16, 30, 0.9);
+  --nc-bg-card2:    rgba(20, 23, 42, 0.95);
+  --nc-border:      rgba(124, 58, 237, 0.28);
+  --nc-border-soft: rgba(255, 255, 255, 0.07);
+  --nc-text:        #e2e8f0;
+  --nc-text2:       #94a3b8;
+  --nc-text3:       #475569;
+  --nc-purple:      #7c3aed;
+  --nc-purple-l:    #a78bfa;
+  --nc-cyan:        #06b6d4;
+  --nc-emerald:     #10b981;
+  --nc-amber:       #f59e0b;
+  --nc-rose:        #f43f5e;
+  --nc-g-purple:    linear-gradient(135deg,#6d28d9,#7c3aed);
+  --nc-g-cyan:      linear-gradient(135deg,#0369a1,#0ea5e9);
+  --nc-g-emerald:   linear-gradient(135deg,#065f46,#059669);
+  --nc-g-amber:     linear-gradient(135deg,#92400e,#d97706);
+  --nc-g-rose:      linear-gradient(135deg,#9f1239,#e11d48);
+  --nc-g-teal:      linear-gradient(135deg,#134e4a,#0f766e);
+  --nc-g-slate:     linear-gradient(135deg,#1e293b,#334155);
+  --nc-glow:        0 0 30px rgba(124,58,237,.22);
+  --nc-glow-sm:     0 0 16px rgba(124,58,237,.28);
+  --nc-r:           16px;
+  --nc-r-sm:        12px;
+  --nc-ease:        cubic-bezier(.2,.8,.2,1);
 }
 
-/* ---------------- Frame ---------------- */
-.gradio-container {
-  max-width: 1320px !important;
-  margin: 0 auto !important;
-  font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif !important;
-  font-feature-settings: 'cv11', 'ss01', 'ss03';
-  letter-spacing: -0.005em;
-}
+/* ── Base ───────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 
-/* ---------------- Hero ---------------- */
-.rx-hero {
-  position: relative;
-  padding: 40px 36px 36px;
-  margin: 14px 0 22px;
-  border-radius: 22px;
-  background:
-    radial-gradient(900px 200px at -10% -20%, rgba(99,102,241,.55), transparent 60%),
-    radial-gradient(900px 240px at 110% -10%, rgba(20,184,166,.45), transparent 60%),
-    radial-gradient(700px 200px at 50% 120%, rgba(139,92,246,.35), transparent 60%),
-    linear-gradient(135deg, #0b1020 0%, #131b39 60%, #1d1240 100%);
-  color: #f8fafc;
-  overflow: hidden;
-  box-shadow: var(--rx-shadow-3);
-}
-.rx-hero::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
-  background-size: 32px 32px;
-  mask-image: radial-gradient(800px 240px at 50% 0%, #000, transparent 80%);
-  opacity: .4;
-}
-.rx-hero h1 {
-  font-size: 36px; font-weight: 800; letter-spacing: -0.03em;
-  margin: 0 0 8px; line-height: 1.05;
-  background: linear-gradient(95deg,#fff 0%,#c7d2fe 45%,#67e8f9 100%);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.rx-hero p {
-  margin: 0; opacity: .82; font-size: 14.5px; line-height: 1.55;
-  max-width: 780px; font-weight: 400;
-}
-.rx-hero .pills { margin-top: 18px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.rx-hero .pill {
-  background: rgba(255,255,255,.06); backdrop-filter: blur(10px);
-  border: 1px solid rgba(255,255,255,.12);
-  padding: 6px 14px; border-radius: 999px; font-size: 12px;
-  letter-spacing: .005em; font-weight: 500;
-  display: inline-flex; align-items: center; gap: 6px;
-  transition: all .25s var(--rx-easing);
-}
-.rx-hero .pill:hover { transform: translateY(-1px); border-color: rgba(255,255,255,.22); }
-.rx-hero .pill.ok   { background: rgba(16,185,129,.16); border-color: rgba(16,185,129,.4); color: #a7f3d0; }
-.rx-hero .pill.warn { background: rgba(245,158,11,.16); border-color: rgba(245,158,11,.4); color: #fde68a; }
-.rx-hero .pill.err  { background: rgba(239,68,68,.16);  border-color: rgba(239,68,68,.4);  color: #fecaca; }
-.rx-hero .pill .dot {
-  width: 6px; height: 6px; border-radius: 50%; background: currentColor;
-  box-shadow: 0 0 0 3px rgba(255,255,255,.06);
+.gradio-container {
+  max-width: 1380px !important;
+  margin: 0 auto !important;
+  background: transparent !important;
+  font-family: 'Inter','Segoe UI',system-ui,sans-serif !important;
+  font-feature-settings: 'cv11','ss01';
+  letter-spacing: -.003em;
 }
 
-/* ---------------- Card ---------------- */
-.rx-card {
-  background: var(--rx-bg-0);
-  border: 1px solid var(--rx-line);
-  border-radius: var(--rx-radius);
-  padding: 18px 20px;
-  box-shadow: var(--rx-shadow-1);
-  transition: all .2s var(--rx-easing);
+body, html { background: var(--nc-bg) !important; }
+
+/* ── Animated background orbs ──────────────────────────────── */
+.nc-orbs {
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: -1; overflow: hidden;
 }
-.rx-card:hover { box-shadow: var(--rx-shadow-2); }
-.rx-card .h {
-  font-weight: 700; color: var(--rx-ink); font-size: 14px;
-  letter-spacing: -.01em; margin: 0 0 4px;
+.nc-orb {
+  position: absolute; border-radius: 50%;
+  filter: blur(90px); opacity: 0;
+  animation: nc-reveal 2s ease forwards, nc-drift var(--dur,25s) ease-in-out var(--delay,0s) infinite;
+}
+.nc-orb-a {
+  width: 720px; height: 720px;
+  background: radial-gradient(circle,#7c3aed,transparent 70%);
+  top: -280px; left: -180px;
+  --dur: 28s; --delay: 0s;
+}
+.nc-orb-b {
+  width: 600px; height: 600px;
+  background: radial-gradient(circle,#06b6d4,transparent 70%);
+  bottom: -220px; right: -160px;
+  --dur: 22s; --delay: -8s;
+}
+.nc-orb-c {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle,#10b981,transparent 70%);
+  top: 45%; left: 42%;
+  --dur: 32s; --delay: -16s;
+}
+@keyframes nc-reveal {
+  from { opacity: 0; } to { opacity: .11; }
+}
+@keyframes nc-drift {
+  0%,100% { transform: translate(0,0); }
+  25%      { transform: translate(45px,-40px); }
+  50%      { transform: translate(-30px,30px); }
+  75%      { transform: translate(20px,50px); }
+}
+
+/* ── Hero ───────────────────────────────────────────────────── */
+.nc-hero {
+  position: relative; padding: 52px 48px 44px;
+  margin: 10px 0 22px; border-radius: 24px; overflow: hidden;
+  background: linear-gradient(135deg,#0b0d1e 0%,#131628 55%,#0e1124 100%);
+  border: 1px solid rgba(124,58,237,.4);
+  box-shadow: var(--nc-glow), inset 0 0 80px rgba(124,58,237,.06);
+}
+.nc-hero-grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(124,58,237,.07) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(124,58,237,.07) 1px,transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%,black 20%,transparent 75%);
+}
+.nc-hero-glow {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(700px 280px at -8% -25%, rgba(124,58,237,.38),transparent 55%),
+    radial-gradient(600px 260px at 110% -15%, rgba(6,182,212,.22),transparent 55%),
+    radial-gradient(500px 180px at 55% 115%, rgba(16,185,129,.18),transparent 60%);
+}
+.nc-hero h1 {
+  font-size: 44px; font-weight: 900; letter-spacing: -.045em;
+  margin: 0 0 12px; line-height: 1;
+  background: linear-gradient(95deg,#fff 0%,#c4b5fd 28%,#67e8f9 60%,#6ee7b7 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: nc-fade-up .8s var(--nc-ease) both;
+}
+.nc-hero .tagline {
+  color: rgba(226,232,240,.72); font-size: 15px;
+  line-height: 1.65; max-width: 700px; margin: 0 0 26px;
+  animation: nc-fade-up .8s .1s var(--nc-ease) both;
+}
+.nc-hero .badges { display: flex; gap: 8px; flex-wrap: wrap; animation: nc-fade-up .8s .2s var(--nc-ease) both; }
+@keyframes nc-fade-up {
+  from { opacity:0; transform: translateY(14px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+.nc-badge {
+  padding: 5px 14px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.05); backdrop-filter: blur(12px);
+  color: rgba(255,255,255,.82);
+  transition: all .22s var(--nc-ease); cursor: default;
+}
+.nc-badge:hover { background: rgba(255,255,255,.1); transform: translateY(-1px); }
+.nc-badge.p { border-color: rgba(167,139,250,.4); color: #c4b5fd; background: rgba(124,58,237,.1); }
+.nc-badge.c { border-color: rgba(103,232,249,.4); color: #67e8f9; background: rgba(6,182,212,.1); }
+.nc-badge.e { border-color: rgba(110,231,183,.4); color: #6ee7b7; background: rgba(16,185,129,.1); }
+.nc-hero-stats {
+  position: absolute; top: 48px; right: 48px;
+  display: flex; gap: 24px; align-items: flex-start;
+}
+.nc-hero-stat .val {
+  font-size: 30px; font-weight: 900; letter-spacing: -.04em;
+  background: linear-gradient(135deg,#c4b5fd,#a78bfa);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.nc-hero-stat .lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.35); margin-top: 1px; }
+
+/* ── Glass card ─────────────────────────────────────────────── */
+.nc-card {
+  background: var(--nc-bg-card);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--nc-border-soft);
+  border-radius: var(--nc-r); padding: 20px 22px;
+  transition: border-color .22s, box-shadow .22s;
+}
+.nc-card:hover { border-color: var(--nc-border); }
+.nc-card-title {
+  font-size: 13px; font-weight: 700; color: var(--nc-text);
+  letter-spacing: -.01em; margin: 0 0 5px;
   display: flex; align-items: center; gap: 8px;
 }
-.rx-card .h .num {
+.nc-step {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; border-radius: 6px;
-  background: var(--rx-brand-50); color: var(--rx-brand);
-  font-size: 11px; font-weight: 800;
+  width: 24px; height: 24px; border-radius: 8px;
+  background: var(--nc-g-purple); color: #fff;
+  font-size: 11px; font-weight: 800; flex-shrink: 0;
+  box-shadow: var(--nc-glow-sm);
 }
-.rx-card .sub { color: var(--rx-ink-3); font-size: 13px; line-height: 1.5; margin: 0; }
+.nc-card-sub { font-size: 12.5px; color: var(--nc-text2); line-height: 1.5; margin: 0; }
 
-/* ---------------- KPI tiles ---------------- */
-.rx-kpi-row {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px; margin: 4px 0 18px;
+/* ── KPI grid ───────────────────────────────────────────────── */
+.nc-kpi-grid {
+  display: grid; grid-template-columns: repeat(auto-fit,minmax(155px,1fr));
+  gap: 12px; margin-bottom: 20px;
 }
-.rx-kpi {
-  position: relative;
-  padding: 16px 18px; border-radius: 14px;
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-  color: #fff; box-shadow: var(--rx-shadow-2);
-  overflow: hidden; isolation: isolate;
-  transition: transform .25s var(--rx-easing), box-shadow .25s var(--rx-easing);
+.nc-kpi {
+  padding: 18px 18px 14px; border-radius: 16px; overflow: hidden;
+  position: relative; isolation: isolate; cursor: default;
+  transition: transform .25s var(--nc-ease), box-shadow .25s var(--nc-ease);
 }
-.rx-kpi:hover { transform: translateY(-2px); }
-.rx-kpi::before {
-  content: ''; position: absolute; inset: 0;
-  background:
-    radial-gradient(220px 80px at 90% 0%, rgba(255,255,255,.22), transparent 55%),
-    radial-gradient(120px 60px at 0% 100%, rgba(0,0,0,.18), transparent 60%);
-  z-index: -1;
+.nc-kpi:hover { transform: translateY(-3px); }
+.nc-kpi::after {
+  content:''; position:absolute; top:-35px; right:-35px;
+  width:110px; height:110px; border-radius:50%;
+  background: rgba(255,255,255,.07); pointer-events:none;
 }
-.rx-kpi .v {
-  font-size: 30px; font-weight: 800; letter-spacing: -.025em;
-  line-height: 1.04; margin: 0 0 2px;
+.nc-kpi .kv {
+  font-size: 32px; font-weight: 900; letter-spacing: -.04em;
+  line-height: 1; margin-bottom: 4px; color: #fff;
   font-variant-numeric: tabular-nums;
 }
-.rx-kpi .l {
-  font-size: 10.5px; text-transform: uppercase;
-  letter-spacing: .1em; opacity: .82; font-weight: 700;
+.nc-kpi .kl {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .11em;
+  color: rgba(255,255,255,.72); font-weight: 700;
 }
-.rx-kpi .delta { font-size: 11px; opacity: .9; margin-top: 6px; font-weight: 500; }
-.rx-kpi.green   { background: linear-gradient(135deg,#10b981 0%,#059669 100%); }
-.rx-kpi.amber   { background: linear-gradient(135deg,#f59e0b 0%,#d97706 100%); }
-.rx-kpi.red     { background: linear-gradient(135deg,#ef4444 0%,#b91c1c 100%); }
-.rx-kpi.violet  { background: linear-gradient(135deg,#8b5cf6 0%,#6d28d9 100%); }
-.rx-kpi.slate   { background: linear-gradient(135deg,#475569 0%,#1e293b 100%); }
-.rx-kpi.teal    { background: linear-gradient(135deg,#14b8a6 0%,#0f766e 100%); }
+.nc-kpi .kd { font-size: 10.5px; color: rgba(255,255,255,.58); margin-top: 6px; }
+.nc-kpi.purple  { background: linear-gradient(145deg,#5b21b6,#7c3aed); box-shadow: 0 8px 28px -8px rgba(124,58,237,.55); }
+.nc-kpi.cyan    { background: linear-gradient(145deg,#0369a1,#0ea5e9); box-shadow: 0 8px 28px -8px rgba(14,165,233,.5); }
+.nc-kpi.emerald { background: linear-gradient(145deg,#065f46,#059669); box-shadow: 0 8px 28px -8px rgba(16,185,129,.5); }
+.nc-kpi.amber   { background: linear-gradient(145deg,#92400e,#d97706); box-shadow: 0 8px 28px -8px rgba(245,158,11,.5); }
+.nc-kpi.rose    { background: linear-gradient(145deg,#9f1239,#e11d48); box-shadow: 0 8px 28px -8px rgba(244,63,94,.5); }
+.nc-kpi.slate   { background: linear-gradient(145deg,#1e293b,#334155); box-shadow: 0 8px 28px -8px rgba(51,65,85,.45); }
+.nc-kpi.teal    { background: linear-gradient(145deg,#134e4a,#0f766e); box-shadow: 0 8px 28px -8px rgba(20,184,166,.5); }
 
-/* ---------------- Score bar ---------------- */
-.rx-bar {
-  background: var(--rx-bg-2); border-radius: 999px; height: 6px;
-  overflow: hidden; position: relative;
-}
-.rx-bar > i {
-  display: block; height: 100%;
-  background: linear-gradient(90deg, var(--rx-brand-2), var(--rx-brand));
-  border-radius: 999px; transition: width .6s var(--rx-easing);
-  box-shadow: 0 0 10px -2px var(--rx-brand-2);
-}
-.rx-bar.high > i  { background: linear-gradient(90deg, #34d399, #10b981); box-shadow: 0 0 10px -2px #10b981; }
-.rx-bar.mid > i   { background: linear-gradient(90deg, #fbbf24, #f59e0b); box-shadow: 0 0 10px -2px #f59e0b; }
-.rx-bar.low > i   { background: linear-gradient(90deg, #fb7185, #ef4444); box-shadow: 0 0 10px -2px #ef4444; }
+/* ── Score bar ──────────────────────────────────────────────── */
+.nc-bar { height: 5px; background: rgba(255,255,255,.08); border-radius:999px; overflow:hidden; }
+.nc-bar i { display:block; height:100%; border-radius:999px; transition: width .65s var(--nc-ease); }
+.nc-bar.high i { background: linear-gradient(90deg,#10b981,#34d399); box-shadow: 0 0 10px #10b981; }
+.nc-bar.mid  i { background: linear-gradient(90deg,#f59e0b,#fbbf24); box-shadow: 0 0 10px #f59e0b; }
+.nc-bar.low  i { background: linear-gradient(90deg,#f43f5e,#fb7185); box-shadow: 0 0 10px #f43f5e; }
+.nc-bar.def  i { background: linear-gradient(90deg,#7c3aed,#a855f7); box-shadow: 0 0 10px #7c3aed; }
 
-/* ---------------- Section trace ---------------- */
-.rx-trace { margin-bottom: 14px; }
-.rx-trace .head {
-  display: flex; justify-content: space-between; align-items: center;
-  gap: 12px; margin-bottom: 10px;
-}
-.rx-trace .label {
-  font-weight: 700; color: var(--rx-ink); font-size: 13.5px;
-  letter-spacing: -.005em;
-}
-.rx-trace .meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.rx-before, .rx-after {
-  border-radius: 11px; padding: 12px 14px; font-size: 13.5px; line-height: 1.6;
-  margin-top: 6px; transition: all .2s var(--rx-easing);
-}
-.rx-before {
-  background: linear-gradient(135deg, #fff7ed, #fffbeb);
-  border-left: 3px solid #f59e0b; color: #5a3a05;
-}
-.rx-after {
-  background: linear-gradient(135deg, #ecfdf5, #f0fdfa);
-  border-left: 3px solid #10b981; color: #064e3b;
-}
-.rx-before:hover, .rx-after:hover { transform: translateX(2px); }
-.rx-before .lbl, .rx-after .lbl {
-  text-transform: uppercase; font-size: 9.5px; font-weight: 800;
-  letter-spacing: .1em; opacity: .55; margin-right: 8px;
-}
-.rx-flags {
-  margin-top: 10px; padding: 9px 13px; border-radius: 9px;
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  color: #78350f; font-size: 12.5px; line-height: 1.5;
-  border-left: 3px solid #f59e0b;
-}
-.rx-trace-progress {
-  display: flex; gap: 4px; margin-top: 10px; align-items: center;
-}
-.rx-trace-progress .dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--rx-line-2); transition: all .3s var(--rx-easing);
-}
-.rx-trace-progress .dot.done { background: var(--rx-mint); }
-.rx-trace-progress .dot.accept { background: var(--rx-brand); box-shadow: 0 0 0 3px var(--rx-brand-50); }
-.rx-trace-progress .dim {
-  font-size: 11px; color: var(--rx-ink-3); margin-left: 6px;
-}
-
-/* ---------------- Score pills + tags ---------------- */
-.rx-pill {
-  display: inline-block; padding: 3px 10px; border-radius: 999px;
-  font-weight: 700; font-size: 11px; color: #fff;
+/* ── Score badges ───────────────────────────────────────────── */
+.nc-s {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
   letter-spacing: .03em; font-variant-numeric: tabular-nums;
 }
-.rx-pill.high   { background: linear-gradient(135deg,#10b981,#059669); }
-.rx-pill.mid    { background: linear-gradient(135deg,#f59e0b,#d97706); }
-.rx-pill.low    { background: linear-gradient(135deg,#ef4444,#b91c1c); }
-.rx-pill.ghost  { background: var(--rx-bg-2); color: var(--rx-ink-2); }
-.rx-pill.iter   { background: #ede9fe; color: #5b21b6; }
-.rx-pill.changed { background: linear-gradient(135deg,#6366f1,#4f46e5); }
-.rx-pill.unchanged { background: var(--rx-line); color: var(--rx-ink-2); }
+.nc-s.high    { background: rgba(16,185,129,.18); color: #6ee7b7; border: 1px solid rgba(16,185,129,.35); }
+.nc-s.mid     { background: rgba(245,158,11,.18); color: #fde68a; border: 1px solid rgba(245,158,11,.35); }
+.nc-s.low     { background: rgba(244,63,94,.18);  color: #fca5a5; border: 1px solid rgba(244,63,94,.35); }
+.nc-s.changed { background: rgba(124,58,237,.2);  color: #c4b5fd; border: 1px solid rgba(124,58,237,.35); }
+.nc-s.unch    { background: rgba(255,255,255,.06); color: var(--nc-text3); border: 1px solid rgba(255,255,255,.1); }
+.nc-s.iter    { background: rgba(167,139,250,.15); color: #c4b5fd; border: 1px solid rgba(167,139,250,.3); }
 
-.rx-tag {
-  display: inline-block; padding: 4px 10px; border-radius: 999px;
-  font-size: 11.5px; font-weight: 500; margin: 2px 4px 2px 0;
-  background: var(--rx-brand-50); color: var(--rx-brand);
-  border: 1px solid #e0e7ff;
-  transition: all .15s var(--rx-easing);
+/* ── Tags ───────────────────────────────────────────────────── */
+.nc-tag {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; margin: 2px 3px 2px 0;
+  background: rgba(124,58,237,.14); color: #c4b5fd;
+  border: 1px solid rgba(124,58,237,.3);
+  transition: transform .14s;
 }
-.rx-tag:hover { transform: translateY(-1px); }
-.rx-tag.miss { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
-.rx-tag.match { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+.nc-tag:hover { transform: translateY(-1px); }
+.nc-tag.miss  { background: rgba(244,63,94,.14);  color: #fca5a5; border-color: rgba(244,63,94,.3); }
+.nc-tag.match { background: rgba(16,185,129,.14); color: #6ee7b7; border-color: rgba(16,185,129,.3); }
 
-/* ---------------- Hiring-manager review (single-focus) ---------------- */
-.rx-review-hero {
-  background:
-    radial-gradient(600px 140px at 0% 0%, rgba(99,102,241,.10), transparent 60%),
-    radial-gradient(500px 140px at 100% 0%, rgba(20,184,166,.10), transparent 60%),
-    var(--rx-bg-0);
-  border: 1px solid var(--rx-line); border-radius: var(--rx-radius);
-  padding: 28px 30px; margin-bottom: 14px;
-  box-shadow: var(--rx-shadow-2);
+/* ── Pipeline progress ──────────────────────────────────────── */
+.nc-pipeline {
+  padding: 22px 24px; border-radius: var(--nc-r);
+  background: var(--nc-bg-card2);
+  border: 1px solid var(--nc-border-soft);
 }
-.rx-review-hero .top {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  gap: 14px; flex-wrap: wrap;
+.nc-pipeline-hd {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
 }
-.rx-review-hero h2 {
-  margin: 0 0 4px; font-size: 22px; font-weight: 800;
-  letter-spacing: -.025em; color: var(--rx-ink);
+.nc-pipeline-title { font-size: 14px; font-weight: 700; color: var(--nc-text); }
+.nc-pipeline-eta   { font-size: 12px; color: var(--nc-text2); }
+.nc-prog-bar { height: 4px; background: rgba(255,255,255,.07); border-radius:999px; overflow:hidden; margin-bottom:20px; }
+.nc-prog-fill {
+  height: 100%; border-radius: 999px; transition: width .55s var(--nc-ease);
+  background: linear-gradient(90deg,#6d28d9,#7c3aed,#a855f7,#06b6d4);
+  background-size: 200% 100%; animation: nc-shimmer 2.5s linear infinite;
+  box-shadow: 0 0 14px rgba(124,58,237,.6);
 }
-.rx-review-hero .subtitle {
-  color: var(--rx-ink-3); font-size: 13.5px; margin: 0;
+@keyframes nc-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
-.rx-review-hero .scoreBox {
-  text-align: right; min-width: 130px;
+
+/* Stage nodes */
+.nc-stages { display: flex; align-items: center; margin-bottom: 18px; gap: 0; }
+.nc-stage-wrap { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1; }
+.nc-stage-dot {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  border: 2px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+  transition: all .35s var(--nc-ease);
+  position: relative; z-index: 1;
 }
-.rx-review-hero .scoreBox .num {
-  font-size: 42px; font-weight: 800; letter-spacing: -.04em;
-  line-height: 1; font-variant-numeric: tabular-nums;
-  background: linear-gradient(135deg,#4f46e5,#8b5cf6);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
+.nc-stage-dot.idle   { opacity: .45; }
+.nc-stage-dot.active {
+  background: rgba(124,58,237,.28); border-color: #7c3aed;
+  box-shadow: 0 0 18px rgba(124,58,237,.55);
+  animation: nc-pulse 1.6s ease-in-out infinite;
 }
-.rx-review-hero .scoreBox .num.high { background: linear-gradient(135deg,#10b981,#059669); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.rx-review-hero .scoreBox .num.mid  { background: linear-gradient(135deg,#f59e0b,#d97706); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.rx-review-hero .scoreBox .num.low  { background: linear-gradient(135deg,#ef4444,#b91c1c); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.rx-review-hero .scoreBox .label {
-  font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em;
-  color: var(--rx-ink-4); font-weight: 700; margin-top: 4px;
+.nc-stage-dot.done   {
+  background: rgba(16,185,129,.2); border-color: #10b981;
+  box-shadow: 0 0 14px rgba(16,185,129,.4);
 }
-.rx-review-hero .verdict {
-  margin-top: 18px; padding: 14px 16px; border-radius: 11px;
-  background: var(--rx-bg-1); border-left: 3px solid var(--rx-brand);
-  font-style: italic; color: var(--rx-ink-2); font-size: 14px; line-height: 1.55;
+@keyframes nc-pulse {
+  0%,100% { box-shadow: 0 0 18px rgba(124,58,237,.55); }
+  50%      { box-shadow: 0 0 32px rgba(124,58,237,.85), 0 0 0 7px rgba(124,58,237,.12); }
 }
-.rx-review-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px;
+.nc-stage-lbl {
+  font-size: 9px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--nc-text3); font-weight: 600; text-align: center;
+  transition: color .3s;
 }
-.rx-review-grid .col {
-  background: var(--rx-bg-0); border: 1px solid var(--rx-line);
-  border-radius: var(--rx-radius); padding: 16px 18px;
-  box-shadow: var(--rx-shadow-1);
+.nc-stage-lbl.active { color: #c4b5fd; }
+.nc-stage-lbl.done   { color: #6ee7b7; }
+.nc-stage-conn {
+  flex: 0 0 auto; width: 28px; height: 1px; margin-bottom: 19px;
+  background: rgba(255,255,255,.1); transition: background .4s;
 }
-.rx-review-grid .col h5 {
-  font-size: 11px; text-transform: uppercase; letter-spacing: .1em;
-  margin: 0 0 10px; color: var(--rx-ink-4); font-weight: 800;
+.nc-stage-conn.done { background: rgba(16,185,129,.5); }
+
+/* Log area */
+.nc-log {
+  background: rgba(0,0,0,.45); border-radius: 10px; padding: 12px 14px;
+  font-family: 'JetBrains Mono',ui-monospace,Consolas,monospace;
+  font-size: 11.5px; line-height: 1.75; color: #94a3b8;
+  max-height: 320px; overflow-y: auto;
+  border: 1px solid rgba(255,255,255,.05);
+}
+.nc-log .ls  { color: #a78bfa; font-weight: 700; }
+.nc-log .lok { color: #6ee7b7; }
+.nc-log .lw  { color: #fde68a; }
+.nc-log .le  { color: #fca5a5; }
+.nc-log .ld  { color: #475569; }
+.nc-log::-webkit-scrollbar { width: 5px; }
+.nc-log::-webkit-scrollbar-thumb { background: rgba(124,58,237,.35); border-radius: 3px; }
+
+/* ── Section traces ─────────────────────────────────────────── */
+.nc-trace { margin-bottom: 14px; }
+.nc-trace-card {
+  border: 1px solid var(--nc-border-soft); border-radius: var(--nc-r);
+  overflow: hidden; background: var(--nc-bg-card);
+  transition: border-color .2s;
+}
+.nc-trace-card:hover { border-color: var(--nc-border); }
+.nc-trace-hd {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.05);
+  background: rgba(255,255,255,.02);
+}
+.nc-trace-lbl { font-weight: 700; font-size: 13px; color: var(--nc-text); }
+.nc-trace-meta { display: flex; gap: 6px; align-items: center; }
+.nc-diff-before {
+  padding: 13px 16px; font-size: 13px; line-height: 1.7;
+  background: rgba(245,158,11,.06);
+  border-left: 3px solid rgba(245,158,11,.5);
+  color: rgba(253,230,138,.9);
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.nc-diff-after {
+  padding: 13px 16px; font-size: 13px; line-height: 1.7;
+  background: rgba(16,185,129,.06);
+  border-left: 3px solid rgba(16,185,129,.5);
+  color: rgba(110,231,183,.9);
+}
+.nc-diff-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .12em; font-weight: 800; opacity: .45; margin-right: 8px; }
+.nc-flags {
+  margin: 8px 16px; padding: 9px 12px; border-radius: 9px;
+  background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.25);
+  color: #fde68a; font-size: 12px; line-height: 1.5;
+}
+.nc-iter-row { display: flex; gap: 5px; padding: 8px 16px; align-items: center; }
+.nc-iter-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.14); transition: all .3s; }
+.nc-iter-dot.done   { background: #6ee7b7; }
+.nc-iter-dot.accept { background: #a78bfa; box-shadow: 0 0 8px rgba(167,139,250,.7); }
+.nc-iter-dim { font-size: 11px; color: var(--nc-text3); margin-left: 6px; }
+.nc-trace-note { font-size: 11.5px; color: var(--nc-text3); font-style: italic; padding: 4px 16px 10px; }
+
+/* ── Review ─────────────────────────────────────────────────── */
+.nc-review-hero {
+  border-radius: var(--nc-r); padding: 28px 30px 22px;
+  background: linear-gradient(135deg,rgba(11,13,28,.98),rgba(18,21,40,.98));
+  border: 1px solid rgba(124,58,237,.35); margin-bottom: 14px;
+  position: relative; overflow: hidden;
+  box-shadow: var(--nc-glow);
+}
+.nc-review-hero::before {
+  content:''; position:absolute; top:-60px; right:-60px; width:280px; height:280px;
+  border-radius:50%;
+  background: radial-gradient(circle,rgba(124,58,237,.2),transparent 65%);
+  pointer-events:none;
+}
+.nc-review-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.nc-review-h2  { font-size: 22px; font-weight: 800; letter-spacing: -.025em; color: var(--nc-text); margin: 0 0 5px; }
+.nc-review-sub { color: var(--nc-text2); font-size: 13px; }
+.nc-score-box  { text-align: right; }
+.nc-score-num  {
+  font-size: 54px; font-weight: 900; letter-spacing: -.05em; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.nc-score-num.high { background: var(--nc-g-emerald); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.nc-score-num.mid  { background: var(--nc-g-amber);   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.nc-score-num.low  { background: var(--nc-g-rose);    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.nc-score-lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--nc-text3); font-weight: 700; margin-top: 4px; }
+.nc-verdict {
+  margin-top: 16px; padding: 14px 16px; border-radius: 12px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
+  border-left: 3px solid #7c3aed;
+  font-style: italic; color: var(--nc-text2); font-size: 14px; line-height: 1.55;
+}
+.nc-review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.nc-review-col {
+  background: var(--nc-bg-card); border: 1px solid var(--nc-border-soft);
+  border-radius: var(--nc-r-sm); padding: 16px 18px;
+}
+.nc-review-col h5 {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
+  margin: 0 0 12px; color: var(--nc-text3); font-weight: 800;
   display: flex; align-items: center; gap: 6px;
 }
-.rx-review-grid .col h5::before {
-  content: ''; width: 4px; height: 14px; border-radius: 2px;
-  background: var(--rx-brand);
+.nc-review-col h5::before { content:''; width:4px; height:14px; border-radius:2px; background:#6ee7b7; flex-shrink:0; }
+.nc-review-col.weak h5::before { background: #fde68a; }
+.nc-review-col ul { margin:0; padding:0; list-style:none; }
+.nc-review-col ul li {
+  font-size: 13px; color: var(--nc-text); line-height: 1.55;
+  margin-bottom: 6px; padding-left: 16px; position: relative;
 }
-.rx-review-grid .col.weak h5::before { background: var(--rx-amber); }
-.rx-review-grid .col ul {
-  margin: 0; padding-left: 16px; font-size: 13.5px; line-height: 1.65;
-  color: var(--rx-ink); list-style-type: none;
+.nc-review-col ul li::before { content:'▸'; position:absolute; left:0; color:#6ee7b7; font-size:11px; top:1px; }
+.nc-review-col.weak ul li::before { content:'◦'; color:#fde68a; }
+.nc-kw-card {
+  background: var(--nc-bg-card); border: 1px solid var(--nc-border-soft);
+  border-radius: var(--nc-r-sm); padding: 14px 16px;
 }
-.rx-review-grid .col ul li {
-  position: relative; padding-left: 14px; margin-bottom: 6px;
-}
-.rx-review-grid .col ul li::before {
-  content: '✓'; position: absolute; left: 0; color: var(--rx-mint); font-weight: 800;
-}
-.rx-review-grid .col.weak ul li::before { content: '!'; color: var(--rx-amber); }
-.rx-keywords-card {
-  margin-top: 14px;
-  background: var(--rx-bg-0); border: 1px solid var(--rx-line);
-  border-radius: var(--rx-radius); padding: 16px 18px;
-  box-shadow: var(--rx-shadow-1);
-}
-.rx-keywords-card h5 {
-  font-size: 11px; text-transform: uppercase; letter-spacing: .1em;
-  margin: 0 0 10px; color: var(--rx-ink-4); font-weight: 800;
+.nc-kw-card h5 {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
+  margin: 0 0 10px; color: var(--nc-text3); font-weight: 800;
 }
 
-/* ---------------- Tables (JD) ---------------- */
-.rx-table {
-  width: 100%; border-collapse: separate; border-spacing: 0;
-  font-size: 13.5px; background: var(--rx-bg-0);
-  border-radius: 10px; overflow: hidden;
-  box-shadow: var(--rx-shadow-1);
-}
-.rx-table th, .rx-table td {
-  padding: 12px 14px; text-align: left;
-  border-bottom: 1px solid var(--rx-line);
-}
-.rx-table th {
-  background: var(--rx-bg-1); color: var(--rx-ink-3); font-weight: 700;
-  font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em;
-}
-.rx-table tr:last-child td { border-bottom: none; }
-.rx-table tr:hover td { background: var(--rx-bg-1); }
-.rx-table td.gap { color: var(--rx-ink-3); font-size: 12.5px; }
-.rx-table td.num { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--rx-ink); }
-
-/* ---------------- Setup ---------------- */
-.rx-setup {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 14px; margin-top: 8px;
-}
-.rx-setup .opt {
-  position: relative; background: var(--rx-bg-0);
-  border: 1px solid var(--rx-line); border-radius: var(--rx-radius);
-  padding: 22px 22px 18px; box-shadow: var(--rx-shadow-1);
-  transition: all .2s var(--rx-easing);
-}
-.rx-setup .opt:hover { box-shadow: var(--rx-shadow-2); transform: translateY(-2px); }
-.rx-setup .opt.ready {
-  border-color: #86efac;
-  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
-}
-.rx-setup .opt.ready::before {
-  content: '✓ READY';
-  position: absolute; top: 14px; right: 14px;
-  font-size: 10px; font-weight: 800; letter-spacing: .12em;
-  color: #fff; background: linear-gradient(135deg,#10b981,#059669);
-  padding: 4px 10px; border-radius: 999px;
-  box-shadow: 0 4px 10px -2px rgba(16,185,129,.5);
-}
-.rx-setup .opt h4 {
-  margin: 0 0 6px; font-size: 16px; color: var(--rx-ink);
-  font-weight: 700; letter-spacing: -.015em;
-}
-.rx-setup .opt .why { color: var(--rx-ink-3); font-size: 13px; margin: 0 0 12px; line-height: 1.5; }
-.rx-setup .opt .steps {
-  background: linear-gradient(135deg, #0b1020, #131b39);
-  color: #e2e8f0; padding: 14px 16px;
-  border-radius: 10px; font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace;
-  font-size: 12px; line-height: 1.7;
-  white-space: pre-wrap; word-break: break-word;
+/* ── JD table ───────────────────────────────────────────────── */
+.nc-table { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
+.nc-table-wrap {
+  border-radius: var(--nc-r-sm); overflow: hidden;
   border: 1px solid rgba(255,255,255,.06);
+  background: var(--nc-bg-card);
 }
-.rx-setup .opt .cost {
+.nc-table th, .nc-table td {
+  padding: 12px 14px; text-align: left;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  color: var(--nc-text);
+}
+.nc-table th {
+  background: rgba(255,255,255,.03); color: var(--nc-text3);
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; font-weight: 800;
+}
+.nc-table tr:last-child td { border-bottom: none; }
+.nc-table tr:hover td { background: rgba(124,58,237,.06); }
+.nc-table td.num { font-variant-numeric: tabular-nums; font-weight: 600; }
+.nc-table td.gap { font-size: 12px; color: var(--nc-text2); }
+
+/* ── Setup ──────────────────────────────────────────────────── */
+.nc-setup-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(290px,1fr)); gap: 14px; }
+.nc-setup-card {
+  background: var(--nc-bg-card); border: 1px solid var(--nc-border-soft);
+  border-radius: var(--nc-r); padding: 22px 22px 18px;
+  transition: all .22s var(--nc-ease); position: relative; overflow: hidden;
+}
+.nc-setup-card:hover { border-color: var(--nc-border); transform: translateY(-2px); box-shadow: var(--nc-glow-sm); }
+.nc-setup-card.ready {
+  border-color: rgba(16,185,129,.38);
+  background: linear-gradient(135deg,rgba(16,185,129,.09),rgba(5,150,105,.04));
+}
+.nc-setup-card.ready::after {
+  content: '✓ ACTIVE'; position: absolute; top: 14px; right: 14px;
+  font-size: 9px; font-weight: 800; letter-spacing: .12em; color: #6ee7b7;
+  background: rgba(16,185,129,.18); padding: 4px 10px; border-radius: 999px;
+  border: 1px solid rgba(16,185,129,.35);
+}
+.nc-setup-card h4 { margin: 0 0 6px; font-size: 16px; color: var(--nc-text); font-weight: 700; }
+.nc-setup-card .why { color: var(--nc-text2); font-size: 12.5px; margin: 0 0 12px; line-height: 1.5; }
+.nc-setup-card .steps {
+  background: rgba(0,0,0,.55); color: #94a3b8; padding: 12px 14px;
+  border-radius: 10px; font-family: 'JetBrains Mono',ui-monospace,monospace;
+  font-size: 11.5px; line-height: 1.7; white-space: pre-wrap; word-break: break-word;
+  border: 1px solid rgba(255,255,255,.05);
+}
+.nc-setup-card .cost {
   display: inline-block; margin-top: 10px;
-  font-size: 10.5px; color: var(--rx-ink-4); font-weight: 700;
+  font-size: 9.5px; color: var(--nc-text3); font-weight: 700;
   text-transform: uppercase; letter-spacing: .1em;
 }
 
-/* ---------------- Progress log ---------------- */
-.rx-log {
-  background: linear-gradient(135deg, #0b1020, #131b39);
-  color: #cbd5e1;
-  border-radius: 12px; padding: 16px 18px;
-  font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace;
-  font-size: 12px; line-height: 1.75; max-height: 420px; overflow-y: auto;
-  border: 1px solid rgba(255,255,255,.05);
-  box-shadow: inset 0 0 50px rgba(0,0,0,.2);
+/* ── Bento tiles ────────────────────────────────────────────── */
+.nc-bento { display: grid; grid-template-columns: repeat(12,1fr); gap: 12px; margin-bottom: 18px; }
+.nc-tile {
+  border-radius: 14px; padding: 16px 18px; color: #fff;
+  min-height: 96px; position: relative; overflow: hidden;
+  transition: transform .25s var(--nc-ease);
 }
-.rx-log .stage  { color: #93c5fd; font-weight: 700; }
-.rx-log .ok     { color: #6ee7b7; }
-.rx-log .warn   { color: #fcd34d; }
-.rx-log .err    { color: #fca5a5; }
-.rx-log .muted  { color: #64748b; }
-.rx-log::-webkit-scrollbar { width: 8px; }
-.rx-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 4px; }
-.rx-log::-webkit-scrollbar-track { background: transparent; }
+.nc-tile:hover { transform: translateY(-2px); }
+.nc-tile::before {
+  content:''; position:absolute; top:-30px; right:-30px;
+  width:110px; height:110px; border-radius:50%;
+  background:rgba(255,255,255,.07); pointer-events:none;
+}
+.nc-tile h4 { margin: 0 0 7px; font-size: 13.5px; font-weight: 700; }
+.nc-tile p  { margin: 0; font-size: 12px; line-height: 1.45; opacity: .85; }
+.nt1 { grid-column:span 5; background:linear-gradient(135deg,#5b21b6,#7c3aed); box-shadow:0 8px 24px -8px rgba(124,58,237,.5); }
+.nt2 { grid-column:span 4; background:linear-gradient(135deg,#0369a1,#0ea5e9); box-shadow:0 8px 24px -8px rgba(14,165,233,.5); }
+.nt3 { grid-column:span 3; background:linear-gradient(135deg,#9f1239,#e11d48); box-shadow:0 8px 24px -8px rgba(225,29,72,.5); }
+.nt4 { grid-column:span 7; background:linear-gradient(135deg,#134e4a,#0f766e); box-shadow:0 8px 24px -8px rgba(20,184,166,.5); }
+.nt5 { grid-column:span 5; background:linear-gradient(135deg,#7c2d12,#ea580c); box-shadow:0 8px 24px -8px rgba(234,88,12,.5); }
 
-/* ---------------- Footer + empty + misc ---------------- */
-.rx-foot {
-  text-align: center; color: var(--rx-ink-4);
-  font-size: 12px; margin: 22px 0 8px;
+/* ── CTA button ─────────────────────────────────────────────── */
+button.nc-cta {
+  width:100% !important; padding:16px 28px !important;
+  font-size:15px !important; font-weight:800 !important;
+  letter-spacing:-.01em !important; border-radius:14px !important;
+  background:linear-gradient(135deg,#5b21b6,#7c3aed) !important;
+  border:none !important; color:#fff !important;
+  box-shadow:0 8px 28px -8px rgba(109,40,217,.65) !important;
+  transition:all .25s var(--nc-ease) !important;
+  position:relative !important; overflow:hidden !important;
 }
-.rx-empty {
-  text-align: center; color: var(--rx-ink-3); padding: 36px 22px;
-  background: var(--rx-bg-1);
-  border: 1px dashed var(--rx-line-2);
-  border-radius: var(--rx-radius); font-size: 13.5px; line-height: 1.5;
+button.nc-cta::before {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(135deg,rgba(255,255,255,.12),transparent 50%);
 }
-.rx-empty .big {
-  font-size: 44px; margin-bottom: 8px; opacity: .35;
-  display: inline-block;
+button.nc-cta:hover {
+  transform:translateY(-2px) !important;
+  box-shadow:0 14px 36px -8px rgba(109,40,217,.75) !important;
+  background:linear-gradient(135deg,#6d28d9,#a855f7) !important;
+}
+button.nc-cta:active { transform:translateY(0) !important; }
+
+/* ── Tabs dark ──────────────────────────────────────────────── */
+.gradio-container .tab-nav {
+  background: rgba(14,16,30,.92) !important;
+  border: 1px solid rgba(255,255,255,.07) !important;
+  border-radius: 14px !important; padding: 6px !important;
+  backdrop-filter: blur(20px) !important;
+  margin-bottom: 18px !important;
+}
+.gradio-container .tab-nav button {
+  color: var(--nc-text2) !important; border-radius: 10px !important;
+  font-weight: 600 !important; font-size: 13px !important;
+  transition: all .2s !important; letter-spacing: -.005em !important;
+}
+.gradio-container .tab-nav button.selected {
+  background: linear-gradient(135deg,#5b21b6,#7c3aed) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 16px -4px rgba(109,40,217,.55) !important;
+}
+.gradio-container .tab-nav button:hover:not(.selected) {
+  background: rgba(255,255,255,.06) !important;
+  color: var(--nc-text) !important;
 }
 
-/* Gradio overrides */
-button.rx-cta {
-  font-weight: 700 !important; letter-spacing: -.005em !important;
-  font-size: 14px !important;
-  padding: 13px 22px !important;
+/* ── Gradio input overrides (dark) ──────────────────────────── */
+.gradio-container input,
+.gradio-container textarea {
+  background: rgba(255,255,255,.05) !important;
+  border: 1px solid rgba(255,255,255,.1) !important;
+  color: var(--nc-text) !important;
   border-radius: 12px !important;
-  background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
-  border: none !important; color: #fff !important;
-  box-shadow: 0 6px 18px -4px rgba(79,70,229,.5) !important;
-  transition: all .2s var(--rx-easing) !important;
 }
-button.rx-cta:hover { transform: translateY(-1px) !important; box-shadow: 0 10px 24px -4px rgba(79,70,229,.6) !important; }
+.gradio-container input:focus,
+.gradio-container textarea:focus {
+  border-color: rgba(124,58,237,.55) !important;
+  box-shadow: 0 0 0 3px rgba(124,58,237,.15) !important;
+  outline: none !important;
+}
+.gradio-container label,
+.gradio-container .label-wrap span,
+.gradio-container .prose { color: var(--nc-text2) !important; }
+.gradio-container .block { background: transparent !important; }
+.gradio-container .panel { background: transparent !important; }
+.gradio-container .wrap { background: transparent !important; }
+.gradio-container .form { background: transparent !important; }
+
+/* Dropdown / select */
+.gradio-container select,
+.gradio-container .svelte-select { background: rgba(255,255,255,.05) !important; color: var(--nc-text) !important; border-color: rgba(255,255,255,.1) !important; border-radius: 12px !important; }
+.gradio-container .svelte-select .item { color: var(--nc-text) !important; }
+.gradio-container .svelte-select .listContainer { background: #0d0f1e !important; border-color: rgba(255,255,255,.1) !important; }
+
+/* Radio */
+.gradio-container .radio-group { background: rgba(255,255,255,.03) !important; border-radius: 12px !important; padding: 8px !important; }
+.gradio-container .wrap.svelte-1sbfox4 { background: transparent !important; }
+
+/* File upload */
+.gradio-container .upload-button,
+.gradio-container .file-preview {
+  background: rgba(124,58,237,.1) !important;
+  border: 2px dashed rgba(124,58,237,.4) !important;
+  border-radius: 14px !important; color: #c4b5fd !important;
+}
+.gradio-container .upload-button:hover { background: rgba(124,58,237,.18) !important; border-color: rgba(124,58,237,.65) !important; }
+
+/* Accordion */
+.gradio-container .accordion {
+  background: rgba(255,255,255,.04) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  border-radius: 12px !important;
+}
+.gradio-container details > summary { color: var(--nc-text2) !important; }
+
+/* Code blocks */
+.gradio-container .code-wrap { background: rgba(0,0,0,.4) !important; border-color: rgba(255,255,255,.07) !important; }
+
+/* ── Empty state ────────────────────────────────────────────── */
+.nc-empty {
+  text-align:center; color:var(--nc-text2); padding:44px 24px;
+  background:rgba(255,255,255,.03);
+  border:1px dashed rgba(255,255,255,.1); border-radius:var(--nc-r);
+  font-size:13.5px; line-height:1.5;
+}
+.nc-empty .big { font-size:42px; margin-bottom:10px; opacity:.3; display:block; }
+
+/* ── Error/warning ──────────────────────────────────────────── */
+.nc-err {
+  background: rgba(244,63,94,.1); border: 1px solid rgba(244,63,94,.3);
+  border-radius: var(--nc-r); padding: 18px 20px;
+}
+.nc-err .et { font-weight:700; color:#fca5a5; margin-bottom:5px; font-size:14px; }
+.nc-err .eb { color:#fca5a5; opacity:.8; font-size:13px; line-height:1.5; }
+.nc-warn {
+  background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.28);
+  border-radius: var(--nc-r); padding: 14px 16px; margin-top: 12px;
+}
+.nc-warn .wt { font-weight:700; color:#fde68a; margin-bottom:4px; font-size:13px; }
+.nc-warn ul { margin: 4px 0 0 18px; color:#fde68a; opacity:.8; font-size:12px; }
+
+/* ── Footer ─────────────────────────────────────────────────── */
+.nc-footer {
+  text-align:center; color:var(--nc-text3); font-size:12px;
+  margin:22px 0 10px; padding-top:16px;
+  border-top: 1px solid rgba(255,255,255,.05);
+}
+
+/* ── Scrollbar global ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,.03); }
+::-webkit-scrollbar-thumb { background: rgba(124,58,237,.32); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,.55); }
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .nc-hero h1 { font-size: 30px; }
+  .nc-hero-stats { display: none; }
+  .nc-bento { grid-template-columns: 1fr 1fr; }
+  .nt1,.nt2,.nt3,.nt4,.nt5 { grid-column: span 2; }
+  .nc-review-grid { grid-template-columns: 1fr; }
+  .nc-kpi-grid { grid-template-columns: repeat(3,1fr); }
+}
 """
 
 
-# ----------------------------------------------------------------------
-# Helpers
-# ----------------------------------------------------------------------
-def _score_class(score: float) -> str:
+# ─────────────────────────────────────────────────────────────
+#  Shared helpers
+# ─────────────────────────────────────────────────────────────
+def _sc(score: float) -> str:
     if score >= 80: return "high"
     if score >= 60: return "mid"
     return "low"
 
 
 def _kpi(label: str, value: str, klass: str = "", delta: str = "") -> str:
-    delta_html = f'<div class="delta">{delta}</div>' if delta else ""
+    delta_html = f'<div class="kd">{delta}</div>' if delta else ""
     return (
-        f'<div class="rx-kpi {klass}">'
-        f'<div class="v">{value}</div>'
-        f'<div class="l">{label}</div>'
+        f'<div class="nc-kpi {klass}">'
+        f'<div class="kv">{value}</div>'
+        f'<div class="kl">{label}</div>'
         f'{delta_html}'
         '</div>'
     )
 
 
 def _empty(icon: str, msg: str) -> str:
-    return f'<div class="rx-empty"><div class="big">{icon}</div>{msg}</div>'
+    return f'<div class="nc-empty"><span class="big">{icon}</span>{msg}</div>'
 
 
 def _bar(score: float, max_score: float = 100.0) -> str:
     pct = max(0.0, min(100.0, (score / max_score) * 100.0)) if max_score else 0.0
-    cls = _score_class(score if max_score == 100 else (score / max_score) * 100.0)
-    return f'<div class="rx-bar {cls}"><i style="width:{pct:.0f}%"></i></div>'
+    cls = _sc(score if max_score == 100 else (score / max_score) * 100.0)
+    return f'<div class="nc-bar {cls}"><i style="width:{pct:.0f}%"></i></div>'
 
 
-# ----------------------------------------------------------------------
-# Hero / status
-# ----------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────
+#  Hero
+# ─────────────────────────────────────────────────────────────
 def _hero_html() -> str:
-    statuses = detect_available_backends()
-    pills = []
-    for bid, info in statuses.items():
-        klass = "ok" if info["ready"] else ""
-        label = info["name"].split(" (")[0]
-        pills.append(
-            f'<span class="pill {klass}"><span class="dot"></span>{label}</span>'
-        )
-    pills_html = "".join(pills)
-    return (
-        '<div class="rx-hero">'
-        '<h1>Resume Enhancer · Multi-Agent Edition</h1>'
-        '<p>A 7-agent pipeline that extracts every field from your <b>.tex</b> resume, '
-        'restructures it for the target role, rewrites each bullet under deterministic '
-        'safety guards, then validates against curated job descriptions and simulates '
-        'a hiring manager read.</p>'
-        f'<div class="pills">{pills_html}'
-        '<span class="pill"><span class="dot"></span>7 agents</span>'
-        '<span class="pill"><span class="dot"></span>Critic loop</span>'
-        '<span class="pill"><span class="dot"></span>Overleaf-ready</span>'
-        '</div>'
-        '</div>'
-    )
+    return """
+<div class="nc-orbs">
+  <div class="nc-orb nc-orb-a"></div>
+  <div class="nc-orb nc-orb-b"></div>
+  <div class="nc-orb nc-orb-c"></div>
+</div>
+<div class="nc-hero">
+  <div class="nc-hero-grid"></div>
+  <div class="nc-hero-glow"></div>
+  <h1>AI Resume Enhancer</h1>
+  <p class="tagline">
+    Upload your <b>.tex</b> resume, choose a target role, and a multi-agent pipeline will rewrite every
+    section with role-tuned keywords, ATS alignment, and hiring-manager quality checks —
+    without inventing or dropping any of your facts.
+  </p>
+  <div class="badges">
+    <span class="nc-badge p">Multi-Agent</span>
+    <span class="nc-badge c">Fact-Preserving</span>
+    <span class="nc-badge e">ATS-Optimized</span>
+    <span class="nc-badge p">Overleaf-Ready</span>
+    <span class="nc-badge c">Role-Aligned</span>
+    <span class="nc-badge e">Critic-Reviewed</span>
+  </div>
+  <div class="nc-hero-stats">
+    <div class="nc-hero-stat"><div class="val">8</div><div class="lbl">Agents</div></div>
+    <div class="nc-hero-stat"><div class="val">5</div><div class="lbl">Safety Guards</div></div>
+    <div class="nc-hero-stat"><div class="val">∞</div><div class="lbl">Roles</div></div>
+  </div>
+</div>
+"""
 
 
-# ----------------------------------------------------------------------
-# Result panels
-# ----------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────
+#  Bento feature tiles
+# ─────────────────────────────────────────────────────────────
+def _bento_html() -> str:
+    return """
+<div class="nc-bento">
+  <div class="nc-tile nt1">
+    <h4>Role-Tuned Engine</h4>
+    <p>Restructures and rewrites every section for your chosen target role, adapting order, tone and keyword emphasis.</p>
+  </div>
+  <div class="nc-tile nt2">
+    <h4>Zero Data Loss</h4>
+    <p>Protected terms, numbers and facts are extracted before any rewrite and verified after.</p>
+  </div>
+  <div class="nc-tile nt3">
+    <h4>Live Pipeline</h4>
+    <p>Watch each agent stage complete in real-time with animated progress and estimated wait.</p>
+  </div>
+  <div class="nc-tile nt4">
+    <h4>Market Validation — JD Match + Hiring-Manager Sim</h4>
+    <p>Your enhanced resume is scored against curated job descriptions and reviewed through a simulated hiring-manager lens for each target role.</p>
+  </div>
+  <div class="nc-tile nt5">
+    <h4>Overleaf Output</h4>
+    <p>Download the .tex and compile to PDF directly in Overleaf — no local LaTeX needed.</p>
+  </div>
+</div>
+"""
+
+
+# ─────────────────────────────────────────────────────────────
+#  Result panels
+# ─────────────────────────────────────────────────────────────
 def _summary_html(result: PipelineResult) -> str:
     if result.status == "error":
         errs = "<br>".join(result.errors) or "Unknown error."
         return (
-            f'<div class="rx-card" style="border-color:#fecaca;background:#fef2f2">'
-            f'<div class="h" style="color:#991b1b">Pipeline failed</div>'
-            f'<div class="sub" style="color:#7f1d1d">{errs}</div></div>'
+            '<div class="nc-err">'
+            '<div class="et">Pipeline failed</div>'
+            f'<div class="eb">{errs}</div>'
+            '</div>'
         )
+
     sections_changed = sum(1 for t in result.section_traces if t.changed)
-    sections_total = len(result.section_traces)
-    elapsed = f"{result.elapsed_ms / 1000:.1f}s"
-    ats = result.ats.score if result.ats else 0.0
-    review_score = result.role_reviews[0].overall_score if result.role_reviews else 0.0
-    jd_delta = result.jd_report.avg_delta if result.jd_report else 0.0
-    jd_after = result.jd_report.avg_score_after if result.jd_report else 0.0
-    delta_str = f"{jd_delta:+.1f} vs original" if jd_delta else ""
-
-    backend_pretty = {
-        "claude_code": "Claude Code login",
-        "anthropic": "Anthropic API",
-        "huggingface": "Hugging Face",
-    }.get(result.backend, result.backend)
-
-    role_pretty = ROLES.get(result.role, result.role)
+    sections_total   = len(result.section_traces)
+    elapsed          = f"{result.elapsed_ms / 1000:.1f}s"
+    ats              = result.ats.score if result.ats else 0.0
+    review_score     = result.role_reviews[0].overall_score if result.role_reviews else 0.0
+    jd_delta         = result.jd_report.avg_delta if result.jd_report else 0.0
+    jd_after         = result.jd_report.avg_score_after if result.jd_report else 0.0
+    delta_str        = f"{jd_delta:+.1f} vs original" if jd_delta else ""
+    role_pretty      = ROLES.get(result.role, result.role)
+    backend_pretty   = {"claude_code": "Claude Code", "anthropic": "Anthropic API", "huggingface": "HuggingFace"}.get(result.backend, result.backend)
 
     kpis = "".join([
-        _kpi("Status", result.status.upper(), "green" if result.status == "complete" else "amber"),
-        _kpi("Sections Improved", f"{sections_changed}/{sections_total}", "violet"),
-        _kpi("ATS Score", f"{ats:.0f}/100", _score_class(ats)),
-        _kpi("Hiring Manager", f"{review_score:.0f}/100", _score_class(review_score), f"target: {role_pretty}"),
-        _kpi("JD Match", f"{jd_after:.0f}/100", "teal", delta_str),
-        _kpi("Elapsed", elapsed, "slate", f"backend: {backend_pretty}"),
+        _kpi("Status",          result.status.upper(),             "emerald" if result.status == "complete" else "amber"),
+        _kpi("Sections",        f"{sections_changed}/{sections_total}", "purple"),
+        _kpi("ATS Score",       f"{ats:.0f}/100",                   _sc(ats)),
+        _kpi("Hiring Manager",  f"{review_score:.0f}/100",          _sc(review_score), f"target: {role_pretty}"),
+        _kpi("JD Match",        f"{jd_after:.0f}/100",              "teal",            delta_str),
+        _kpi("Elapsed",         elapsed,                            "slate",           f"via {backend_pretty}"),
     ])
+
     warnings = ""
     if result.warnings:
         ws = "".join(f"<li>{w}</li>" for w in result.warnings)
         warnings = (
-            '<div class="rx-card" style="margin-top:12px;border-color:#fde68a;background:#fffbeb">'
-            '<div class="h" style="color:#92400e">Notes</div>'
-            f'<ul style="margin:6px 0 0 18px;color:#78350f;font-size:13px">{ws}</ul></div>'
+            '<div class="nc-warn" style="margin-top:14px">'
+            '<div class="wt">Notes</div>'
+            f'<ul>{ws}</ul></div>'
         )
-    return f'<div class="rx-kpi-row">{kpis}</div>{warnings}'
+
+    return f'<div class="nc-kpi-grid">{kpis}</div>{warnings}'
 
 
 def _sections_html(result: PipelineResult) -> str:
     if not result.section_traces:
-        return _empty("◔", "Per-section before / after traces will appear here once the pipeline runs.")
+        return _empty("⬡", "Per-section before/after traces will appear here once the pipeline runs.")
     rows = []
     for t in result.section_traces:
-        score_class = _score_class(t.final_score)
+        sc   = _sc(t.final_score)
         flags = ""
         if t.iterations:
             last = t.iterations[-1]
             if last.violations:
                 flags = (
-                    '<div class="rx-flags"><b>Critic flags:</b> '
+                    '<div class="nc-flags"><b>Critic flags:</b> '
                     + "; ".join(last.violations[:4]) + '</div>'
                 )
-        # iteration progress dots
         iter_dots = []
         for s in t.iterations:
             cls = "accept" if s.accepted else ("done" if s.verdict != "error" else "")
-            iter_dots.append(f'<span class="dot {cls}" title="iter {s.iteration}: {s.score:.0f}"></span>')
-        progress_block = (
-            '<div class="rx-trace-progress">'
+            iter_dots.append(f'<span class="nc-iter-dot {cls}" title="iter {s.iteration}: {s.score:.0f}"></span>')
+        iter_row = (
+            '<div class="nc-iter-row">'
             + "".join(iter_dots)
-            + f'<span class="dim">{t.iterations_used} iter · final {t.final_score:.0f}/100</span>'
+            + f'<span class="nc-iter-dim">{t.iterations_used} iter · final {t.final_score:.0f}/100</span>'
             + '</div>'
         ) if iter_dots else ""
         note = (
-            f'<div style="font-size:12px;color:var(--rx-ink-3);margin-top:6px;font-style:italic">{t.note}</div>'
-            if t.note else ""
-        )
-        change_pill = (
-            '<span class="rx-pill changed">CHANGED</span>'
+            f'<div class="nc-trace-note">{t.note}</div>'
+        ) if t.note else ""
+        change_badge = (
+            '<span class="nc-s changed">CHANGED</span>'
             if t.changed else
-            '<span class="rx-pill unchanged">UNCHANGED</span>'
+            '<span class="nc-s unch">UNCHANGED</span>'
         )
         rows.append(
-            '<div class="rx-card rx-trace">'
-            '<div class="head">'
-            f'<div class="label">{t.label}</div>'
-            f'<div class="meta">'
-            f'<span class="rx-pill {score_class}">{t.final_score:.0f}</span>'
-            f'{change_pill}'
+            '<div class="nc-trace-card">'
+            '<div class="nc-trace-hd">'
+            f'<span class="nc-trace-lbl">{t.label}</span>'
+            f'<div class="nc-trace-meta">'
+            f'<span class="nc-s {sc}">{t.final_score:.0f}</span>'
+            f'{change_badge}'
             '</div></div>'
-            f'<div class="rx-before"><span class="lbl">Before</span>{t.before}</div>'
-            f'<div class="rx-after"><span class="lbl">After</span>{t.after}</div>'
-            f'{flags}{progress_block}{note}'
+            f'<div class="nc-diff-before"><span class="nc-diff-lbl">Before</span>{t.before}</div>'
+            f'<div class="nc-diff-after"><span class="nc-diff-lbl">After</span>{t.after}</div>'
+            f'{flags}{iter_row}{note}'
             '</div>'
         )
     return "\n".join(rows)
@@ -643,62 +912,59 @@ def _sections_html(result: PipelineResult) -> str:
 
 def _review_html(result: PipelineResult) -> str:
     if not result.role_reviews:
-        return _empty("☼", "Hiring-manager review is off, or the pipeline did not complete.")
-    # Single-focus card for the target role.
-    r = result.role_reviews[0]
-    score_class = _score_class(r.overall_score)
-    strengths = "".join(f"<li>{s}</li>" for s in r.strengths) or "<li><i>none returned</i></li>"
+        return _empty("◑", "Hiring-manager review will appear here after enhancement.")
+    r  = result.role_reviews[0]
+    sc = _sc(r.overall_score)
+    strengths  = "".join(f"<li>{s}</li>" for s in r.strengths)  or "<li><i>none returned</i></li>"
     weaknesses = "".join(f"<li>{w}</li>" for w in r.weaknesses) or "<li><i>none</i></li>"
-    missing = "".join(f'<span class="rx-tag miss">{k}</span>' for k in r.missing_keywords) or '<span class="rx-tag">none</span>'
+    missing    = "".join(f'<span class="nc-tag miss">{k}</span>' for k in r.missing_keywords) or '<span class="nc-tag">none</span>'
 
     hero = (
-        '<div class="rx-review-hero">'
-        '<div class="top">'
+        '<div class="nc-review-hero">'
+        '<div class="nc-review-top">'
         '<div>'
-        f'<h2>{r.role_name}</h2>'
-        '<p class="subtitle">Simulated hiring-manager read against this role profile</p>'
+        f'<h2 class="nc-review-h2">{r.role_name}</h2>'
+        '<p class="nc-review-sub">Simulated hiring-manager read against this role profile</p>'
         '</div>'
-        '<div class="scoreBox">'
-        f'<div class="num {score_class}">{r.overall_score:.0f}</div>'
-        '<div class="label">Phone-screen<br/>likelihood</div>'
+        '<div class="nc-score-box">'
+        f'<div class="nc-score-num {sc}">{r.overall_score:.0f}</div>'
+        '<div class="nc-score-lbl">Phone-screen<br>likelihood</div>'
         '</div>'
         '</div>'
-        f'<div style="margin-top:18px">{_bar(r.overall_score)}</div>'
-        f'<div class="verdict">"{r.one_line_verdict}"</div>'
+        f'<div style="margin-top:16px">{_bar(r.overall_score)}</div>'
+        f'<div class="nc-verdict">"{r.one_line_verdict}"</div>'
         '</div>'
     )
     grid = (
-        '<div class="rx-review-grid">'
-        f'<div class="col"><h5>Strengths</h5><ul>{strengths}</ul></div>'
-        f'<div class="col weak"><h5>Weaknesses</h5><ul>{weaknesses}</ul></div>'
+        '<div class="nc-review-grid">'
+        f'<div class="nc-review-col"><h5>Strengths</h5><ul>{strengths}</ul></div>'
+        f'<div class="nc-review-col weak"><h5>Weaknesses</h5><ul>{weaknesses}</ul></div>'
         '</div>'
     )
-    keywords = (
-        '<div class="rx-keywords-card">'
+    kw = (
+        '<div class="nc-kw-card">'
         '<h5>Missing high-impact keywords</h5>'
         f'{missing}'
         '</div>'
     )
-    # Optional cross-role mini-cards if more than one review was run
+
     extra = ""
     if len(result.role_reviews) > 1:
         chips = []
         for rr in result.role_reviews[1:]:
-            kc = _score_class(rr.overall_score)
+            kc = _sc(rr.overall_score)
             chips.append(
-                '<div class="rx-card" style="display:flex;justify-content:space-between;'
-                'align-items:center;padding:14px 18px">'
-                f'<div><b>{rr.role_name}</b><div style="font-size:12.5px;color:var(--rx-ink-3);'
-                f'margin-top:2px">"{rr.one_line_verdict}"</div></div>'
-                f'<span class="rx-pill {kc}">{rr.overall_score:.0f}</span></div>'
+                '<div class="nc-card" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;margin-top:10px">'
+                f'<div><b style="color:var(--nc-text)">{rr.role_name}</b>'
+                f'<div style="font-size:12px;color:var(--nc-text3);margin-top:2px">"{rr.one_line_verdict}"</div></div>'
+                f'<span class="nc-s {kc}">{rr.overall_score:.0f}</span></div>'
             )
         extra = (
-            '<div style="margin-top:18px"><h5 style="font-size:11px;text-transform:uppercase;'
-            'letter-spacing:.08em;color:var(--rx-ink-4);margin:0 0 10px;font-weight:800">'
-            'Cross-role validation</h5>'
+            '<div style="margin-top:16px">'
+            '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--nc-text3);font-weight:800;margin-bottom:4px">Cross-role</div>'
             + "".join(chips) + "</div>"
         )
-    return hero + grid + keywords + extra
+    return hero + grid + kw + extra
 
 
 def _jd_html(result: PipelineResult) -> str:
@@ -708,7 +974,7 @@ def _jd_html(result: PipelineResult) -> str:
     for r in result.cross_role_jd_reports:
         bits.append(_jd_table(r, "Cross-validation"))
     if not bits:
-        return _empty("◔", "JD matching is off, or no JDs are loaded for this role.")
+        return _empty("◌", "JD matching is off, or no JDs are loaded for this role.")
     return "\n\n".join(bits)
 
 
@@ -724,170 +990,250 @@ def _jd_table(report, kind: str) -> str:
         gaps = ", ".join(s.missing_keywords[:5]) or "—"
         rows_html.append(
             f'<tr><td><b>{s.title}</b></td>'
-            f'<td><span class="rx-tag">{s.company_archetype}</span></td>'
+            f'<td><span class="nc-tag">{s.company_archetype}</span></td>'
             f'<td class="num">{s.score_before:.0f}</td>'
             f'<td class="num">{s.score_after:.0f}</td>'
-            f'<td><span class="rx-pill {klass}">{s.delta:+.1f}</span></td>'
+            f'<td><span class="nc-s {klass}">{s.delta:+.1f}</span></td>'
             f'<td class="gap">{gaps}</td></tr>'
         )
-    table = '<table class="rx-table">' + "".join(rows_html) + "</table>"
-    delta_class = "high" if report.avg_delta >= 5 else ("mid" if report.avg_delta >= 0 else "low")
+    table = '<div class="nc-table-wrap"><table class="nc-table">' + "".join(rows_html) + "</table></div>"
+
+    delta_cls = "high" if report.avg_delta >= 5 else ("mid" if report.avg_delta >= 0 else "low")
     avg_block = (
         f'<div style="display:flex;justify-content:space-between;align-items:center;'
         f'margin-bottom:14px;flex-wrap:wrap;gap:8px">'
-        f'<div><b style="font-size:15px;letter-spacing:-.015em">{role_pretty}</b> '
-        f'<span class="rx-tag" style="margin-left:6px">{kind}</span></div>'
-        f'<div style="font-size:13px;color:var(--rx-ink-3)">'
-        f'avg before/after: <b style="color:var(--rx-ink)">{report.avg_score_before:.1f}</b> → '
-        f'<b style="color:var(--rx-ink)">{report.avg_score_after:.1f}</b> '
-        f'<span class="rx-pill {delta_class}" style="margin-left:6px">{report.avg_delta:+.1f}</span>'
+        f'<div><b style="font-size:15px;letter-spacing:-.015em;color:var(--nc-text)">{role_pretty}</b> '
+        f'<span class="nc-tag" style="margin-left:6px">{kind}</span></div>'
+        f'<div style="font-size:13px;color:var(--nc-text2)">'
+        f'avg: <b style="color:var(--nc-text)">{report.avg_score_before:.1f}</b> → '
+        f'<b style="color:var(--nc-text)">{report.avg_score_after:.1f}</b> '
+        f'<span class="nc-s {delta_cls}" style="margin-left:6px">{report.avg_delta:+.1f}</span>'
         f'</div></div>'
     )
     gaps_block = ""
     if report.top_gaps:
-        gaps = "".join(f'<span class="rx-tag miss">{k}</span>' for k in report.top_gaps)
+        gaps = "".join(f'<span class="nc-tag miss">{k}</span>' for k in report.top_gaps)
         gaps_block = (
-            f'<div style="margin-top:14px"><h5 style="font-size:10.5px;text-transform:uppercase;'
-            f'letter-spacing:.1em;color:var(--rx-ink-4);margin:0 0 8px;font-weight:800">'
-            f'Top cross-JD gaps</h5>{gaps}</div>'
+            '<div style="margin-top:14px">'
+            '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--nc-text3);font-weight:800;margin-bottom:8px">Top gaps</div>'
+            f'{gaps}</div>'
         )
-    return f'<div class="rx-card">{avg_block}{table}{gaps_block}</div>'
+    return f'<div class="nc-card">{avg_block}{table}{gaps_block}</div>'
 
 
-# ----------------------------------------------------------------------
-# Setup tab
-# ----------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────
+#  Setup tab
+# ─────────────────────────────────────────────────────────────
 def _setup_html() -> str:
     statuses = detect_available_backends()
-    intro = (
-        '<div class="rx-card" style="margin-bottom:14px">'
-        '<div class="h"><span class="num">i</span>Backend setup</div>'
-        '<div class="sub">Pick whichever option is easiest. The app auto-detects '
-        'whatever you have configured. You can also override the backend per '
-        'enhancement in the Enhance tab.</div></div>'
-    )
     instructions = {
-        "claude_code": (
-            "# Recommended if you already use Claude Code\n"
-            "# 1. Make sure the Claude Code CLI is installed\n"
-            "# 2. Log in once:\n"
-            "claude /login\n\n"
-            "# 3. Restart this app. Done — no API key needed.\n"
-            "#    The app uses your Claude subscription automatically."
-        ),
-        "anthropic": (
-            "# Highest quality. Pay-per-token (cents per resume).\n"
-            "# 1. Get an API key:\n"
-            "#    https://console.anthropic.com/settings/keys\n\n"
-            "# 2. Set the key (one of):\n"
-            "export ANTHROPIC_API_KEY='sk-ant-...'           # macOS / Linux\n"
-            "$env:ANTHROPIC_API_KEY='sk-ant-...'              # PowerShell\n\n"
-            "# 3. Restart the app."
-        ),
         "huggingface": (
-            "# Free tier. Lower quality, but $0.\n"
-            "# 1. Get a free token:\n"
+            "# Free tier — recommended for quick testing.\n"
+            "# 1. Create a free token:\n"
             "#    https://huggingface.co/settings/tokens\n\n"
-            "# 2. Set the token:\n"
-            "export HF_API_KEY='hf_...'                       # macOS / Linux\n"
-            "$env:HF_API_KEY='hf_...'                          # PowerShell\n\n"
+            "# 2. Set the env var:\n"
+            "$env:HF_API_KEY='hf_...'      # PowerShell\n"
+            "export HF_API_KEY='hf_...'    # bash/zsh\n\n"
             "# 3. Restart the app."
         ),
     }
     cards = []
     for bid, info in statuses.items():
         klass = "ready" if info["ready"] else ""
+        instr = instructions.get(bid, "")
         cards.append(
-            f'<div class="opt {klass}">'
+            f'<div class="nc-setup-card {klass}">'
             f'<h4>{info["name"]}</h4>'
             f'<p class="why">{info["needs"]}</p>'
-            f'<div class="steps">{instructions[bid]}</div>'
+            f'<div class="steps">{instr}</div>'
             f'<span class="cost">{info["cost"]}</span>'
             f'</div>'
         )
-    grid = '<div class="rx-setup">' + "".join(cards) + "</div>"
+    grid = '<div class="nc-setup-grid">' + "".join(cards) + "</div>"
+
     best = best_available_backend()
-    if best:
-        foot = (
-            f'<div class="rx-card" style="margin-top:14px;border-color:#86efac;background:#f0fdf4">'
-            f'<div class="h" style="color:#065f46"><span class="num" style="background:#bbf7d0;color:#065f46">✓</span>'
-            f'Auto-detected backend: '
-            f'<code style="background:#fff;padding:3px 10px;border-radius:6px;font-size:12px">{best}</code></div>'
-            f'<div class="sub" style="color:#047857">Ready to enhance. '
-            f'Head to the <b>Enhance</b> tab.</div></div>'
-        )
-    else:
-        foot = (
-            '<div class="rx-card" style="margin-top:14px;border-color:#fecaca;background:#fef2f2">'
-            '<div class="h" style="color:#991b1b"><span class="num" style="background:#fecaca;color:#991b1b">!</span>'
-            'No backend configured yet</div>'
-            '<div class="sub" style="color:#7f1d1d">Pick one of the options above. '
-            'Claude Code is the simplest if you already use it.</div></div>'
-        )
-    return intro + grid + foot
+    status_card = (
+        '<div class="nc-card" style="margin-top:14px;border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.07)">'
+        '<div class="nc-card-title" style="color:#6ee7b7">Auto-detected: '
+        f'<code style="background:rgba(0,0,0,.4);padding:2px 8px;border-radius:6px;font-size:11.5px">{best}</code></div>'
+        '<div class="nc-card-sub" style="color:#6ee7b7;opacity:.8">Ready to enhance. Switch to the Enhance tab.</div></div>'
+        if best else
+        '<div class="nc-card" style="margin-top:14px;border-color:rgba(244,63,94,.3);background:rgba(244,63,94,.07)">'
+        '<div class="nc-card-title" style="color:#fca5a5">No backend configured yet</div>'
+        '<div class="nc-card-sub" style="color:#fca5a5;opacity:.8">Set HF_API_KEY and restart. '
+        'Get a free token at huggingface.co/settings/tokens.</div></div>'
+    )
+    model_note = (
+        '<div class="nc-card" style="margin-top:14px">'
+        '<div class="nc-card-title">Recommended models</div>'
+        '<div class="nc-card-sub" style="margin-top:8px;line-height:1.8">'
+        'Generation: <code style="background:rgba(124,58,237,.15);padding:1px 7px;border-radius:5px;font-size:12px">Qwen/Qwen2.5-7B-Instruct</code> (open access)<br>'
+        'Extraction: <code style="background:rgba(124,58,237,.15);padding:1px 7px;border-radius:5px;font-size:12px">Qwen/Qwen2.5-7B-Instruct</code> (same model, no separate key needed)<br>'
+        '<span style="color:var(--nc-text3);font-size:12px">Note: <code>meta-llama/Llama-3.1-8B-Instruct</code> and <code>Qwen2.5-3B-Instruct</code> are '
+        'not available on the free serverless API — use Qwen2.5-7B-Instruct.</span>'
+        '</div></div>'
+    )
+    return (
+        '<div class="nc-card" style="margin-bottom:14px">'
+        '<div class="nc-card-title">Backend Configuration</div>'
+        '<div class="nc-card-sub">Configure your AI provider. The app auto-detects whatever is set in your environment. '
+        'You can also override the API key and model IDs per run in the Enhance tab.</div>'
+        '</div>'
+        + grid + status_card + model_note
+    )
 
 
-# ----------------------------------------------------------------------
-# Enhance handler (with progressive UI)
-# ----------------------------------------------------------------------
-def _backend_choices() -> list[tuple[str, str]]:
-    return [
-        ("Auto-detect (recommended)", "auto"),
-        ("Claude Code (uses your login)", "claude_code"),
-        ("Anthropic API (paid)", "anthropic"),
-        ("Hugging Face (free)", "huggingface"),
-    ]
+# ─────────────────────────────────────────────────────────────
+#  Progress HTML with pipeline stage nodes
+# ─────────────────────────────────────────────────────────────
+_STAGE_DEFS = [
+    ("parse",        "📄", "Parse"),
+    ("repair",       "🔧", "Repair"),
+    ("plan",         "📐", "Plan"),
+    ("enhance",      "✨", "Enhance"),
+    ("render",       "🖨", "Render"),
+    ("jd_match",     "🎯", "Validate"),
+]
+_ENHANCE_SUBSTAGES = {"enhance_plan", "section"}
 
 
+def _stage_status(name: str, stages_done: set[str], current_stage: str) -> str:
+    norm = "enhance" if name in ("enhance_plan",) else name
+    if norm in stages_done:  return "done"
+    if current_stage and (norm == current_stage or (norm == "enhance" and current_stage in _ENHANCE_SUBSTAGES)):
+        return "active"
+    return "idle"
+
+
+def _progress_html(
+    lines: list[str],
+    percent: int,
+    *,
+    eta_s: int = 0,
+    stages_done: set | None = None,
+    current_stage: str = "",
+) -> str:
+    stages_done = stages_done or set()
+    eta_txt = f"~{eta_s}s remaining" if eta_s > 0 else "finishing up…"
+
+    nodes = []
+    for i, (sid, icon, label) in enumerate(_STAGE_DEFS):
+        st = _stage_status(sid, stages_done, current_stage)
+        nodes.append(f'<div class="nc-stage-wrap"><div class="nc-stage-dot {st}">{icon}</div><div class="nc-stage-lbl {st}">{label}</div></div>')
+        if i < len(_STAGE_DEFS) - 1:
+            conn_cls = "done" if sid in stages_done else ""
+            nodes.append(f'<div class="nc-stage-conn {conn_cls}"></div>')
+
+    items = "".join(f"<div>{ln}</div>" for ln in lines[-32:])
+    return (
+        '<div class="nc-pipeline">'
+        '<div class="nc-pipeline-hd">'
+        '<span class="nc-pipeline-title">⚡ Processing your resume</span>'
+        f'<span class="nc-pipeline-eta">{percent}% · {eta_txt}</span>'
+        '</div>'
+        f'<div class="nc-prog-bar"><div class="nc-prog-fill" style="width:{percent}%"></div></div>'
+        f'<div class="nc-stages">{"".join(nodes)}</div>'
+        f'<div class="nc-log">{items}</div>'
+        '</div>'
+    )
+
+
+def _format_event(event: str, data: dict) -> str:
+    if event == "stage":
+        name   = data.get("name", "")
+        status = data.get("status", "")
+        friendly = {
+            "parse":        "Reading and validating resume",
+            "repair":       "Repairing missing fields",
+            "complete":     "Filling required placeholders",
+            "plan":         "Adapting structure for role",
+            "enhance_plan": "Planning rewrite workload",
+            "render":       "Generating final LaTeX",
+            "jd_match":     "Validating against role JDs",
+            "llm_split":    "Optimizing model routing",
+        }.get(name, "Processing")
+        css  = "lok" if status == "done" else "ls"
+        extra = ""
+        if name == "enhance_plan" and status == "done":
+            extra = f' <span class="ld">(items: {data.get("total_units",0)}, mode: {data.get("mode","")})</span>'
+        return f'<span class="{css}">{friendly} · {status}</span>{extra}'
+    if event == "section":
+        label  = data.get("label", "")
+        status = data.get("status", "")
+        if status == "done":
+            return f'  <span class="lok">✓ section done</span> <span class="ld">{label}</span>'
+        return f'  <span class="ld">↻ in progress: {label}</span>'
+    if event == "review":
+        return f'  <span class="ls">hiring-manager review · {data.get("status","")}</span>'
+    return f'<span class="ld">{event}: {data}</span>'
+
+
+# ─────────────────────────────────────────────────────────────
+#  Enhance handler
+# ─────────────────────────────────────────────────────────────
 def _enhance_handler(
-    file, role_id: str, backend: str,
-    enable_critic: bool, enable_review: bool, enable_cross: bool, max_iter: int,
+    file,
+    role_id: str,
+    backend: str,
+    hf_api_key: str,
+    hf_model: str,
+    hf_extraction_model: str,
+    enable_critic: bool,
+    enable_review: bool,
+    enable_cross: bool,
+    max_iter: int,
+    optimization_mode: str,
 ):
-    blank_outputs = (
-        _empty("◌", "Per-section before / after will appear here."),
-        _empty("☼", "Hiring-manager review will appear here."),
-        _empty("◌", "JD scores will appear here."),
+    blank = (
+        _empty("⬡", "Section traces appear here after enhancement."),
+        _empty("◑", "Hiring-manager review appears here."),
+        _empty("◌", "JD scores appear here."),
         None, "",
         gr.update(visible=False),
     )
 
     if file is None:
-        yield (
-            _empty("↑", "Upload a <b>.tex</b> resume on the left and pick a target role."),
-            *blank_outputs,
-        )
+        yield (_empty("↑", "Upload a <b>.tex</b> resume on the left, pick a role, then click <b>Enhance</b>."), *blank)
         return
 
     tex_path = Path(file.name if hasattr(file, "name") else file)
     if tex_path.suffix.lower() != ".tex":
-        yield (
-            _empty("⚠", "Please upload a <b>.tex</b> file. PDFs are not supported in this build."),
-            *blank_outputs,
-        )
+        yield (_empty("⚠", "Please upload a <b>.tex</b> file. PDF is not supported — .tex preserves all structured data."), *blank)
         return
 
+    try:
+        fsize = tex_path.stat().st_size
+        if fsize > settings.max_upload_bytes:
+            yield (_empty("⚠", f"File too large ({fsize//1024}KB). Max: {settings.max_upload_kb}KB."), *blank)
+            return
+    except Exception:
+        pass
+
+    rate_err = _check_rate_limit()
+    if rate_err:
+        yield (_empty("⏳", rate_err), *blank)
+        return
+
+    if hf_api_key.strip():
+        os.environ["HF_API_KEY"] = hf_api_key.strip()
+    if hf_model.strip():
+        os.environ["HF_MODEL"] = hf_model.strip()
+    if hf_extraction_model.strip():
+        os.environ["HF_EXTRACTION_MODEL"] = hf_extraction_model.strip()
+
+    if backend == "auto":
+        backend = "huggingface"
+
     if backend != "auto" and not is_backend_configured(backend):
-        yield (
-            _empty(
-                "⚠",
-                f"Backend <b>{backend}</b> is not configured. "
-                "Visit the <b>Setup</b> tab for instructions, or change to "
-                "<b>Auto-detect</b>."
-            ),
-            *blank_outputs,
-        )
+        yield (_empty("⚠", f"Backend <b>{backend}</b> is not configured. Check the Setup tab."), *blank)
         return
 
     if backend == "auto" and best_available_backend() is None:
-        yield (
-            _empty(
-                "○",
-                "No backend is configured. Open the <b>Setup</b> tab — "
-                "the simplest path is Claude Code if you're already logged in."
-            ),
-            *blank_outputs,
-        )
+        yield (_empty("○", "No AI backend is available. Configure one via the Setup tab."), *blank)
         return
+
+    section_budget = 140 if optimization_mode == "accuracy" else (100 if optimization_mode == "balanced" else 70)
+    use_multi_llm  = optimization_mode in ("accuracy", "balanced")
 
     cfg = PipelineConfig(
         role_id=role_id, backend=backend,
@@ -896,63 +1242,97 @@ def _enhance_handler(
         enable_jd_matching=True,
         enable_cross_role=enable_cross,
         max_iterations=int(max_iter),
+        enable_multi_llm=use_multi_llm,
+        max_section_calls=section_budget,
+        optimization_mode=optimization_mode,
     )
 
-    q: "queue.Queue" = queue.Queue()
+    q: queue.Queue = queue.Queue()
     holder: dict = {"result": None, "error": None}
 
-    def progress(event: str, data: dict) -> None:
+    def _progress(event: str, data: dict) -> None:
         try:
             q.put((event, data), timeout=1.0)
         except queue.Full:
             pass
 
-    def worker() -> None:
+    def _worker() -> None:
         try:
-            holder["result"] = run_pipeline(tex_path, cfg, progress=progress)
-        except Exception as e:                              # noqa: BLE001
+            holder["result"] = run_pipeline(tex_path, cfg, progress=_progress, is_file=True)
+        except Exception as e:
             log.exception("[ui] pipeline crashed")
             holder["error"] = str(e)
         finally:
             q.put(("done", {}))
 
-    t = threading.Thread(target=worker, daemon=True, name="enhance-worker")
+    t = threading.Thread(target=_worker, daemon=True, name="enhance-worker")
     t.start()
 
-    progress_lines: list[str] = ['<span class="stage">[start]</span> spinning up agents…']
-    last_emit = time.monotonic()
+    progress_lines: list[str] = ['<span class="ls">[start]</span> initializing pipeline…']
+    progress_pct  = 3
+    stage_weights = {
+        "parse": 10, "repair": 10, "complete": 8, "plan": 8,
+        "enhance_plan": 4, "render": 15, "jd_match": 15,
+    }
+    stages_done: set[str] = set()
+    current_stage = "parse"
+    rewrite_done  = 0
+    rewrite_total = 0
+    start_ts      = time.monotonic()
+    last_emit     = time.monotonic()
+
     while True:
         try:
             event, data = q.get(timeout=0.6)
         except queue.Empty:
             if time.monotonic() - last_emit > 1.2:
+                elapsed = max(1, int(time.monotonic() - start_ts))
+                eta     = max(0, int((elapsed / max(progress_pct, 1)) * (100 - progress_pct)))
                 yield (
-                    _progress_html(progress_lines),
-                    *blank_outputs[:-3],
-                    None, "",
-                    gr.update(visible=False),
+                    _progress_html(progress_lines, progress_pct, eta_s=eta, stages_done=stages_done, current_stage=current_stage),
+                    *blank[:-3], None, "", gr.update(visible=False),
                 )
                 last_emit = time.monotonic()
             continue
+
         if event == "done":
             break
+
+        if event == "stage":
+            name   = data.get("name", "")
+            status = data.get("status", "")
+            norm   = "enhance" if name in ("enhance_plan",) else name
+            if status == "done":
+                stages_done.add(norm)
+                progress_pct = min(95, progress_pct + stage_weights.get(name, 2))
+            else:
+                current_stage = norm
+            if name == "enhance_plan" and status == "done":
+                rewrite_total = int(data.get("total_units", 0) or 0)
+                progress_pct  = max(progress_pct, 35)
+
+        if event == "section" and data.get("status") == "done":
+            rewrite_done += 1
+            if rewrite_total > 0:
+                progress_pct = max(progress_pct, min(90, 35 + int((rewrite_done / rewrite_total) * 35)))
+
         progress_lines.append(_format_event(event, data))
         last_emit = time.monotonic()
+        elapsed   = max(1, int(time.monotonic() - start_ts))
+        eta       = max(0, int((elapsed / max(progress_pct, 1)) * (100 - progress_pct)))
         yield (
-            _progress_html(progress_lines),
-            *blank_outputs[:-3],
-            None, "",
-            gr.update(visible=False),
+            _progress_html(progress_lines, progress_pct, eta_s=eta, stages_done=stages_done, current_stage=current_stage),
+            *blank[:-3], None, "", gr.update(visible=False),
         )
 
     if holder["error"]:
+        friendly = _friendly_error(holder["error"])
         yield (
-            f'<div class="rx-card" style="border-color:#fecaca;background:#fef2f2">'
-            f'<div class="h" style="color:#991b1b">Pipeline crashed</div>'
-            f'<div class="sub" style="color:#7f1d1d">{holder["error"]}</div></div>',
-            *blank_outputs,
+            f'<div class="nc-err"><div class="et">Enhancement could not complete</div><div class="eb">{friendly}</div></div>',
+            *blank,
         )
         return
+
     result: PipelineResult = holder["result"]
     yield (
         _summary_html(result),
@@ -965,185 +1345,208 @@ def _enhance_handler(
     )
 
 
-def _progress_html(lines: list[str]) -> str:
-    items = "".join(f"<div>{ln}</div>" for ln in lines[-30:])
-    return (
-        '<div class="rx-card">'
-        '<div class="h"><span class="num">▸</span>Live agent trace</div>'
-        f'<div class="rx-log" style="margin-top:10px">{items}</div></div>'
-    )
+def _template_preview() -> str:
+    p = ROOT / "app" / "render" / "template.tex.j2"
+    try:
+        return p.read_text(encoding="utf-8", errors="replace")[:10000]
+    except Exception:
+        return "Template preview unavailable."
 
 
-def _format_event(event: str, data: dict) -> str:
-    if event == "stage":
-        name = data.get("name", "")
-        status = data.get("status", "")
-        css = "ok" if status == "done" else "stage"
-        extras = []
-        for k, v in data.items():
-            if k in ("name", "status"):
-                continue
-            extras.append(f"{k}={v}")
-        suffix = f' <span class="muted">{", ".join(extras)}</span>' if extras else ""
-        return f'<span class="stage">[{name}]</span> <span class="{css}">{status}</span>{suffix}'
-    if event == "section":
-        label = data.get("label", "")
-        status = data.get("status", "")
-        score = data.get("score")
-        if score is not None:
-            cls = "ok" if score >= 80 else ("warn" if score >= 60 else "err")
-            return f'  <span class="muted">└</span> <span class="{cls}">{status}</span> {label} <span class="muted">({score:.0f})</span>'
-        return f'  <span class="muted">├ {status}: {label}</span>'
-    if event == "review":
-        return f'  <span class="stage">└ role-review</span> {data.get("status","")}: {data.get("role","")}'
-    return f"{event}: {data}"
-
-
-# ----------------------------------------------------------------------
-# Build the Gradio app
-# ----------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────
+#  Gradio app
+# ─────────────────────────────────────────────────────────────
 def build_app() -> gr.Blocks:
     role_choices = [(name, rid) for rid, name in ROLES.items()]
-    with gr.Blocks(title="Resume Enhancer · Multi-Agent Edition") as app:
+
+    with gr.Blocks(
+        title="AI Resume Enhancer · Neural Canvas",
+        theme=gr.themes.Base(
+            primary_hue="violet",
+            neutral_hue="slate",
+            radius_size="lg",
+        ),
+    ) as app:
+
         gr.HTML(_hero_html())
 
+        # Hidden state
+        critic_state = gr.State(True)
+        review_state = gr.State(True)
+        cross_state  = gr.State(False)
+        iter_state   = gr.State(3)
+
         with gr.Tabs():
-            # ---------- Enhance ----------
-            with gr.Tab("Enhance"):
+            # ── Enhance ──────────────────────────────────────────
+            with gr.Tab("⚡ Enhance"):
                 with gr.Row():
-                    with gr.Column(scale=1):
+                    with gr.Column(scale=1, min_width=320):
+                        gr.HTML(_bento_html())
+
                         gr.HTML(
-                            '<div class="rx-card" style="margin-bottom:12px">'
-                            '<div class="h"><span class="num">1</span>Upload your .tex resume</div>'
-                            '<div class="sub">Output is also a .tex — open in '
-                            '<a href="https://overleaf.com" target="_blank">Overleaf</a> to compile.</div></div>'
+                            '<div class="nc-card" style="margin-bottom:12px">'
+                            '<div class="nc-card-title"><span class="nc-step">1</span>Upload .tex resume</div>'
+                            '<div class="nc-card-sub">Output is also a .tex — paste into '
+                            '<a href="https://overleaf.com" target="_blank" style="color:#c4b5fd">Overleaf</a> to compile.</div></div>'
                         )
                         file_in = gr.File(
                             label="Resume (.tex)",
                             file_types=[".tex"],
                             file_count="single",
-                            height=140,
+                            height=130,
                         )
+
                         gr.HTML(
-                            '<div class="rx-card" style="margin:12px 0">'
-                            '<div class="h"><span class="num">2</span>Pick a target role</div>'
-                            '<div class="sub">The pipeline tunes section order, '
-                            'keyword emphasis, and bullet phrasing for this role only.</div></div>'
+                            '<div class="nc-card" style="margin:12px 0">'
+                            '<div class="nc-card-title"><span class="nc-step">2</span>Target role</div>'
+                            '<div class="nc-card-sub">Keyword emphasis, section order, and bullet phrasing adapt to this role.</div></div>'
                         )
                         role_in = gr.Dropdown(
                             choices=role_choices, value="ai_ml_engineer",
-                            label="Target role",
-                            interactive=True,
+                            label="Target role", interactive=True,
                         )
+
                         gr.HTML(
-                            '<div class="rx-card" style="margin:12px 0">'
-                            '<div class="h"><span class="num">3</span>Backend</div>'
-                            '<div class="sub">Auto-detect picks Claude Code &gt; Anthropic &gt; HF '
-                            'depending on what\'s configured. See the Setup tab.</div></div>'
+                            '<div class="nc-card" style="margin:12px 0">'
+                            '<div class="nc-card-title"><span class="nc-step">3</span>Quality vs speed</div>'
+                            '<div class="nc-card-sub">Accuracy-first runs more critic iterations per section. Speed-first skips the critic loop.</div></div>'
+                        )
+                        opt_mode_in = gr.Radio(
+                            choices=[
+                                ("Accuracy-first (recommended)", "accuracy"),
+                                ("Balanced", "balanced"),
+                                ("Speed-first", "speed"),
+                            ],
+                            value="accuracy",
+                            label="Optimization mode",
+                        )
+
+                        gr.HTML(
+                            '<div class="nc-card" style="margin:12px 0">'
+                            '<div class="nc-card-title"><span class="nc-step">4</span>Provider</div>'
+                            '<div class="nc-card-sub">Hugging Face free tier is enabled. Add your API key below.</div></div>'
                         )
                         backend_in = gr.Dropdown(
-                            choices=_backend_choices(),
-                            value="auto",
-                            label="LLM backend",
+                            choices=[
+                                ("Hugging Face", "huggingface"),
+                                ("Auto-detect", "auto"),
+                            ],
+                            value="huggingface",
+                            label="Provider",
                             interactive=True,
                         )
-                        with gr.Accordion("Advanced options", open=False):
-                            critic_in = gr.Checkbox(
-                                value=True,
-                                label="Enable critic loop (recommended)",
+
+                        with gr.Accordion("API key & model IDs", open=False):
+                            hf_key_in = gr.Textbox(
+                                label="HuggingFace API key",
+                                type="password",
+                                placeholder="hf_...",
                             )
-                            review_in = gr.Checkbox(
-                                value=True,
-                                label="Run hiring-manager simulation for the target role",
+                            hf_model_in = gr.Textbox(
+                                label="Generation model",
+                                value="Qwen/Qwen2.5-7B-Instruct",
                             )
-                            cross_in = gr.Checkbox(
-                                value=False,
-                                label="Also score against the other 4 roles (slower)",
+                            hf_extract_model_in = gr.Textbox(
+                                label="Extraction model",
+                                value="Qwen/Qwen2.5-7B-Instruct",
                             )
-                            iter_in = gr.Slider(
-                                minimum=1, maximum=4, value=3, step=1,
-                                label="Max iterations per section",
-                            )
+
                         run_btn = gr.Button(
-                            "Enhance Resume",
+                            "⚡  Enhance Resume",
                             variant="primary", size="lg",
-                            elem_classes=["rx-cta"],
+                            elem_classes=["nc-cta"],
                         )
 
                     with gr.Column(scale=2):
                         summary_out = gr.HTML(
-                            _empty("↑", "Upload a <b>.tex</b> resume on the left, "
-                                   "pick a target role, then click <b>Enhance Resume</b>.")
+                            _empty("↑", "Upload a <b>.tex</b> resume on the left, choose a target role, then hit <b>Enhance</b>.")
+                        )
+                        gr.HTML(
+                            '<div class="nc-card" style="margin-top:12px">'
+                            '<div class="nc-card-title">Live pipeline progress</div>'
+                            '<div class="nc-card-sub">Stage-by-stage progress, animated nodes, and an estimated wait time '
+                            'will appear here while your resume is being processed.</div></div>'
                         )
 
-            # ---------- Sections ----------
-            with gr.Tab("Sections"):
+            # ── Sections ─────────────────────────────────────────
+            with gr.Tab("📄 Sections"):
                 gr.HTML(
-                    '<div class="rx-card" style="margin-bottom:12px">'
-                    '<div class="h"><span class="num">↦</span>Per-section before / after</div>'
-                    '<div class="sub">Every bullet went through the Enhancer ↔ Critic loop. '
-                    'You see the original, the rewrite, the critic\'s 5-dimension score, and any '
-                    'safety guard interventions.</div></div>'
+                    '<div class="nc-card" style="margin-bottom:14px">'
+                    '<div class="nc-card-title">Per-section before / after</div>'
+                    '<div class="nc-card-sub">Every rewritten section shows the original, the enhanced version, '
+                    'critic iteration dots, and the final score.</div></div>'
                 )
-                sections_out = gr.HTML(_empty("◌", "Section-level traces appear here after enhancement."))
+                sections_out = gr.HTML(_empty("⬡", "Section traces appear here after enhancement."))
 
-            # ---------- Hiring-Manager Review ----------
-            with gr.Tab("Hiring-Manager Review"):
+            # ── Review ───────────────────────────────────────────
+            with gr.Tab("🎯 Review"):
                 gr.HTML(
-                    '<div class="rx-card" style="margin-bottom:12px">'
-                    '<div class="h"><span class="num">☼</span>Hiring-manager simulation</div>'
-                    '<div class="sub">A single-focus read against your <b>target role</b>. '
-                    'The agent plays a senior hiring manager at a top-tier company for that role '
-                    'and returns strengths, weaknesses, missing high-impact keywords, and a '
-                    'phone-screen likelihood score.</div></div>'
+                    '<div class="nc-card" style="margin-bottom:14px">'
+                    '<div class="nc-card-title">Hiring-manager simulation</div>'
+                    '<div class="nc-card-sub">Strengths, weaknesses, missing keywords, and a phone-screen '
+                    'likelihood score for the target role.</div></div>'
                 )
-                review_out = gr.HTML(_empty("☼", "Hiring-manager review appears here after enhancement."))
+                review_out = gr.HTML(_empty("◑", "Review appears here after enhancement."))
 
-            # ---------- JD Matching ----------
-            with gr.Tab("JD Matching"):
+            # ── JD Matching ───────────────────────────────────────
+            with gr.Tab("📊 JD Matching"):
                 gr.HTML(
-                    '<div class="rx-card" style="margin-bottom:12px">'
-                    '<div class="h"><span class="num">≣</span>Curated job descriptions</div>'
-                    '<div class="sub">5 hand-curated JDs for your target role with synonym lists. '
-                    'We score the original and enhanced resumes against each, and report the lift.</div></div>'
+                    '<div class="nc-card" style="margin-bottom:14px">'
+                    '<div class="nc-card-title">Role job-description validation</div>'
+                    '<div class="nc-card-sub">Before/after scores across curated JDs for the target role, '
+                    'plus top keyword gaps to close.</div></div>'
                 )
-                jd_out = gr.HTML(_empty("◌", "JD scores against curated samples appear here."))
+                jd_out = gr.HTML(_empty("◌", "JD scores appear here after enhancement."))
 
-            # ---------- Download ----------
-            with gr.Tab("Download"):
+            # ── Download ─────────────────────────────────────────
+            with gr.Tab("⬇ Download"):
                 with gr.Group(visible=False) as download_group:
                     gr.HTML(
-                        '<div class="rx-card">'
-                        '<div class="h"><span class="num">↓</span>Your enhanced resume — .tex output</div>'
-                        '<div class="sub">Open the file in '
-                        '<a href="https://overleaf.com" target="_blank">Overleaf</a> '
-                        'to compile to PDF. The template uses standard packages: '
-                        '<code style="background:var(--rx-bg-2);padding:2px 6px;border-radius:4px;font-size:12px">fontawesome5</code>, '
-                        '<code style="background:var(--rx-bg-2);padding:2px 6px;border-radius:4px;font-size:12px">sourcesanspro</code>, '
-                        '<code style="background:var(--rx-bg-2);padding:2px 6px;border-radius:4px;font-size:12px">tabularx</code>, '
-                        '<code style="background:var(--rx-bg-2);padding:2px 6px;border-radius:4px;font-size:12px">enumitem</code>.</div></div>'
+                        '<div class="nc-card" style="margin-bottom:12px">'
+                        '<div class="nc-card-title">Enhanced .tex output</div>'
+                        '<div class="nc-card-sub">Open in '
+                        '<a href="https://overleaf.com" target="_blank" style="color:#c4b5fd">Overleaf</a> '
+                        'to compile. Uses standard packages: '
+                        '<code style="background:rgba(124,58,237,.15);padding:1px 6px;border-radius:4px;font-size:11.5px">fontawesome5</code>, '
+                        '<code style="background:rgba(124,58,237,.15);padding:1px 6px;border-radius:4px;font-size:11.5px">sourcesanspro</code>, '
+                        '<code style="background:rgba(124,58,237,.15);padding:1px 6px;border-radius:4px;font-size:11.5px">tabularx</code>.</div></div>'
                     )
                     tex_file_out = gr.File(label="Enhanced .tex", interactive=False)
                     tex_text_out = gr.Code(
                         label="Preview (read-only)",
                         language="latex",
-                        lines=24,
+                        lines=28,
                         interactive=False,
                     )
 
-            # ---------- Setup ----------
-            with gr.Tab("Setup"):
-                setup_out = gr.HTML(_setup_html())
-                refresh_btn = gr.Button("Refresh status", size="sm")
-                refresh_btn.click(lambda: _setup_html(), outputs=setup_out)
+            # ── Template ─────────────────────────────────────────
+            with gr.Tab("📋 Template"):
+                gr.HTML(
+                    '<div class="nc-card" style="margin-bottom:12px">'
+                    '<div class="nc-card-title">Active Jinja2 LaTeX template</div>'
+                    '<div class="nc-card-sub">This is the template used to render the final .tex. '
+                    'Edit it in <code style="background:rgba(124,58,237,.15);padding:1px 6px;border-radius:4px;font-size:11.5px">app/render/template.tex.j2</code> to customize the layout.</div></div>'
+                )
+                gr.Code(
+                    value=_template_preview(),
+                    language="latex",
+                    lines=28,
+                    interactive=False,
+                    label="template.tex.j2",
+                )
 
-            # ---------- About ----------
-            with gr.Tab("About"):
-                gr.Markdown(_about_md())
+            # ── Setup ─────────────────────────────────────────────
+            with gr.Tab("⚙ Setup"):
+                setup_html = gr.HTML(_setup_html())
 
+        # Wire up the run button
         run_btn.click(
             _enhance_handler,
-            inputs=[file_in, role_in, backend_in, critic_in, review_in, cross_in, iter_in],
+            inputs=[
+                file_in, role_in, backend_in,
+                hf_key_in, hf_model_in, hf_extract_model_in,
+                critic_state, review_state, cross_state, iter_state, opt_mode_in,
+            ],
             outputs=[
                 summary_out, sections_out, review_out, jd_out,
                 tex_file_out, tex_text_out, download_group,
@@ -1151,85 +1554,25 @@ def build_app() -> gr.Blocks:
         )
 
         gr.HTML(
-            '<div class="rx-foot">v4 · Multi-agent skill-driven · '
-            'Claude Code / Anthropic / Hugging Face · Output: .tex (Overleaf-ready)</div>'
+            '<div class="nc-footer">'
+            'v5 Neural Canvas · Multi-agent skill-driven · '
+            'HuggingFace optimized · Output: .tex (Overleaf-ready)'
+            '</div>'
         )
+
     return app
-
-
-def _about_md() -> str:
-    return """
-### How it works
-
-```
-.tex input
-   |
-   v
-+--------------+    +-------------+    +-------------+    +-------------+
-| Parse (regex)| -> | Repair (LLM)| -> | Complete    | -> | Plan (LLM)  |
-| -> ResumeIR  |    | (Extractor) |    | placeholders|    | section order
-+--------------+    +-------------+    +-------------+    +-------------+
-                                                              |
-                                                              v
-                                                   +----------------------+
-                                                   | Per-section loop     |
-                                                   | Enhancer <-> Critic  |
-                                                   | (max 3 iter, >=82)   |
-                                                   +----------------------+
-                                                              |
-                                                              v
-                                                   +----------------------+
-                                                   | Safety guards        |
-                                                   | length + protected   |
-                                                   +----------------------+
-                                                              |
-                          +-----------------------------------+--------------------+
-                          v                                                        v
-              +-------------------+                                  +-------------------+
-              | Render -> .tex    |                                  | ATS / JD / Review |
-              | (Jinja2 template) |                                  | TARGET role       |
-              +-------------------+                                  +-------------------+
-```
-
-### Agents
-
-| Agent | Reads | Writes | Failure mode |
-|---|---|---|---|
-| **Extractor** | parsed IR + raw .tex | repaired IR | falls through to parser output |
-| **Completer** | IR | IR with `[PLACEHOLDER]` tokens for missing required fields | always succeeds (deterministic) |
-| **Planner** | IR + role profile | section / skill / experience ordering | falls back to per-role default |
-| **Enhancer** | one section + critique | rewritten section | returns "" → orchestrator keeps original |
-| **Critic** | (before, after) | 5-dim score + verdict (JSON) | permissive accept on parse error |
-| **Orchestrator** | the two above | bounded loop, safety guard | deterministic guard rejects bad rewrites |
-| **Role Reviewer** | full enhanced resume + role profile | strengths / weaknesses / verdict | one-line "(unavailable)" on failure |
-| **JD Matcher** | resume text + curated JDs | per-JD score, delta, top gaps | deterministic — never errors |
-
-### Safety guarantees
-
-1. **Never weakens** — guard rejects rewrites that shrink to under 50% of original.
-2. **Never drops a protected term** — frameworks, models, services, numbers from the input are regex-checked.
-3. **Bounded iteration** — hard cap of 4 iterations per section; per-section + job-level deadlines.
-4. **Never invents** — required fields the input lacks become visible `[PLACEHOLDER]` tokens.
-5. **Critic can't escape the guard** — the deterministic guard always has the final word.
-
-### Customising the agents
-
-Every behaviour the agents exhibit is in markdown under `skills/`. Edit any
-file and reload — no code changes needed.
-"""
 
 
 if __name__ == "__main__":
     app = build_app()
+    auth = None
+    if settings.auth_enabled:
+        auth = (settings.auth_user, settings.auth_pass)
+        log.info("[ui] basic auth enabled for user: %s", settings.auth_user)
     app.queue(default_concurrency_limit=2).launch(
         server_name="0.0.0.0",
         server_port=int(os.environ.get("RESUME_UI_PORT", "7860")),
         show_error=True,
+        auth=auth,
         css=CSS,
-        theme=gr.themes.Soft(
-            primary_hue="indigo",
-            neutral_hue="slate",
-            radius_size="lg",
-            spacing_size="md",
-        ),
     )
