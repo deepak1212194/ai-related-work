@@ -1,18 +1,5 @@
 """
-gradio_app.py — Neural Canvas Edition (v5)
-
-Dark, animated, production-level UI for the Resume Enhancer multi-agent pipeline.
-
-Tabs:
-  - Enhance       upload .tex, configure, run pipeline with live stage animation.
-  - Sections      per-section before/after with iteration trace.
-  - Review        hiring-manager simulation for the target role.
-  - JD Matching   keyword score against curated JDs.
-  - Download      .tex output + Overleaf paste-ready helper.
-  - Setup         backend status + auth instructions.
-
-Run with:
-    python -m ui.gradio_app
+gradio_app.py — Clean minimal UI for the Resume Enhancer pipeline.
 """
 
 from __future__ import annotations
@@ -59,664 +46,551 @@ def _check_rate_limit(session_id: str = "default") -> Optional[str]:
     if len(_rate_limit_store[session_id]) >= max_runs:
         remaining = int(window - (now - _rate_limit_store[session_id][0]))
         mins = max(1, remaining // 60)
-        return (
-            f"You've used all {max_runs} runs this hour. "
-            f"Please wait ~{mins} min before trying again."
-        )
+        return f"Rate limit reached ({max_runs} runs/hour). Try again in ~{mins} min."
     _rate_limit_store[session_id].append(now)
     return None
 
 
-_ERROR_MAP = {
-    "api key": "Your API key appears to be invalid or missing. Check the Setup tab.",
-    "rate limit": "The AI service is temporarily busy. Please wait a moment and try again.",
-    "timeout": "The AI service took too long to respond. Try again or switch backend.",
-    "connection": "Could not connect to the AI service. Check your internet connection.",
-    "not installed": "A required package is not installed. See the Setup tab.",
-}
-
-
 def _friendly_error(raw: str) -> str:
     lower = raw.lower()
-    for key, msg in _ERROR_MAP.items():
-        if key in lower:
-            return msg
-    return f"Something went wrong: {raw[:200]}. Please try again or switch backends."
+    if "api key" in lower or "unauthorized" in lower or "401" in lower:
+        return "Invalid or missing API key. Check your Groq key and try again."
+    if "rate limit" in lower or "429" in lower:
+        return "AI service is busy. Wait a moment and try again."
+    if "timeout" in lower:
+        return "Request timed out. Try again or switch to a faster model."
+    if "connection" in lower:
+        return "Connection failed. Check your internet connection."
+    return f"Something went wrong: {raw[:180]}"
 
 
 # ─────────────────────────────────────────────────────────────
-#  CSS — Neural Canvas Dark Theme
+#  CSS — Clean minimal design
 # ─────────────────────────────────────────────────────────────
 CSS = """
-/* ── Design tokens ─────────────────────────────────────────── */
 :root {
-  --nc-bg:          #07090f;
-  --nc-bg-card:     rgba(14, 16, 30, 0.9);
-  --nc-bg-card2:    rgba(20, 23, 42, 0.95);
-  --nc-border:      rgba(124, 58, 237, 0.28);
-  --nc-border-soft: rgba(255, 255, 255, 0.07);
-  --nc-text:        #e2e8f0;
-  --nc-text2:       #94a3b8;
-  --nc-text3:       #475569;
-  --nc-purple:      #7c3aed;
-  --nc-purple-l:    #a78bfa;
-  --nc-cyan:        #06b6d4;
-  --nc-emerald:     #10b981;
-  --nc-amber:       #f59e0b;
-  --nc-rose:        #f43f5e;
-  --nc-g-purple:    linear-gradient(135deg,#6d28d9,#7c3aed);
-  --nc-g-cyan:      linear-gradient(135deg,#0369a1,#0ea5e9);
-  --nc-g-emerald:   linear-gradient(135deg,#065f46,#059669);
-  --nc-g-amber:     linear-gradient(135deg,#92400e,#d97706);
-  --nc-g-rose:      linear-gradient(135deg,#9f1239,#e11d48);
-  --nc-g-teal:      linear-gradient(135deg,#134e4a,#0f766e);
-  --nc-g-slate:     linear-gradient(135deg,#1e293b,#334155);
-  --nc-glow:        0 0 30px rgba(124,58,237,.22);
-  --nc-glow-sm:     0 0 16px rgba(124,58,237,.28);
-  --nc-r:           16px;
-  --nc-r-sm:        12px;
-  --nc-ease:        cubic-bezier(.2,.8,.2,1);
+  --bg:        #0f1117;
+  --bg2:       #161b27;
+  --bg3:       #1e2436;
+  --border:    rgba(255,255,255,0.08);
+  --border2:   rgba(255,255,255,0.14);
+  --text:      #f1f5f9;
+  --text2:     #94a3b8;
+  --text3:     #475569;
+  --accent:    #6366f1;
+  --accent2:   #818cf8;
+  --green:     #22c55e;
+  --amber:     #f59e0b;
+  --red:       #ef4444;
+  --radius:    12px;
 }
 
-/* ── Base ───────────────────────────────────────────────────── */
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body, html { background: var(--bg) !important; }
 
 .gradio-container {
-  max-width: 1380px !important;
+  max-width: 1200px !important;
   margin: 0 auto !important;
   background: transparent !important;
-  font-family: 'Inter','Segoe UI',system-ui,sans-serif !important;
-  font-feature-settings: 'cv11','ss01';
-  letter-spacing: -.003em;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
+  padding: 0 16px !important;
 }
 
-body, html { background: var(--nc-bg) !important; }
-
-/* ── Animated background orbs ──────────────────────────────── */
-.nc-orbs {
-  position: fixed; inset: 0;
-  pointer-events: none; z-index: -1; overflow: hidden;
+/* ── Header ── */
+.app-header {
+  padding: 40px 0 32px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 32px;
 }
-.nc-orb {
-  position: absolute; border-radius: 50%;
-  filter: blur(90px); opacity: 0;
-  animation: nc-reveal 2s ease forwards, nc-drift var(--dur,25s) ease-in-out var(--delay,0s) infinite;
+.app-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.03em;
+  margin-bottom: 6px;
 }
-.nc-orb-a {
-  width: 720px; height: 720px;
-  background: radial-gradient(circle,#7c3aed,transparent 70%);
-  top: -280px; left: -180px;
-  --dur: 28s; --delay: 0s;
-}
-.nc-orb-b {
-  width: 600px; height: 600px;
-  background: radial-gradient(circle,#06b6d4,transparent 70%);
-  bottom: -220px; right: -160px;
-  --dur: 22s; --delay: -8s;
-}
-.nc-orb-c {
-  width: 500px; height: 500px;
-  background: radial-gradient(circle,#10b981,transparent 70%);
-  top: 45%; left: 42%;
-  --dur: 32s; --delay: -16s;
-}
-@keyframes nc-reveal {
-  from { opacity: 0; } to { opacity: .11; }
-}
-@keyframes nc-drift {
-  0%,100% { transform: translate(0,0); }
-  25%      { transform: translate(45px,-40px); }
-  50%      { transform: translate(-30px,30px); }
-  75%      { transform: translate(20px,50px); }
-}
-
-/* ── Hero ───────────────────────────────────────────────────── */
-.nc-hero {
-  position: relative; padding: 52px 48px 44px;
-  margin: 10px 0 22px; border-radius: 24px; overflow: hidden;
-  background: linear-gradient(135deg,#0b0d1e 0%,#131628 55%,#0e1124 100%);
-  border: 1px solid rgba(124,58,237,.4);
-  box-shadow: var(--nc-glow), inset 0 0 80px rgba(124,58,237,.06);
-}
-.nc-hero-grid {
-  position: absolute; inset: 0; pointer-events: none;
-  background-image:
-    linear-gradient(rgba(124,58,237,.07) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(124,58,237,.07) 1px,transparent 1px);
-  background-size: 40px 40px;
-  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%,black 20%,transparent 75%);
-}
-.nc-hero-glow {
-  position: absolute; inset: 0; pointer-events: none;
-  background:
-    radial-gradient(700px 280px at -8% -25%, rgba(124,58,237,.38),transparent 55%),
-    radial-gradient(600px 260px at 110% -15%, rgba(6,182,212,.22),transparent 55%),
-    radial-gradient(500px 180px at 55% 115%, rgba(16,185,129,.18),transparent 60%);
-}
-.nc-hero h1 {
-  font-size: 44px; font-weight: 900; letter-spacing: -.045em;
-  margin: 0 0 12px; line-height: 1;
-  background: linear-gradient(95deg,#fff 0%,#c4b5fd 28%,#67e8f9 60%,#6ee7b7 100%);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: nc-fade-up .8s var(--nc-ease) both;
-}
-.nc-hero .tagline {
-  color: rgba(226,232,240,.72); font-size: 15px;
-  line-height: 1.65; max-width: 700px; margin: 0 0 26px;
-  animation: nc-fade-up .8s .1s var(--nc-ease) both;
-}
-.nc-hero .badges { display: flex; gap: 8px; flex-wrap: wrap; animation: nc-fade-up .8s .2s var(--nc-ease) both; }
-@keyframes nc-fade-up {
-  from { opacity:0; transform: translateY(14px); }
-  to   { opacity:1; transform: translateY(0); }
-}
-.nc-badge {
-  padding: 5px 14px; border-radius: 999px; font-size: 11px; font-weight: 600;
-  letter-spacing: .04em; border: 1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.05); backdrop-filter: blur(12px);
-  color: rgba(255,255,255,.82);
-  transition: all .22s var(--nc-ease); cursor: default;
-}
-.nc-badge:hover { background: rgba(255,255,255,.1); transform: translateY(-1px); }
-.nc-badge.p { border-color: rgba(167,139,250,.4); color: #c4b5fd; background: rgba(124,58,237,.1); }
-.nc-badge.c { border-color: rgba(103,232,249,.4); color: #67e8f9; background: rgba(6,182,212,.1); }
-.nc-badge.e { border-color: rgba(110,231,183,.4); color: #6ee7b7; background: rgba(16,185,129,.1); }
-.nc-hero-stats {
-  position: absolute; top: 48px; right: 48px;
-  display: flex; gap: 24px; align-items: flex-start;
-}
-.nc-hero-stat .val {
-  font-size: 30px; font-weight: 900; letter-spacing: -.04em;
-  background: linear-gradient(135deg,#c4b5fd,#a78bfa);
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-}
-.nc-hero-stat .lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.35); margin-top: 1px; }
-
-/* ── Glass card ─────────────────────────────────────────────── */
-.nc-card {
-  background: var(--nc-bg-card);
-  backdrop-filter: blur(24px);
-  border: 1px solid var(--nc-border-soft);
-  border-radius: var(--nc-r); padding: 20px 22px;
-  transition: border-color .22s, box-shadow .22s;
-}
-.nc-card:hover { border-color: var(--nc-border); }
-.nc-card-title {
-  font-size: 13px; font-weight: 700; color: var(--nc-text);
-  letter-spacing: -.01em; margin: 0 0 5px;
-  display: flex; align-items: center; gap: 8px;
-}
-.nc-step {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; border-radius: 8px;
-  background: var(--nc-g-purple); color: #fff;
-  font-size: 11px; font-weight: 800; flex-shrink: 0;
-  box-shadow: var(--nc-glow-sm);
-}
-.nc-card-sub { font-size: 12.5px; color: var(--nc-text2); line-height: 1.5; margin: 0; }
-
-/* ── KPI grid ───────────────────────────────────────────────── */
-.nc-kpi-grid {
-  display: grid; grid-template-columns: repeat(auto-fit,minmax(155px,1fr));
-  gap: 12px; margin-bottom: 20px;
-}
-.nc-kpi {
-  padding: 18px 18px 14px; border-radius: 16px; overflow: hidden;
-  position: relative; isolation: isolate; cursor: default;
-  transition: transform .25s var(--nc-ease), box-shadow .25s var(--nc-ease);
-}
-.nc-kpi:hover { transform: translateY(-3px); }
-.nc-kpi::after {
-  content:''; position:absolute; top:-35px; right:-35px;
-  width:110px; height:110px; border-radius:50%;
-  background: rgba(255,255,255,.07); pointer-events:none;
-}
-.nc-kpi .kv {
-  font-size: 32px; font-weight: 900; letter-spacing: -.04em;
-  line-height: 1; margin-bottom: 4px; color: #fff;
-  font-variant-numeric: tabular-nums;
-}
-.nc-kpi .kl {
-  font-size: 9.5px; text-transform: uppercase; letter-spacing: .11em;
-  color: rgba(255,255,255,.72); font-weight: 700;
-}
-.nc-kpi .kd { font-size: 10.5px; color: rgba(255,255,255,.58); margin-top: 6px; }
-.nc-kpi.purple  { background: linear-gradient(145deg,#5b21b6,#7c3aed); box-shadow: 0 8px 28px -8px rgba(124,58,237,.55); }
-.nc-kpi.cyan    { background: linear-gradient(145deg,#0369a1,#0ea5e9); box-shadow: 0 8px 28px -8px rgba(14,165,233,.5); }
-.nc-kpi.emerald { background: linear-gradient(145deg,#065f46,#059669); box-shadow: 0 8px 28px -8px rgba(16,185,129,.5); }
-.nc-kpi.amber   { background: linear-gradient(145deg,#92400e,#d97706); box-shadow: 0 8px 28px -8px rgba(245,158,11,.5); }
-.nc-kpi.rose    { background: linear-gradient(145deg,#9f1239,#e11d48); box-shadow: 0 8px 28px -8px rgba(244,63,94,.5); }
-.nc-kpi.slate   { background: linear-gradient(145deg,#1e293b,#334155); box-shadow: 0 8px 28px -8px rgba(51,65,85,.45); }
-.nc-kpi.teal    { background: linear-gradient(145deg,#134e4a,#0f766e); box-shadow: 0 8px 28px -8px rgba(20,184,166,.5); }
-
-/* ── Score bar ──────────────────────────────────────────────── */
-.nc-bar { height: 5px; background: rgba(255,255,255,.08); border-radius:999px; overflow:hidden; }
-.nc-bar i { display:block; height:100%; border-radius:999px; transition: width .65s var(--nc-ease); }
-.nc-bar.high i { background: linear-gradient(90deg,#10b981,#34d399); box-shadow: 0 0 10px #10b981; }
-.nc-bar.mid  i { background: linear-gradient(90deg,#f59e0b,#fbbf24); box-shadow: 0 0 10px #f59e0b; }
-.nc-bar.low  i { background: linear-gradient(90deg,#f43f5e,#fb7185); box-shadow: 0 0 10px #f43f5e; }
-.nc-bar.def  i { background: linear-gradient(90deg,#7c3aed,#a855f7); box-shadow: 0 0 10px #7c3aed; }
-
-/* ── Score badges ───────────────────────────────────────────── */
-.nc-s {
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
-  letter-spacing: .03em; font-variant-numeric: tabular-nums;
-}
-.nc-s.high    { background: rgba(16,185,129,.18); color: #6ee7b7; border: 1px solid rgba(16,185,129,.35); }
-.nc-s.mid     { background: rgba(245,158,11,.18); color: #fde68a; border: 1px solid rgba(245,158,11,.35); }
-.nc-s.low     { background: rgba(244,63,94,.18);  color: #fca5a5; border: 1px solid rgba(244,63,94,.35); }
-.nc-s.changed { background: rgba(124,58,237,.2);  color: #c4b5fd; border: 1px solid rgba(124,58,237,.35); }
-.nc-s.unch    { background: rgba(255,255,255,.06); color: var(--nc-text3); border: 1px solid rgba(255,255,255,.1); }
-.nc-s.iter    { background: rgba(167,139,250,.15); color: #c4b5fd; border: 1px solid rgba(167,139,250,.3); }
-
-/* ── Tags ───────────────────────────────────────────────────── */
-.nc-tag {
-  display: inline-block; padding: 3px 10px; border-radius: 999px;
-  font-size: 11px; font-weight: 600; margin: 2px 3px 2px 0;
-  background: rgba(124,58,237,.14); color: #c4b5fd;
-  border: 1px solid rgba(124,58,237,.3);
-  transition: transform .14s;
-}
-.nc-tag:hover { transform: translateY(-1px); }
-.nc-tag.miss  { background: rgba(244,63,94,.14);  color: #fca5a5; border-color: rgba(244,63,94,.3); }
-.nc-tag.match { background: rgba(16,185,129,.14); color: #6ee7b7; border-color: rgba(16,185,129,.3); }
-
-/* ── Pipeline progress ──────────────────────────────────────── */
-.nc-pipeline {
-  padding: 22px 24px; border-radius: var(--nc-r);
-  background: var(--nc-bg-card2);
-  border: 1px solid var(--nc-border-soft);
-}
-.nc-pipeline-hd {
-  display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
-}
-.nc-pipeline-title { font-size: 14px; font-weight: 700; color: var(--nc-text); }
-.nc-pipeline-eta   { font-size: 12px; color: var(--nc-text2); }
-.nc-prog-bar { height: 4px; background: rgba(255,255,255,.07); border-radius:999px; overflow:hidden; margin-bottom:20px; }
-.nc-prog-fill {
-  height: 100%; border-radius: 999px; transition: width .55s var(--nc-ease);
-  background: linear-gradient(90deg,#6d28d9,#7c3aed,#a855f7,#06b6d4);
-  background-size: 200% 100%; animation: nc-shimmer 2.5s linear infinite;
-  box-shadow: 0 0 14px rgba(124,58,237,.6);
-}
-@keyframes nc-shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-/* Stage nodes */
-.nc-stages { display: flex; align-items: center; margin-bottom: 18px; gap: 0; }
-.nc-stage-wrap { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1; }
-.nc-stage-dot {
-  width: 34px; height: 34px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
+.app-title span { color: var(--accent2); }
+.app-sub {
   font-size: 14px;
-  border: 2px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.04);
-  transition: all .35s var(--nc-ease);
-  position: relative; z-index: 1;
-}
-.nc-stage-dot.idle   { opacity: .45; }
-.nc-stage-dot.active {
-  background: rgba(124,58,237,.28); border-color: #7c3aed;
-  box-shadow: 0 0 18px rgba(124,58,237,.55);
-  animation: nc-pulse 1.6s ease-in-out infinite;
-}
-.nc-stage-dot.done   {
-  background: rgba(16,185,129,.2); border-color: #10b981;
-  box-shadow: 0 0 14px rgba(16,185,129,.4);
-}
-@keyframes nc-pulse {
-  0%,100% { box-shadow: 0 0 18px rgba(124,58,237,.55); }
-  50%      { box-shadow: 0 0 32px rgba(124,58,237,.85), 0 0 0 7px rgba(124,58,237,.12); }
-}
-.nc-stage-lbl {
-  font-size: 9px; text-transform: uppercase; letter-spacing: .08em;
-  color: var(--nc-text3); font-weight: 600; text-align: center;
-  transition: color .3s;
-}
-.nc-stage-lbl.active { color: #c4b5fd; }
-.nc-stage-lbl.done   { color: #6ee7b7; }
-.nc-stage-conn {
-  flex: 0 0 auto; width: 28px; height: 1px; margin-bottom: 19px;
-  background: rgba(255,255,255,.1); transition: background .4s;
-}
-.nc-stage-conn.done { background: rgba(16,185,129,.5); }
-
-/* Log area */
-.nc-log {
-  background: rgba(0,0,0,.45); border-radius: 10px; padding: 12px 14px;
-  font-family: 'JetBrains Mono',ui-monospace,Consolas,monospace;
-  font-size: 11.5px; line-height: 1.75; color: #94a3b8;
-  max-height: 320px; overflow-y: auto;
-  border: 1px solid rgba(255,255,255,.05);
-}
-.nc-log .ls  { color: #a78bfa; font-weight: 700; }
-.nc-log .lok { color: #6ee7b7; }
-.nc-log .lw  { color: #fde68a; }
-.nc-log .le  { color: #fca5a5; }
-.nc-log .ld  { color: #475569; }
-.nc-log::-webkit-scrollbar { width: 5px; }
-.nc-log::-webkit-scrollbar-thumb { background: rgba(124,58,237,.35); border-radius: 3px; }
-
-/* ── Section traces ─────────────────────────────────────────── */
-.nc-trace { margin-bottom: 14px; }
-.nc-trace-card {
-  border: 1px solid var(--nc-border-soft); border-radius: var(--nc-r);
-  overflow: hidden; background: var(--nc-bg-card);
-  transition: border-color .2s;
-}
-.nc-trace-card:hover { border-color: var(--nc-border); }
-.nc-trace-hd {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.05);
-  background: rgba(255,255,255,.02);
-}
-.nc-trace-lbl { font-weight: 700; font-size: 13px; color: var(--nc-text); }
-.nc-trace-meta { display: flex; gap: 6px; align-items: center; }
-.nc-diff-before {
-  padding: 13px 16px; font-size: 13px; line-height: 1.7;
-  background: rgba(245,158,11,.06);
-  border-left: 3px solid rgba(245,158,11,.5);
-  color: rgba(253,230,138,.9);
-  border-bottom: 1px solid rgba(255,255,255,.04);
-}
-.nc-diff-after {
-  padding: 13px 16px; font-size: 13px; line-height: 1.7;
-  background: rgba(16,185,129,.06);
-  border-left: 3px solid rgba(16,185,129,.5);
-  color: rgba(110,231,183,.9);
-}
-.nc-diff-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .12em; font-weight: 800; opacity: .45; margin-right: 8px; }
-.nc-flags {
-  margin: 8px 16px; padding: 9px 12px; border-radius: 9px;
-  background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.25);
-  color: #fde68a; font-size: 12px; line-height: 1.5;
-}
-.nc-iter-row { display: flex; gap: 5px; padding: 8px 16px; align-items: center; }
-.nc-iter-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.14); transition: all .3s; }
-.nc-iter-dot.done   { background: #6ee7b7; }
-.nc-iter-dot.accept { background: #a78bfa; box-shadow: 0 0 8px rgba(167,139,250,.7); }
-.nc-iter-dim { font-size: 11px; color: var(--nc-text3); margin-left: 6px; }
-.nc-trace-note { font-size: 11.5px; color: var(--nc-text3); font-style: italic; padding: 4px 16px 10px; }
-
-/* ── Review ─────────────────────────────────────────────────── */
-.nc-review-hero {
-  border-radius: var(--nc-r); padding: 28px 30px 22px;
-  background: linear-gradient(135deg,rgba(11,13,28,.98),rgba(18,21,40,.98));
-  border: 1px solid rgba(124,58,237,.35); margin-bottom: 14px;
-  position: relative; overflow: hidden;
-  box-shadow: var(--nc-glow);
-}
-.nc-review-hero::before {
-  content:''; position:absolute; top:-60px; right:-60px; width:280px; height:280px;
-  border-radius:50%;
-  background: radial-gradient(circle,rgba(124,58,237,.2),transparent 65%);
-  pointer-events:none;
-}
-.nc-review-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-.nc-review-h2  { font-size: 22px; font-weight: 800; letter-spacing: -.025em; color: var(--nc-text); margin: 0 0 5px; }
-.nc-review-sub { color: var(--nc-text2); font-size: 13px; }
-.nc-score-box  { text-align: right; }
-.nc-score-num  {
-  font-size: 54px; font-weight: 900; letter-spacing: -.05em; line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.nc-score-num.high { background: var(--nc-g-emerald); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.nc-score-num.mid  { background: var(--nc-g-amber);   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.nc-score-num.low  { background: var(--nc-g-rose);    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.nc-score-lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--nc-text3); font-weight: 700; margin-top: 4px; }
-.nc-verdict {
-  margin-top: 16px; padding: 14px 16px; border-radius: 12px;
-  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
-  border-left: 3px solid #7c3aed;
-  font-style: italic; color: var(--nc-text2); font-size: 14px; line-height: 1.55;
-}
-.nc-review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
-.nc-review-col {
-  background: var(--nc-bg-card); border: 1px solid var(--nc-border-soft);
-  border-radius: var(--nc-r-sm); padding: 16px 18px;
-}
-.nc-review-col h5 {
-  font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
-  margin: 0 0 12px; color: var(--nc-text3); font-weight: 800;
-  display: flex; align-items: center; gap: 6px;
-}
-.nc-review-col h5::before { content:''; width:4px; height:14px; border-radius:2px; background:#6ee7b7; flex-shrink:0; }
-.nc-review-col.weak h5::before { background: #fde68a; }
-.nc-review-col ul { margin:0; padding:0; list-style:none; }
-.nc-review-col ul li {
-  font-size: 13px; color: var(--nc-text); line-height: 1.55;
-  margin-bottom: 6px; padding-left: 16px; position: relative;
-}
-.nc-review-col ul li::before { content:'▸'; position:absolute; left:0; color:#6ee7b7; font-size:11px; top:1px; }
-.nc-review-col.weak ul li::before { content:'◦'; color:#fde68a; }
-.nc-kw-card {
-  background: var(--nc-bg-card); border: 1px solid var(--nc-border-soft);
-  border-radius: var(--nc-r-sm); padding: 14px 16px;
-}
-.nc-kw-card h5 {
-  font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
-  margin: 0 0 10px; color: var(--nc-text3); font-weight: 800;
+  color: var(--text2);
+  line-height: 1.6;
 }
 
-/* ── JD table ───────────────────────────────────────────────── */
-.nc-table { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
-.nc-table-wrap {
-  border-radius: var(--nc-r-sm); overflow: hidden;
-  border: 1px solid rgba(255,255,255,.06);
-  background: var(--nc-bg-card);
-}
-.nc-table th, .nc-table td {
-  padding: 12px 14px; text-align: left;
-  border-bottom: 1px solid rgba(255,255,255,.05);
-  color: var(--nc-text);
-}
-.nc-table th {
-  background: rgba(255,255,255,.03); color: var(--nc-text3);
-  font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; font-weight: 800;
-}
-.nc-table tr:last-child td { border-bottom: none; }
-.nc-table tr:hover td { background: rgba(124,58,237,.06); }
-.nc-table td.num { font-variant-numeric: tabular-nums; font-weight: 600; }
-.nc-table td.gap { font-size: 12px; color: var(--nc-text2); }
-
-/* ── Setup ──────────────────────────────────────────────────── */
-.nc-setup-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(290px,1fr)); gap: 14px; }
-.nc-setup-card {
-  background: var(--nc-bg-card); border: 1px solid var(--nc-border-soft);
-  border-radius: var(--nc-r); padding: 22px 22px 18px;
-  transition: all .22s var(--nc-ease); position: relative; overflow: hidden;
-}
-.nc-setup-card:hover { border-color: var(--nc-border); transform: translateY(-2px); box-shadow: var(--nc-glow-sm); }
-.nc-setup-card.ready {
-  border-color: rgba(16,185,129,.38);
-  background: linear-gradient(135deg,rgba(16,185,129,.09),rgba(5,150,105,.04));
-}
-.nc-setup-card.ready::after {
-  content: '✓ ACTIVE'; position: absolute; top: 14px; right: 14px;
-  font-size: 9px; font-weight: 800; letter-spacing: .12em; color: #6ee7b7;
-  background: rgba(16,185,129,.18); padding: 4px 10px; border-radius: 999px;
-  border: 1px solid rgba(16,185,129,.35);
-}
-.nc-setup-card h4 { margin: 0 0 6px; font-size: 16px; color: var(--nc-text); font-weight: 700; }
-.nc-setup-card .why { color: var(--nc-text2); font-size: 12.5px; margin: 0 0 12px; line-height: 1.5; }
-.nc-setup-card .steps {
-  background: rgba(0,0,0,.55); color: #94a3b8; padding: 12px 14px;
-  border-radius: 10px; font-family: 'JetBrains Mono',ui-monospace,monospace;
-  font-size: 11.5px; line-height: 1.7; white-space: pre-wrap; word-break: break-word;
-  border: 1px solid rgba(255,255,255,.05);
-}
-.nc-setup-card .cost {
-  display: inline-block; margin-top: 10px;
-  font-size: 9.5px; color: var(--nc-text3); font-weight: 700;
-  text-transform: uppercase; letter-spacing: .1em;
-}
-
-/* ── Bento tiles ────────────────────────────────────────────── */
-.nc-bento { display: grid; grid-template-columns: repeat(12,1fr); gap: 12px; margin-bottom: 18px; }
-.nc-tile {
-  border-radius: 14px; padding: 16px 18px; color: #fff;
-  min-height: 96px; position: relative; overflow: hidden;
-  transition: transform .25s var(--nc-ease);
-}
-.nc-tile:hover { transform: translateY(-2px); }
-.nc-tile::before {
-  content:''; position:absolute; top:-30px; right:-30px;
-  width:110px; height:110px; border-radius:50%;
-  background:rgba(255,255,255,.07); pointer-events:none;
-}
-.nc-tile h4 { margin: 0 0 7px; font-size: 13.5px; font-weight: 700; }
-.nc-tile p  { margin: 0; font-size: 12px; line-height: 1.45; opacity: .85; }
-.nt1 { grid-column:span 5; background:linear-gradient(135deg,#5b21b6,#7c3aed); box-shadow:0 8px 24px -8px rgba(124,58,237,.5); }
-.nt2 { grid-column:span 4; background:linear-gradient(135deg,#0369a1,#0ea5e9); box-shadow:0 8px 24px -8px rgba(14,165,233,.5); }
-.nt3 { grid-column:span 3; background:linear-gradient(135deg,#9f1239,#e11d48); box-shadow:0 8px 24px -8px rgba(225,29,72,.5); }
-.nt4 { grid-column:span 7; background:linear-gradient(135deg,#134e4a,#0f766e); box-shadow:0 8px 24px -8px rgba(20,184,166,.5); }
-.nt5 { grid-column:span 5; background:linear-gradient(135deg,#7c2d12,#ea580c); box-shadow:0 8px 24px -8px rgba(234,88,12,.5); }
-
-/* ── CTA button ─────────────────────────────────────────────── */
-button.nc-cta {
-  width:100% !important; padding:16px 28px !important;
-  font-size:15px !important; font-weight:800 !important;
-  letter-spacing:-.01em !important; border-radius:14px !important;
-  background:linear-gradient(135deg,#5b21b6,#7c3aed) !important;
-  border:none !important; color:#fff !important;
-  box-shadow:0 8px 28px -8px rgba(109,40,217,.65) !important;
-  transition:all .25s var(--nc-ease) !important;
-  position:relative !important; overflow:hidden !important;
-}
-button.nc-cta::before {
-  content:''; position:absolute; inset:0; pointer-events:none;
-  background:linear-gradient(135deg,rgba(255,255,255,.12),transparent 50%);
-}
-button.nc-cta:hover {
-  transform:translateY(-2px) !important;
-  box-shadow:0 14px 36px -8px rgba(109,40,217,.75) !important;
-  background:linear-gradient(135deg,#6d28d9,#a855f7) !important;
-}
-button.nc-cta:active { transform:translateY(0) !important; }
-
-/* ── Tabs dark ──────────────────────────────────────────────── */
+/* ── Tabs ── */
 .gradio-container .tab-nav {
-  background: rgba(14,16,30,.92) !important;
-  border: 1px solid rgba(255,255,255,.07) !important;
-  border-radius: 14px !important; padding: 6px !important;
-  backdrop-filter: blur(20px) !important;
-  margin-bottom: 18px !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin-bottom: 28px !important;
+  gap: 0 !important;
 }
 .gradio-container .tab-nav button {
-  color: var(--nc-text2) !important; border-radius: 10px !important;
-  font-weight: 600 !important; font-size: 13px !important;
-  transition: all .2s !important; letter-spacing: -.005em !important;
+  color: var(--text3) !important;
+  font-weight: 500 !important;
+  font-size: 13.5px !important;
+  border-radius: 0 !important;
+  padding: 10px 18px !important;
+  border-bottom: 2px solid transparent !important;
+  background: transparent !important;
+  transition: color 0.15s, border-color 0.15s !important;
+  letter-spacing: 0 !important;
 }
 .gradio-container .tab-nav button.selected {
-  background: linear-gradient(135deg,#5b21b6,#7c3aed) !important;
-  color: #fff !important;
-  box-shadow: 0 4px 16px -4px rgba(109,40,217,.55) !important;
+  color: var(--text) !important;
+  border-bottom-color: var(--accent) !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 .gradio-container .tab-nav button:hover:not(.selected) {
-  background: rgba(255,255,255,.06) !important;
-  color: var(--nc-text) !important;
+  color: var(--text2) !important;
+  background: transparent !important;
 }
 
-/* ── Gradio input overrides (dark) ──────────────────────────── */
+/* ── Form inputs ── */
+.gradio-container label,
+.gradio-container .label-wrap span {
+  color: var(--text2) !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+}
 .gradio-container input,
-.gradio-container textarea {
-  background: rgba(255,255,255,.05) !important;
-  border: 1px solid rgba(255,255,255,.1) !important;
-  color: var(--nc-text) !important;
-  border-radius: 12px !important;
+.gradio-container textarea,
+.gradio-container select {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border2) !important;
+  color: var(--text) !important;
+  border-radius: var(--radius) !important;
+  font-size: 14px !important;
+  transition: border-color 0.15s !important;
 }
 .gradio-container input:focus,
 .gradio-container textarea:focus {
-  border-color: rgba(124,58,237,.55) !important;
-  box-shadow: 0 0 0 3px rgba(124,58,237,.15) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important;
   outline: none !important;
 }
-.gradio-container label,
-.gradio-container .label-wrap span,
-.gradio-container .prose { color: var(--nc-text2) !important; }
-.gradio-container .block { background: transparent !important; }
-.gradio-container .panel { background: transparent !important; }
-.gradio-container .wrap { background: transparent !important; }
+.gradio-container .block,
+.gradio-container .panel,
+.gradio-container .wrap,
 .gradio-container .form { background: transparent !important; }
+.gradio-container .prose { color: var(--text2) !important; }
 
-/* Dropdown / select */
-.gradio-container select,
-.gradio-container .svelte-select { background: rgba(255,255,255,.05) !important; color: var(--nc-text) !important; border-color: rgba(255,255,255,.1) !important; border-radius: 12px !important; }
-.gradio-container .svelte-select .item { color: var(--nc-text) !important; }
-.gradio-container .svelte-select .listContainer { background: #0d0f1e !important; border-color: rgba(255,255,255,.1) !important; }
+/* Dropdown */
+.gradio-container .svelte-select,
+.gradio-container select {
+  background: var(--bg2) !important;
+  color: var(--text) !important;
+  border-color: var(--border2) !important;
+  border-radius: var(--radius) !important;
+}
+.gradio-container .svelte-select .listContainer {
+  background: var(--bg3) !important;
+  border-color: var(--border2) !important;
+  border-radius: var(--radius) !important;
+}
+.gradio-container .svelte-select .item { color: var(--text) !important; }
+.gradio-container .svelte-select .item.active { background: rgba(99,102,241,0.15) !important; }
 
 /* Radio */
-.gradio-container .radio-group { background: rgba(255,255,255,.03) !important; border-radius: 12px !important; padding: 8px !important; }
-.gradio-container .wrap.svelte-1sbfox4 { background: transparent !important; }
+.gradio-container .radio-group {
+  background: transparent !important;
+  gap: 6px !important;
+}
+.gradio-container .radio-group label {
+  text-transform: none !important;
+  font-size: 13.5px !important;
+  color: var(--text2) !important;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+}
 
 /* File upload */
 .gradio-container .upload-button,
 .gradio-container .file-preview {
-  background: rgba(124,58,237,.1) !important;
-  border: 2px dashed rgba(124,58,237,.4) !important;
-  border-radius: 14px !important; color: #c4b5fd !important;
+  background: var(--bg2) !important;
+  border: 1.5px dashed var(--border2) !important;
+  border-radius: var(--radius) !important;
+  color: var(--text2) !important;
 }
-.gradio-container .upload-button:hover { background: rgba(124,58,237,.18) !important; border-color: rgba(124,58,237,.65) !important; }
+.gradio-container .upload-button:hover {
+  border-color: var(--accent) !important;
+  background: rgba(99,102,241,0.06) !important;
+}
 
 /* Accordion */
 .gradio-container .accordion {
-  background: rgba(255,255,255,.04) !important;
-  border: 1px solid rgba(255,255,255,.08) !important;
-  border-radius: 12px !important;
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
 }
-.gradio-container details > summary { color: var(--nc-text2) !important; }
-
-/* Code blocks */
-.gradio-container .code-wrap { background: rgba(0,0,0,.4) !important; border-color: rgba(255,255,255,.07) !important; }
-
-/* ── Empty state ────────────────────────────────────────────── */
-.nc-empty {
-  text-align:center; color:var(--nc-text2); padding:44px 24px;
-  background:rgba(255,255,255,.03);
-  border:1px dashed rgba(255,255,255,.1); border-radius:var(--nc-r);
-  font-size:13.5px; line-height:1.5;
-}
-.nc-empty .big { font-size:42px; margin-bottom:10px; opacity:.3; display:block; }
-
-/* ── Error/warning ──────────────────────────────────────────── */
-.nc-err {
-  background: rgba(244,63,94,.1); border: 1px solid rgba(244,63,94,.3);
-  border-radius: var(--nc-r); padding: 18px 20px;
-}
-.nc-err .et { font-weight:700; color:#fca5a5; margin-bottom:5px; font-size:14px; }
-.nc-err .eb { color:#fca5a5; opacity:.8; font-size:13px; line-height:1.5; }
-.nc-warn {
-  background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.28);
-  border-radius: var(--nc-r); padding: 14px 16px; margin-top: 12px;
-}
-.nc-warn .wt { font-weight:700; color:#fde68a; margin-bottom:4px; font-size:13px; }
-.nc-warn ul { margin: 4px 0 0 18px; color:#fde68a; opacity:.8; font-size:12px; }
-
-/* ── Footer ─────────────────────────────────────────────────── */
-.nc-footer {
-  text-align:center; color:var(--nc-text3); font-size:12px;
-  margin:22px 0 10px; padding-top:16px;
-  border-top: 1px solid rgba(255,255,255,.05);
+.gradio-container details > summary {
+  color: var(--text2) !important;
+  font-size: 13px !important;
 }
 
-/* ── Scrollbar global ───────────────────────────────────────── */
-::-webkit-scrollbar { width: 7px; height: 7px; }
-::-webkit-scrollbar-track { background: rgba(255,255,255,.03); }
-::-webkit-scrollbar-thumb { background: rgba(124,58,237,.32); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,.55); }
+/* Code block */
+.gradio-container .code-wrap {
+  background: var(--bg2) !important;
+  border-color: var(--border) !important;
+  border-radius: var(--radius) !important;
+}
 
-/* ── Responsive ─────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  .nc-hero h1 { font-size: 30px; }
-  .nc-hero-stats { display: none; }
-  .nc-bento { grid-template-columns: 1fr 1fr; }
-  .nt1,.nt2,.nt3,.nt4,.nt5 { grid-column: span 2; }
-  .nc-review-grid { grid-template-columns: 1fr; }
-  .nc-kpi-grid { grid-template-columns: repeat(3,1fr); }
+/* ── Button ── */
+.gradio-container button.primary {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: var(--radius) !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  padding: 12px 24px !important;
+  cursor: pointer !important;
+  transition: background 0.15s, transform 0.1s !important;
+  letter-spacing: -0.01em !important;
+}
+.gradio-container button.primary:hover {
+  background: #4f46e5 !important;
+  transform: translateY(-1px) !important;
+}
+.gradio-container button.primary:active { transform: none !important; }
+
+/* ── Section label ── */
+.field-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+  margin-bottom: 10px;
+  margin-top: 20px;
+}
+
+/* ── Status pills / score badges ── */
+.pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.pill-green  { background: rgba(34,197,94,0.12);  color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+.pill-amber  { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+.pill-red    { background: rgba(239,68,68,0.12);  color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+.pill-indigo { background: rgba(99,102,241,0.12); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); }
+.pill-gray   { background: rgba(255,255,255,0.06); color: var(--text2); border: 1px solid var(--border2); }
+
+/* ── KPI row ── */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.kpi-box {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.kpi-val {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.kpi-lbl {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+  font-weight: 600;
+}
+.kpi-note { font-size: 11.5px; color: var(--text3); margin-top: 4px; }
+
+/* ── Score bar ── */
+.score-bar { height: 3px; background: var(--border2); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+.score-bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+.bar-green  { background: var(--green); }
+.bar-amber  { background: var(--amber); }
+.bar-red    { background: var(--red); }
+.bar-indigo { background: var(--accent2); }
+
+/* ── Trace card ── */
+.trace-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 12px;
+}
+.trace-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.trace-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.trace-meta { display: flex; align-items: center; gap: 8px; }
+.diff-block {
+  background: var(--bg3);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.diff-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--text3);
+  margin-bottom: 6px;
+}
+.diff-text {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.diff-text.after { color: var(--text); }
+.iter-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.iter-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--bg3); border: 1px solid var(--border2);
+}
+.iter-dot.accept { background: var(--green); border-color: var(--green); }
+.iter-dot.done   { background: var(--accent); border-color: var(--accent); }
+.iter-info { font-size: 11.5px; color: var(--text3); margin-left: 4px; }
+.trace-note { font-size: 11.5px; color: var(--amber); margin-top: 6px; }
+.violations { font-size: 11.5px; color: var(--text3); margin-top: 6px; line-height: 1.6; }
+
+/* ── Progress ── */
+.progress-wrap {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+}
+.progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.progress-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.progress-eta   { font-size: 12px; color: var(--text3); }
+.prog-track {
+  height: 3px;
+  background: var(--border2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.prog-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+.stage-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 18px;
+  overflow-x: auto;
+}
+.stage-node { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.stage-icon {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  background: var(--bg3); border: 1.5px solid var(--border2);
+  color: var(--text3);
+  transition: all 0.2s;
+}
+.stage-icon.active { border-color: var(--accent); color: var(--accent); background: rgba(99,102,241,0.1); }
+.stage-icon.done   { border-color: var(--green);  color: var(--green);  background: rgba(34,197,94,0.1); }
+.stage-lbl { font-size: 10px; color: var(--text3); margin-top: 4px; letter-spacing: 0.04em; }
+.stage-lbl.active { color: var(--accent2); }
+.stage-lbl.done   { color: var(--green); }
+.stage-conn {
+  flex: 1; height: 1.5px; background: var(--border2);
+  min-width: 20px; margin-bottom: 16px;
+  transition: background 0.3s;
+}
+.stage-conn.done { background: var(--green); }
+.log-feed {
+  font-size: 12px;
+  color: var(--text3);
+  line-height: 1.8;
+  max-height: 180px;
+  overflow-y: auto;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.log-feed .lok { color: var(--green); }
+.log-feed .ls  { color: var(--accent2); }
+.log-feed .ld  { color: var(--text3); }
+
+/* ── Review ── */
+.review-hero {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  margin-bottom: 16px;
+}
+.review-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.review-role { font-size: 17px; font-weight: 700; color: var(--text); }
+.review-sub  { font-size: 12.5px; color: var(--text3); margin-top: 3px; }
+.score-circle {
+  text-align: center;
+  flex-shrink: 0;
+}
+.score-num {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+.score-num.high  { color: var(--green); }
+.score-num.mid   { color: var(--amber); }
+.score-num.low   { color: var(--red); }
+.score-caption { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); margin-top: 3px; }
+.verdict {
+  font-size: 13px;
+  color: var(--text2);
+  font-style: italic;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  line-height: 1.5;
+}
+.review-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.review-col {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.review-col h5 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 700; margin-bottom: 10px; }
+.review-col ul { padding-left: 16px; }
+.review-col li { font-size: 13px; color: var(--text2); line-height: 1.7; }
+.review-col.weak li { color: #fca5a5; }
+.kw-row {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+}
+.kw-row h5 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 700; margin-bottom: 10px; }
+.tag {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  margin: 3px;
+}
+.tag.miss { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); color: #f87171; }
+
+/* ── JD table ── */
+.jd-block { margin-bottom: 20px; }
+.jd-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.nc-table-wrap { overflow-x: auto; }
+table.nc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+table.nc-table th {
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+  font-weight: 700;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+table.nc-table td {
+  padding: 9px 10px;
+  color: var(--text2);
+  border-bottom: 1px solid var(--border);
+}
+table.nc-table tr:last-child td { border-bottom: none; }
+table.nc-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.nc-table td.gap { color: var(--text3); font-size: 12px; }
+
+/* ── Error / warning ── */
+.msg-error {
+  background: rgba(239,68,68,0.07);
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  color: #fca5a5;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.msg-warn {
+  background: rgba(245,158,11,0.07);
+  border: 1px solid rgba(245,158,11,0.2);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  color: #fde68a;
+  font-size: 12.5px;
+  margin-top: 12px;
+}
+.msg-empty {
+  color: var(--text3);
+  font-size: 13.5px;
+  padding: 40px 20px;
+  text-align: center;
+  border: 1px dashed var(--border2);
+  border-radius: var(--radius);
+  line-height: 1.6;
+}
+
+/* ── Divider ── */
+.divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+/* ── Footer ── */
+.app-footer {
+  text-align: center;
+  color: var(--text3);
+  font-size: 12px;
+  padding: 24px 0 16px;
+  border-top: 1px solid var(--border);
+  margin-top: 32px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .review-cols { grid-template-columns: 1fr; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
 }
 """
 
@@ -725,96 +599,34 @@ button.nc-cta:active { transform:translateY(0) !important; }
 #  Shared helpers
 # ─────────────────────────────────────────────────────────────
 def _sc(score: float) -> str:
-    if score >= 80: return "high"
-    if score >= 60: return "mid"
+    if score >= 75: return "high"
+    if score >= 50: return "mid"
     return "low"
 
 
-def _kpi(label: str, value: str, klass: str = "", delta: str = "") -> str:
-    delta_html = f'<div class="kd">{delta}</div>' if delta else ""
+def _bar(score: float, cls: str = "") -> str:
+    pct = max(0.0, min(100.0, score))
+    bar_cls = cls or f"bar-{'green' if pct >= 75 else 'amber' if pct >= 50 else 'red'}"
+    return f'<div class="score-bar"><div class="score-bar-fill {bar_cls}" style="width:{pct:.0f}%"></div></div>'
+
+
+def _pill(text: str, kind: str = "gray") -> str:
+    return f'<span class="pill pill-{kind}">{text}</span>'
+
+
+def _empty(msg: str) -> str:
+    return f'<div class="msg-empty">{msg}</div>'
+
+
+def _kpi(label: str, value: str, note: str = "") -> str:
+    note_html = f'<div class="kpi-note">{note}</div>' if note else ""
     return (
-        f'<div class="nc-kpi {klass}">'
-        f'<div class="kv">{value}</div>'
-        f'<div class="kl">{label}</div>'
-        f'{delta_html}'
-        '</div>'
+        f'<div class="kpi-box">'
+        f'<div class="kpi-val">{value}</div>'
+        f'<div class="kpi-lbl">{label}</div>'
+        f'{note_html}'
+        f'</div>'
     )
-
-
-def _empty(icon: str, msg: str) -> str:
-    return f'<div class="nc-empty"><span class="big">{icon}</span>{msg}</div>'
-
-
-def _bar(score: float, max_score: float = 100.0) -> str:
-    pct = max(0.0, min(100.0, (score / max_score) * 100.0)) if max_score else 0.0
-    cls = _sc(score if max_score == 100 else (score / max_score) * 100.0)
-    return f'<div class="nc-bar {cls}"><i style="width:{pct:.0f}%"></i></div>'
-
-
-# ─────────────────────────────────────────────────────────────
-#  Hero
-# ─────────────────────────────────────────────────────────────
-def _hero_html() -> str:
-    return """
-<div class="nc-orbs">
-  <div class="nc-orb nc-orb-a"></div>
-  <div class="nc-orb nc-orb-b"></div>
-  <div class="nc-orb nc-orb-c"></div>
-</div>
-<div class="nc-hero">
-  <div class="nc-hero-grid"></div>
-  <div class="nc-hero-glow"></div>
-  <h1>AI Resume Enhancer</h1>
-  <p class="tagline">
-    Upload your <b>.tex</b> resume, choose a target role, and a multi-agent pipeline will rewrite every
-    section with role-tuned keywords, ATS alignment, and hiring-manager quality checks —
-    without inventing or dropping any of your facts.
-  </p>
-  <div class="badges">
-    <span class="nc-badge p">Multi-Agent</span>
-    <span class="nc-badge c">Fact-Preserving</span>
-    <span class="nc-badge e">ATS-Optimized</span>
-    <span class="nc-badge p">Overleaf-Ready</span>
-    <span class="nc-badge c">Role-Aligned</span>
-    <span class="nc-badge e">Critic-Reviewed</span>
-  </div>
-  <div class="nc-hero-stats">
-    <div class="nc-hero-stat"><div class="val">8</div><div class="lbl">Agents</div></div>
-    <div class="nc-hero-stat"><div class="val">5</div><div class="lbl">Safety Guards</div></div>
-    <div class="nc-hero-stat"><div class="val">∞</div><div class="lbl">Roles</div></div>
-  </div>
-</div>
-"""
-
-
-# ─────────────────────────────────────────────────────────────
-#  Bento feature tiles
-# ─────────────────────────────────────────────────────────────
-def _bento_html() -> str:
-    return """
-<div class="nc-bento">
-  <div class="nc-tile nt1">
-    <h4>Role-Tuned Engine</h4>
-    <p>Restructures and rewrites every section for your chosen target role, adapting order, tone and keyword emphasis.</p>
-  </div>
-  <div class="nc-tile nt2">
-    <h4>Zero Data Loss</h4>
-    <p>Protected terms, numbers and facts are extracted before any rewrite and verified after.</p>
-  </div>
-  <div class="nc-tile nt3">
-    <h4>Live Pipeline</h4>
-    <p>Watch each agent stage complete in real-time with animated progress and estimated wait.</p>
-  </div>
-  <div class="nc-tile nt4">
-    <h4>Market Validation — JD Match + Hiring-Manager Sim</h4>
-    <p>Your enhanced resume is scored against curated job descriptions and reviewed through a simulated hiring-manager lens for each target role.</p>
-  </div>
-  <div class="nc-tile nt5">
-    <h4>Overleaf Output</h4>
-    <p>Download the .tex and compile to PDF directly in Overleaf — no local LaTeX needed.</p>
-  </div>
-</div>
-"""
 
 
 # ─────────────────────────────────────────────────────────────
@@ -823,353 +635,282 @@ def _bento_html() -> str:
 def _summary_html(result: PipelineResult) -> str:
     if result.status == "error":
         errs = "<br>".join(result.errors) or "Unknown error."
-        return (
-            '<div class="nc-err">'
-            '<div class="et">Pipeline failed</div>'
-            f'<div class="eb">{errs}</div>'
-            '</div>'
-        )
+        return f'<div class="msg-error"><b>Pipeline failed</b><br>{errs}</div>'
 
     sections_changed = sum(1 for t in result.section_traces if t.changed)
     sections_total   = len(result.section_traces)
     elapsed          = f"{result.elapsed_ms / 1000:.1f}s"
     ats              = result.ats.score if result.ats else 0.0
     review_score     = result.role_reviews[0].overall_score if result.role_reviews else 0.0
-    jd_delta         = result.jd_report.avg_delta if result.jd_report else 0.0
     jd_after         = result.jd_report.avg_score_after if result.jd_report else 0.0
-    delta_str        = f"{jd_delta:+.1f} vs original" if jd_delta else ""
+    jd_delta         = result.jd_report.avg_delta if result.jd_report else 0.0
     role_pretty      = ROLES.get(result.role, result.role)
-    backend_pretty   = {"claude_code": "Claude Code", "anthropic": "Anthropic API", "huggingface": "HuggingFace"}.get(result.backend, result.backend)
+    delta_str        = f"{jd_delta:+.1f} vs before" if jd_delta else ""
 
     kpis = "".join([
-        _kpi("Status",          result.status.upper(),             "emerald" if result.status == "complete" else "amber"),
-        _kpi("Sections",        f"{sections_changed}/{sections_total}", "purple"),
-        _kpi("ATS Score",       f"{ats:.0f}/100",                   _sc(ats)),
-        _kpi("Hiring Manager",  f"{review_score:.0f}/100",          _sc(review_score), f"target: {role_pretty}"),
-        _kpi("JD Match",        f"{jd_after:.0f}/100",              "teal",            delta_str),
-        _kpi("Elapsed",         elapsed,                            "slate",           f"via {backend_pretty}"),
+        _kpi("Sections changed",  f"{sections_changed}/{sections_total}"),
+        _kpi("ATS score",         f"{ats:.0f}",         f"/100"),
+        _kpi("Hiring manager",    f"{review_score:.0f}", f"/100 · {role_pretty}"),
+        _kpi("JD match",          f"{jd_after:.0f}",    delta_str),
+        _kpi("Elapsed",           elapsed),
     ])
 
     warnings = ""
     if result.warnings:
-        ws = "".join(f"<li>{w}</li>" for w in result.warnings)
-        warnings = (
-            '<div class="nc-warn" style="margin-top:14px">'
-            '<div class="wt">Notes</div>'
-            f'<ul>{ws}</ul></div>'
-        )
+        ws = "  ·  ".join(result.warnings[:3])
+        warnings = f'<div class="msg-warn">{ws}</div>'
 
-    return f'<div class="nc-kpi-grid">{kpis}</div>{warnings}'
+    return f'<div class="kpi-row">{kpis}</div>{warnings}'
 
 
 def _sections_html(result: PipelineResult) -> str:
     if not result.section_traces:
-        return _empty("⬡", "Per-section before/after traces will appear here once the pipeline runs.")
+        return _empty("Section traces will appear here after enhancement.")
     rows = []
     for t in result.section_traces:
-        sc   = _sc(t.final_score)
-        flags = ""
+        sc = _sc(t.final_score)
+        changed_pill = _pill("changed", "green") if t.changed else _pill("unchanged", "gray")
+        score_pill   = _pill(f"{t.final_score:.0f}", sc if sc != "high" else "indigo")
+
+        iter_dots = ""
         if t.iterations:
-            last = t.iterations[-1]
-            if last.violations:
-                flags = (
-                    '<div class="nc-flags"><b>Critic flags:</b> '
-                    + "; ".join(last.violations[:4]) + '</div>'
-                )
-        iter_dots = []
-        for s in t.iterations:
-            cls = "accept" if s.accepted else ("done" if s.verdict != "error" else "")
-            iter_dots.append(f'<span class="nc-iter-dot {cls}" title="iter {s.iteration}: {s.score:.0f}"></span>')
-        iter_row = (
-            '<div class="nc-iter-row">'
-            + "".join(iter_dots)
-            + f'<span class="nc-iter-dim">{t.iterations_used} iter · final {t.final_score:.0f}/100</span>'
-            + '</div>'
-        ) if iter_dots else ""
-        note = (
-            f'<div class="nc-trace-note">{t.note}</div>'
-        ) if t.note else ""
-        change_badge = (
-            '<span class="nc-s changed">CHANGED</span>'
-            if t.changed else
-            '<span class="nc-s unch">UNCHANGED</span>'
-        )
+            dots = []
+            for s in t.iterations:
+                cls = "accept" if s.accepted else ("done" if s.verdict != "error" else "")
+                dots.append(f'<span class="iter-dot {cls}" title="iter {s.iteration}: {s.score:.0f}"></span>')
+            iter_dots = (
+                '<div class="iter-row">'
+                + "".join(dots)
+                + f'<span class="iter-info">{t.iterations_used} iter · score {t.final_score:.0f}/100</span>'
+                + '</div>'
+            )
+
+        violations = ""
+        if t.iterations and t.iterations[-1].violations:
+            vlist = "; ".join(t.iterations[-1].violations[:3])
+            violations = f'<div class="violations">Critic: {vlist}</div>'
+
+        note = f'<div class="trace-note">{t.note}</div>' if t.note else ""
+
         rows.append(
-            '<div class="nc-trace-card">'
-            '<div class="nc-trace-hd">'
-            f'<span class="nc-trace-lbl">{t.label}</span>'
-            f'<div class="nc-trace-meta">'
-            f'<span class="nc-s {sc}">{t.final_score:.0f}</span>'
-            f'{change_badge}'
-            '</div></div>'
-            f'<div class="nc-diff-before"><span class="nc-diff-lbl">Before</span>{t.before}</div>'
-            f'<div class="nc-diff-after"><span class="nc-diff-lbl">After</span>{t.after}</div>'
-            f'{flags}{iter_row}{note}'
-            '</div>'
+            f'<div class="trace-card">'
+            f'<div class="trace-head">'
+            f'<span class="trace-label">{t.label}</span>'
+            f'<div class="trace-meta">{score_pill}{changed_pill}</div>'
+            f'</div>'
+            f'<div class="diff-block"><div class="diff-tag">Before</div><div class="diff-text">{t.before}</div></div>'
+            f'<div class="diff-block"><div class="diff-tag">After</div><div class="diff-text after">{t.after}</div></div>'
+            f'{violations}{iter_dots}{note}'
+            f'</div>'
         )
     return "\n".join(rows)
 
 
 def _review_html(result: PipelineResult) -> str:
     if not result.role_reviews:
-        return _empty("◑", "Hiring-manager review will appear here after enhancement.")
+        return _empty("Hiring-manager review will appear here after enhancement.")
     r  = result.role_reviews[0]
     sc = _sc(r.overall_score)
-    strengths  = "".join(f"<li>{s}</li>" for s in r.strengths)  or "<li><i>none returned</i></li>"
-    weaknesses = "".join(f"<li>{w}</li>" for w in r.weaknesses) or "<li><i>none</i></li>"
-    missing    = "".join(f'<span class="nc-tag miss">{k}</span>' for k in r.missing_keywords) or '<span class="nc-tag">none</span>'
+
+    strengths  = "".join(f"<li>{s}</li>" for s in r.strengths)  or "<li><i>None returned</i></li>"
+    weaknesses = "".join(f"<li>{w}</li>" for w in r.weaknesses) or "<li><i>None</i></li>"
+    missing    = "".join(f'<span class="tag miss">{k}</span>' for k in r.missing_keywords) or '<span class="tag">None</span>'
 
     hero = (
-        '<div class="nc-review-hero">'
-        '<div class="nc-review-top">'
-        '<div>'
-        f'<h2 class="nc-review-h2">{r.role_name}</h2>'
-        '<p class="nc-review-sub">Simulated hiring-manager read against this role profile</p>'
-        '</div>'
-        '<div class="nc-score-box">'
-        f'<div class="nc-score-num {sc}">{r.overall_score:.0f}</div>'
-        '<div class="nc-score-lbl">Phone-screen<br>likelihood</div>'
-        '</div>'
-        '</div>'
-        f'<div style="margin-top:16px">{_bar(r.overall_score)}</div>'
-        f'<div class="nc-verdict">"{r.one_line_verdict}"</div>'
-        '</div>'
+        f'<div class="review-hero">'
+        f'<div class="review-top">'
+        f'<div><div class="review-role">{r.role_name}</div>'
+        f'<div class="review-sub">Simulated hiring-manager evaluation</div></div>'
+        f'<div class="score-circle">'
+        f'<div class="score-num {sc}">{r.overall_score:.0f}</div>'
+        f'<div class="score-caption">Phone-screen<br>likelihood</div>'
+        f'</div></div>'
+        f'{_bar(r.overall_score)}'
+        f'<div class="verdict">"{r.one_line_verdict}"</div>'
+        f'</div>'
     )
-    grid = (
-        '<div class="nc-review-grid">'
-        f'<div class="nc-review-col"><h5>Strengths</h5><ul>{strengths}</ul></div>'
-        f'<div class="nc-review-col weak"><h5>Weaknesses</h5><ul>{weaknesses}</ul></div>'
-        '</div>'
+
+    cols = (
+        f'<div class="review-cols">'
+        f'<div class="review-col"><h5>Strengths</h5><ul>{strengths}</ul></div>'
+        f'<div class="review-col weak"><h5>Weaknesses</h5><ul>{weaknesses}</ul></div>'
+        f'</div>'
     )
+
     kw = (
-        '<div class="nc-kw-card">'
-        '<h5>Missing high-impact keywords</h5>'
+        f'<div class="kw-row">'
+        f'<h5>Missing keywords</h5>'
         f'{missing}'
-        '</div>'
+        f'</div>'
     )
 
     extra = ""
     if len(result.role_reviews) > 1:
-        chips = []
+        rows = []
         for rr in result.role_reviews[1:]:
             kc = _sc(rr.overall_score)
-            chips.append(
-                '<div class="nc-card" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;margin-top:10px">'
-                f'<div><b style="color:var(--nc-text)">{rr.role_name}</b>'
-                f'<div style="font-size:12px;color:var(--nc-text3);margin-top:2px">"{rr.one_line_verdict}"</div></div>'
-                f'<span class="nc-s {kc}">{rr.overall_score:.0f}</span></div>'
+            rows.append(
+                f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                f'padding:10px 0;border-bottom:1px solid var(--border)">'
+                f'<div><div style="font-size:13px;color:var(--text);font-weight:600">{rr.role_name}</div>'
+                f'<div style="font-size:12px;color:var(--text3);margin-top:2px">"{rr.one_line_verdict}"</div></div>'
+                f'{_pill(str(int(rr.overall_score)), kc if kc != "high" else "indigo")}'
+                f'</div>'
             )
         extra = (
-            '<div style="margin-top:16px">'
-            '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--nc-text3);font-weight:800;margin-bottom:4px">Cross-role</div>'
-            + "".join(chips) + "</div>"
+            f'<div style="background:var(--bg2);border:1px solid var(--border);'
+            f'border-radius:var(--radius);padding:16px 18px;margin-top:12px">'
+            f'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;'
+            f'color:var(--text3);font-weight:700;margin-bottom:10px">Cross-role scores</div>'
+            + "".join(rows) + "</div>"
         )
-    return hero + grid + kw + extra
+
+    return hero + cols + kw + extra
 
 
 def _jd_html(result: PipelineResult) -> str:
     bits = []
     if result.jd_report and result.jd_report.samples:
-        bits.append(_jd_table(result.jd_report, "Target role"))
+        bits.append(_jd_block(result.jd_report, "Target role"))
     for r in result.cross_role_jd_reports:
-        bits.append(_jd_table(r, "Cross-validation"))
+        bits.append(_jd_block(r, "Cross-validation"))
     if not bits:
-        return _empty("◌", "JD matching is off, or no JDs are loaded for this role.")
-    return "\n\n".join(bits)
+        return _empty("JD matching is off or no JDs are loaded for this role.")
+    return "\n".join(bits)
 
 
-def _jd_table(report, kind: str) -> str:
+def _jd_block(report, kind: str) -> str:
     role_pretty = ROLES.get(report.role_id, report.role_id)
-    rows_html = [
+    delta_cls = "high" if report.avg_delta >= 5 else ("mid" if report.avg_delta >= 0 else "low")
+
+    rows = [
         "<tr><th>Job Description</th><th>Archetype</th>"
         "<th class='num'>Before</th><th class='num'>After</th>"
         "<th class='num'>Δ</th><th>Top gaps</th></tr>"
     ]
     for s in report.samples:
-        klass = "high" if s.delta >= 5 else ("mid" if s.delta >= 0 else "low")
-        gaps = ", ".join(s.missing_keywords[:5]) or "—"
-        rows_html.append(
-            f'<tr><td><b>{s.title}</b></td>'
-            f'<td><span class="nc-tag">{s.company_archetype}</span></td>'
+        klass = "green" if s.delta >= 5 else ("amber" if s.delta >= 0 else "red")
+        gaps  = ", ".join(s.missing_keywords[:4]) or "—"
+        rows.append(
+            f'<tr><td><b style="color:var(--text)">{s.title}</b></td>'
+            f'<td><span class="tag">{s.company_archetype}</span></td>'
             f'<td class="num">{s.score_before:.0f}</td>'
             f'<td class="num">{s.score_after:.0f}</td>'
-            f'<td><span class="nc-s {klass}">{s.delta:+.1f}</span></td>'
+            f'<td class="num">{_pill(f"{s.delta:+.1f}", klass)}</td>'
             f'<td class="gap">{gaps}</td></tr>'
         )
-    table = '<div class="nc-table-wrap"><table class="nc-table">' + "".join(rows_html) + "</table></div>"
 
-    delta_cls = "high" if report.avg_delta >= 5 else ("mid" if report.avg_delta >= 0 else "low")
-    avg_block = (
-        f'<div style="display:flex;justify-content:space-between;align-items:center;'
-        f'margin-bottom:14px;flex-wrap:wrap;gap:8px">'
-        f'<div><b style="font-size:15px;letter-spacing:-.015em;color:var(--nc-text)">{role_pretty}</b> '
-        f'<span class="nc-tag" style="margin-left:6px">{kind}</span></div>'
-        f'<div style="font-size:13px;color:var(--nc-text2)">'
-        f'avg: <b style="color:var(--nc-text)">{report.avg_score_before:.1f}</b> → '
-        f'<b style="color:var(--nc-text)">{report.avg_score_after:.1f}</b> '
-        f'<span class="nc-s {delta_cls}" style="margin-left:6px">{report.avg_delta:+.1f}</span>'
-        f'</div></div>'
+    title_html = (
+        f'<div class="jd-title">'
+        f'<span style="color:var(--text);font-weight:700">{role_pretty}</span>'
+        f'{_pill(kind, "gray")}'
+        f'<span style="font-size:13px;color:var(--text2);font-weight:400;margin-left:auto">'
+        f'{report.avg_score_before:.1f} → {report.avg_score_after:.1f} '
+        f'{_pill(f"{report.avg_delta:+.1f}", delta_cls if delta_cls != "high" else "indigo")}'
+        f'</span></div>'
     )
-    gaps_block = ""
+
+    gaps_html = ""
     if report.top_gaps:
-        gaps = "".join(f'<span class="nc-tag miss">{k}</span>' for k in report.top_gaps)
-        gaps_block = (
-            '<div style="margin-top:14px">'
-            '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--nc-text3);font-weight:800;margin-bottom:8px">Top gaps</div>'
-            f'{gaps}</div>'
+        gaps_html = (
+            f'<div style="margin-top:12px">'
+            f'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;'
+            f'color:var(--text3);font-weight:700;margin-bottom:8px">Top gaps</div>'
+            + "".join(f'<span class="tag miss">{k}</span>' for k in report.top_gaps)
+            + "</div>"
         )
-    return f'<div class="nc-card">{avg_block}{table}{gaps_block}</div>'
 
-
-# ─────────────────────────────────────────────────────────────
-#  Setup tab
-# ─────────────────────────────────────────────────────────────
-def _setup_html() -> str:
-    statuses = detect_available_backends()
-    instructions = {
-        "huggingface": (
-            "# Free tier — recommended for quick testing.\n"
-            "# 1. Create a free token:\n"
-            "#    https://huggingface.co/settings/tokens\n\n"
-            "# 2. Set the env var:\n"
-            "$env:HF_API_KEY='hf_...'      # PowerShell\n"
-            "export HF_API_KEY='hf_...'    # bash/zsh\n\n"
-            "# 3. Restart the app."
-        ),
-    }
-    cards = []
-    for bid, info in statuses.items():
-        klass = "ready" if info["ready"] else ""
-        instr = instructions.get(bid, "")
-        cards.append(
-            f'<div class="nc-setup-card {klass}">'
-            f'<h4>{info["name"]}</h4>'
-            f'<p class="why">{info["needs"]}</p>'
-            f'<div class="steps">{instr}</div>'
-            f'<span class="cost">{info["cost"]}</span>'
-            f'</div>'
-        )
-    grid = '<div class="nc-setup-grid">' + "".join(cards) + "</div>"
-
-    best = best_available_backend()
-    status_card = (
-        '<div class="nc-card" style="margin-top:14px;border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.07)">'
-        '<div class="nc-card-title" style="color:#6ee7b7">Auto-detected: '
-        f'<code style="background:rgba(0,0,0,.4);padding:2px 8px;border-radius:6px;font-size:11.5px">{best}</code></div>'
-        '<div class="nc-card-sub" style="color:#6ee7b7;opacity:.8">Ready to enhance. Switch to the Enhance tab.</div></div>'
-        if best else
-        '<div class="nc-card" style="margin-top:14px;border-color:rgba(244,63,94,.3);background:rgba(244,63,94,.07)">'
-        '<div class="nc-card-title" style="color:#fca5a5">No backend configured yet</div>'
-        '<div class="nc-card-sub" style="color:#fca5a5;opacity:.8">Set HF_API_KEY and restart. '
-        'Get a free token at huggingface.co/settings/tokens.</div></div>'
-    )
-    model_note = (
-        '<div class="nc-card" style="margin-top:14px">'
-        '<div class="nc-card-title">Recommended models</div>'
-        '<div class="nc-card-sub" style="margin-top:8px;line-height:1.8">'
-        'Generation: <code style="background:rgba(124,58,237,.15);padding:1px 7px;border-radius:5px;font-size:12px">Qwen/Qwen2.5-7B-Instruct</code> (open access)<br>'
-        'Extraction: <code style="background:rgba(124,58,237,.15);padding:1px 7px;border-radius:5px;font-size:12px">Qwen/Qwen2.5-7B-Instruct</code> (same model, no separate key needed)<br>'
-        '<span style="color:var(--nc-text3);font-size:12px">Note: <code>meta-llama/Llama-3.1-8B-Instruct</code> and <code>Qwen2.5-3B-Instruct</code> are '
-        'not available on the free serverless API — use Qwen2.5-7B-Instruct.</span>'
-        '</div></div>'
-    )
     return (
-        '<div class="nc-card" style="margin-bottom:14px">'
-        '<div class="nc-card-title">Backend Configuration</div>'
-        '<div class="nc-card-sub">Configure your AI provider. The app auto-detects whatever is set in your environment. '
-        'You can also override the API key and model IDs per run in the Enhance tab.</div>'
-        '</div>'
-        + grid + status_card + model_note
+        f'<div class="jd-block" style="background:var(--bg2);border:1px solid var(--border);'
+        f'border-radius:var(--radius);padding:18px 20px">'
+        f'{title_html}'
+        f'<div class="nc-table-wrap"><table class="nc-table">{"".join(rows)}</table></div>'
+        f'{gaps_html}</div>'
     )
 
 
 # ─────────────────────────────────────────────────────────────
-#  Progress HTML with pipeline stage nodes
+#  Progress rendering
 # ─────────────────────────────────────────────────────────────
 _STAGE_DEFS = [
-    ("parse",        "📄", "Parse"),
-    ("repair",       "🔧", "Repair"),
-    ("plan",         "📐", "Plan"),
-    ("enhance",      "✨", "Enhance"),
-    ("render",       "🖨", "Render"),
-    ("jd_match",     "🎯", "Validate"),
+    ("parse",    "📄", "Parse"),
+    ("repair",   "🔧", "Repair"),
+    ("plan",     "📐", "Plan"),
+    ("enhance",  "✨", "Enhance"),
+    ("render",   "🖨",  "Render"),
+    ("jd_match", "🎯", "Validate"),
 ]
-_ENHANCE_SUBSTAGES = {"enhance_plan", "section"}
+_ENHANCE_SUB = {"enhance_plan", "section"}
 
 
-def _stage_status(name: str, stages_done: set[str], current_stage: str) -> str:
-    norm = "enhance" if name in ("enhance_plan",) else name
-    if norm in stages_done:  return "done"
-    if current_stage and (norm == current_stage or (norm == "enhance" and current_stage in _ENHANCE_SUBSTAGES)):
+def _stage_status(name: str, done: set, current: str) -> str:
+    norm = "enhance" if name == "enhance_plan" else name
+    if norm in done: return "done"
+    if current and (norm == current or (norm == "enhance" and current in _ENHANCE_SUB)):
         return "active"
-    return "idle"
+    return ""
 
 
-def _progress_html(
-    lines: list[str],
-    percent: int,
-    *,
-    eta_s: int = 0,
-    stages_done: set | None = None,
-    current_stage: str = "",
-) -> str:
-    stages_done = stages_done or set()
-    eta_txt = f"~{eta_s}s remaining" if eta_s > 0 else "finishing up…"
+def _progress_html(lines: list[str], pct: int, *, eta_s: int = 0, done: set | None = None, current: str = "") -> str:
+    done = done or set()
+    eta  = f"~{eta_s}s remaining" if eta_s > 0 else "finishing…"
 
     nodes = []
     for i, (sid, icon, label) in enumerate(_STAGE_DEFS):
-        st = _stage_status(sid, stages_done, current_stage)
-        nodes.append(f'<div class="nc-stage-wrap"><div class="nc-stage-dot {st}">{icon}</div><div class="nc-stage-lbl {st}">{label}</div></div>')
+        st = _stage_status(sid, done, current)
+        nodes.append(
+            f'<div class="stage-node">'
+            f'<div class="stage-icon {st}">{icon}</div>'
+            f'<div class="stage-lbl {st}">{label}</div>'
+            f'</div>'
+        )
         if i < len(_STAGE_DEFS) - 1:
-            conn_cls = "done" if sid in stages_done else ""
-            nodes.append(f'<div class="nc-stage-conn {conn_cls}"></div>')
+            conn = "done" if sid in done else ""
+            nodes.append(f'<div class="stage-conn {conn}"></div>')
 
-    items = "".join(f"<div>{ln}</div>" for ln in lines[-32:])
+    log_items = "".join(f"<div>{ln}</div>" for ln in lines[-24:])
+
     return (
-        '<div class="nc-pipeline">'
-        '<div class="nc-pipeline-hd">'
-        '<span class="nc-pipeline-title">⚡ Processing your resume</span>'
-        f'<span class="nc-pipeline-eta">{percent}% · {eta_txt}</span>'
-        '</div>'
-        f'<div class="nc-prog-bar"><div class="nc-prog-fill" style="width:{percent}%"></div></div>'
-        f'<div class="nc-stages">{"".join(nodes)}</div>'
-        f'<div class="nc-log">{items}</div>'
-        '</div>'
+        f'<div class="progress-wrap">'
+        f'<div class="progress-head">'
+        f'<span class="progress-title">Processing your resume</span>'
+        f'<span class="progress-eta">{pct}% · {eta}</span>'
+        f'</div>'
+        f'<div class="prog-track"><div class="prog-fill" style="width:{pct}%"></div></div>'
+        f'<div class="stage-row">{"".join(nodes)}</div>'
+        f'<div class="log-feed">{log_items}</div>'
+        f'</div>'
     )
 
 
-def _format_event(event: str, data: dict) -> str:
+def _fmt_event(event: str, data: dict) -> str:
     if event == "stage":
-        name   = data.get("name", "")
+        name = data.get("name", "")
         status = data.get("status", "")
         friendly = {
-            "parse":        "Reading and validating resume",
-            "repair":       "Repairing missing fields",
-            "complete":     "Filling required placeholders",
-            "plan":         "Adapting structure for role",
-            "enhance_plan": "Planning rewrite workload",
-            "render":       "Generating final LaTeX",
-            "jd_match":     "Validating against role JDs",
-            "llm_split":    "Optimizing model routing",
+            "parse": "Parsing resume", "repair": "Repairing fields",
+            "complete": "Filling placeholders", "plan": "Planning rewrite",
+            "enhance_plan": "Enhance plan ready", "render": "Rendering LaTeX",
+            "jd_match": "JD validation",
         }.get(name, "Processing")
-        css  = "lok" if status == "done" else "ls"
+        css = "lok" if status == "done" else "ls"
         extra = ""
         if name == "enhance_plan" and status == "done":
-            extra = f' <span class="ld">(items: {data.get("total_units",0)}, mode: {data.get("mode","")})</span>'
+            extra = f' <span class="ld">({data.get("total_units", 0)} items)</span>'
         return f'<span class="{css}">{friendly} · {status}</span>{extra}'
     if event == "section":
         label  = data.get("label", "")
         status = data.get("status", "")
         if status == "done":
-            return f'  <span class="lok">✓ section done</span> <span class="ld">{label}</span>'
-        return f'  <span class="ld">↻ in progress: {label}</span>'
+            return f'<span class="lok">✓</span> <span class="ld">{label}</span>'
+        return f'<span class="ld">↻ {label}</span>'
     if event == "review":
-        return f'  <span class="ls">hiring-manager review · {data.get("status","")}</span>'
-    return f'<span class="ld">{event}: {data}</span>'
+        return f'<span class="ls">review · {data.get("status", "")}</span>'
+    return f'<span class="ld">{event}</span>'
 
 
 # ─────────────────────────────────────────────────────────────
-#  Enhance handler
+#  Enhance handler  (no changes to logic)
 # ─────────────────────────────────────────────────────────────
 def _enhance_handler(
     file,
@@ -1186,33 +927,33 @@ def _enhance_handler(
     optimization_mode: str,
 ):
     blank = (
-        _empty("⬡", "Section traces appear here after enhancement."),
-        _empty("◑", "Hiring-manager review appears here."),
-        _empty("◌", "JD scores appear here."),
+        _empty("Section traces appear here after enhancement."),
+        _empty("Hiring-manager review appears here."),
+        _empty("JD scores appear here."),
         None, "",
         gr.update(visible=False),
     )
 
     if file is None:
-        yield (_empty("↑", "Upload a <b>.tex</b> resume on the left, pick a role, then click <b>Enhance</b>."), *blank)
+        yield (_empty("Upload a <b>.tex</b> resume, choose a target role, then click <b>Enhance Resume</b>."), *blank)
         return
 
     tex_path = Path(file.name if hasattr(file, "name") else file)
     if tex_path.suffix.lower() != ".tex":
-        yield (_empty("⚠", "Please upload a <b>.tex</b> file. PDF is not supported — .tex preserves all structured data."), *blank)
+        yield (_empty("Please upload a <b>.tex</b> file. PDF is not supported."), *blank)
         return
 
     try:
         fsize = tex_path.stat().st_size
         if fsize > settings.max_upload_bytes:
-            yield (_empty("⚠", f"File too large ({fsize//1024}KB). Max: {settings.max_upload_kb}KB."), *blank)
+            yield (_empty(f"File too large ({fsize // 1024} KB). Max: {settings.max_upload_kb} KB."), *blank)
             return
     except Exception:
         pass
 
     rate_err = _check_rate_limit()
     if rate_err:
-        yield (_empty("⏳", rate_err), *blank)
+        yield (_empty(rate_err), *blank)
         return
 
     if groq_api_key.strip():
@@ -1228,11 +969,11 @@ def _enhance_handler(
         backend = "groq" if os.environ.get("GROQ_API_KEY") else "huggingface"
 
     if backend != "auto" and not is_backend_configured(backend):
-        yield (_empty("⚠", f"Backend <b>{backend}</b> is not configured. Check the Setup tab."), *blank)
+        yield (_empty(f"Backend <b>{backend}</b> is not configured. Add your API key above."), *blank)
         return
 
     if backend == "auto" and best_available_backend() is None:
-        yield (_empty("○", "No AI backend is available. Configure one via the Setup tab."), *blank)
+        yield (_empty("No AI backend configured. Add a Groq API key above."), *blank)
         return
 
     section_budget = 140 if optimization_mode == "accuracy" else (100 if optimization_mode == "balanced" else 70)
@@ -1251,7 +992,7 @@ def _enhance_handler(
     )
 
     q: queue.Queue = queue.Queue()
-    holder: dict = {"result": None, "error": None}
+    holder: dict   = {"result": None, "error": None}
 
     def _progress(event: str, data: dict) -> None:
         try:
@@ -1271,18 +1012,16 @@ def _enhance_handler(
     t = threading.Thread(target=_worker, daemon=True, name="enhance-worker")
     t.start()
 
-    progress_lines: list[str] = ['<span class="ls">[start]</span> initializing pipeline…']
-    progress_pct  = 3
-    stage_weights = {
-        "parse": 10, "repair": 10, "complete": 8, "plan": 8,
-        "enhance_plan": 4, "render": 15, "jd_match": 15,
-    }
+    progress_lines: list[str] = ['<span class="ls">[start]</span> initializing…']
+    progress_pct   = 3
+    stage_weights  = {"parse": 10, "repair": 10, "complete": 8, "plan": 8,
+                      "enhance_plan": 4, "render": 15, "jd_match": 15}
     stages_done: set[str] = set()
-    current_stage = "parse"
-    rewrite_done  = 0
-    rewrite_total = 0
-    start_ts      = time.monotonic()
-    last_emit     = time.monotonic()
+    current_stage  = "parse"
+    rewrite_done   = 0
+    rewrite_total  = 0
+    start_ts       = time.monotonic()
+    last_emit      = time.monotonic()
 
     while True:
         try:
@@ -1292,7 +1031,7 @@ def _enhance_handler(
                 elapsed = max(1, int(time.monotonic() - start_ts))
                 eta     = max(0, int((elapsed / max(progress_pct, 1)) * (100 - progress_pct)))
                 yield (
-                    _progress_html(progress_lines, progress_pct, eta_s=eta, stages_done=stages_done, current_stage=current_stage),
+                    _progress_html(progress_lines, progress_pct, eta_s=eta, done=stages_done, current=current_stage),
                     *blank[:-3], None, "", gr.update(visible=False),
                 )
                 last_emit = time.monotonic()
@@ -1319,19 +1058,18 @@ def _enhance_handler(
             if rewrite_total > 0:
                 progress_pct = max(progress_pct, min(90, 35 + int((rewrite_done / rewrite_total) * 35)))
 
-        progress_lines.append(_format_event(event, data))
+        progress_lines.append(_fmt_event(event, data))
         last_emit = time.monotonic()
         elapsed   = max(1, int(time.monotonic() - start_ts))
         eta       = max(0, int((elapsed / max(progress_pct, 1)) * (100 - progress_pct)))
         yield (
-            _progress_html(progress_lines, progress_pct, eta_s=eta, stages_done=stages_done, current_stage=current_stage),
+            _progress_html(progress_lines, progress_pct, eta_s=eta, done=stages_done, current=current_stage),
             *blank[:-3], None, "", gr.update(visible=False),
         )
 
     if holder["error"]:
-        friendly = _friendly_error(holder["error"])
         yield (
-            f'<div class="nc-err"><div class="et">Enhancement could not complete</div><div class="eb">{friendly}</div></div>',
+            f'<div class="msg-error"><b>Enhancement failed</b><br>{_friendly_error(holder["error"])}</div>',
             *blank,
         )
         return
@@ -1348,102 +1086,90 @@ def _enhance_handler(
     )
 
 
-def _template_preview() -> str:
-    p = ROOT / "app" / "render" / "template.tex.j2"
-    try:
-        return p.read_text(encoding="utf-8", errors="replace")[:10000]
-    except Exception:
-        return "Template preview unavailable."
-
-
 # ─────────────────────────────────────────────────────────────
-#  Gradio app
+#  Build app
 # ─────────────────────────────────────────────────────────────
 def build_app() -> gr.Blocks:
     role_choices = [(name, rid) for rid, name in ROLES.items()]
 
     with gr.Blocks(
-        title="AI Resume Enhancer · Neural Canvas",
+        title="AI Resume Enhancer",
         theme=gr.themes.Base(
-            primary_hue="violet",
+            primary_hue="indigo",
             neutral_hue="slate",
-            radius_size="lg",
+            radius_size="md",
         ),
+        css=CSS,
     ) as app:
 
-        gr.HTML(_hero_html())
+        gr.HTML(
+            '<div class="app-header">'
+            '<div class="app-title">AI Resume Enhancer <span>·</span></div>'
+            '<div class="app-sub">'
+            'Upload your .tex resume, pick a target role, and get back an ATS-optimised, '
+            'Overleaf-ready .tex — facts preserved, no hallucinations.'
+            '</div></div>'
+        )
 
         # Hidden state
         critic_state = gr.State(True)
         review_state = gr.State(True)
         cross_state  = gr.State(False)
-        iter_state   = gr.State(3)
+        iter_state   = gr.State(4)
 
         with gr.Tabs():
-            # ── Enhance ──────────────────────────────────────────
-            with gr.Tab("⚡ Enhance"):
-                with gr.Row():
-                    with gr.Column(scale=1, min_width=320):
-                        gr.HTML(_bento_html())
 
-                        gr.HTML(
-                            '<div class="nc-card" style="margin-bottom:12px">'
-                            '<div class="nc-card-title"><span class="nc-step">1</span>Upload .tex resume</div>'
-                            '<div class="nc-card-sub">Output is also a .tex — paste into '
-                            '<a href="https://overleaf.com" target="_blank" style="color:#c4b5fd">Overleaf</a> to compile.</div></div>'
-                        )
+            # ── Enhance ──────────────────────────────────────────
+            with gr.Tab("Enhance"):
+                with gr.Row():
+                    # Left column — controls
+                    with gr.Column(scale=1, min_width=300):
+
+                        gr.HTML('<div class="field-label">Resume file</div>')
                         file_in = gr.File(
-                            label="Resume (.tex)",
+                            label="Upload .tex",
                             file_types=[".tex"],
                             file_count="single",
-                            height=130,
+                            height=110,
                         )
 
-                        gr.HTML(
-                            '<div class="nc-card" style="margin:12px 0">'
-                            '<div class="nc-card-title"><span class="nc-step">2</span>Target role</div>'
-                            '<div class="nc-card-sub">Keyword emphasis, section order, and bullet phrasing adapt to this role.</div></div>'
-                        )
+                        gr.HTML('<div class="field-label">Target role</div>')
                         role_in = gr.Dropdown(
-                            choices=role_choices, value="ai_ml_engineer",
-                            label="Target role", interactive=True,
+                            choices=role_choices,
+                            value="ai_ml_engineer",
+                            label="Role",
+                            interactive=True,
                         )
 
-                        gr.HTML(
-                            '<div class="nc-card" style="margin:12px 0">'
-                            '<div class="nc-card-title"><span class="nc-step">3</span>Quality vs speed</div>'
-                            '<div class="nc-card-sub">Accuracy-first runs more critic iterations per section. Speed-first skips the critic loop.</div></div>'
-                        )
+                        gr.HTML('<div class="field-label">Quality mode</div>')
                         opt_mode_in = gr.Radio(
                             choices=[
-                                ("Accuracy-first (recommended)", "accuracy"),
+                                ("Accuracy", "accuracy"),
                                 ("Balanced", "balanced"),
-                                ("Speed-first", "speed"),
+                                ("Speed", "speed"),
                             ],
                             value="accuracy",
-                            label="Optimization mode",
+                            label="Mode",
                         )
 
                         gr.HTML(
-                            '<div class="nc-card" style="margin:12px 0">'
-                            '<div class="nc-card-title"><span class="nc-step">4</span>API Key &amp; Provider</div>'
-                            '<div class="nc-card-sub">'
-                            '<b>Groq (recommended):</b> free at '
-                            '<a href="https://console.groq.com" target="_blank" style="color:#c4b5fd">console.groq.com</a>'
-                            ' — no credit card needed.<br>'
-                            '<b>Hugging Face:</b> free at '
-                            '<a href="https://huggingface.co/settings/tokens" target="_blank" style="color:#c4b5fd">huggingface.co/settings/tokens</a>.'
-                            '</div></div>'
+                            '<div class="field-label">Groq API key</div>'
+                            '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">'
+                            'Free at <a href="https://console.groq.com" target="_blank" '
+                            'style="color:var(--accent2)">console.groq.com</a> — no credit card'
+                            '</div>'
                         )
                         groq_key_in = gr.Textbox(
-                            label="Groq API key (recommended — free & fast)",
+                            label="Groq API key",
                             type="password",
                             placeholder="gsk_...",
+                            show_label=False,
                         )
+
                         backend_in = gr.Dropdown(
                             choices=[
-                                ("Groq  (Llama 4 Scout — free)", "groq"),
-                                ("Hugging Face  (Qwen 2.5 — free)", "huggingface"),
+                                ("Groq — Llama 4 Scout (free)", "groq"),
+                                ("HuggingFace — Qwen 2.5 (free)", "huggingface"),
                                 ("Auto-detect", "auto"),
                             ],
                             value="groq",
@@ -1451,7 +1177,7 @@ def build_app() -> gr.Blocks:
                             interactive=True,
                         )
 
-                        with gr.Accordion("HuggingFace key & model IDs", open=False):
+                        with gr.Accordion("HuggingFace settings", open=False):
                             hf_key_in = gr.Textbox(
                                 label="HuggingFace API key",
                                 type="password",
@@ -1467,94 +1193,53 @@ def build_app() -> gr.Blocks:
                             )
 
                         run_btn = gr.Button(
-                            "⚡  Enhance Resume",
-                            variant="primary", size="lg",
-                            elem_classes=["nc-cta"],
+                            "Enhance Resume",
+                            variant="primary",
+                            size="lg",
                         )
 
+                    # Right column — live output
                     with gr.Column(scale=2):
                         summary_out = gr.HTML(
-                            _empty("↑", "Upload a <b>.tex</b> resume on the left, choose a target role, then hit <b>Enhance</b>.")
-                        )
-                        gr.HTML(
-                            '<div class="nc-card" style="margin-top:12px">'
-                            '<div class="nc-card-title">Live pipeline progress</div>'
-                            '<div class="nc-card-sub">Stage-by-stage progress, animated nodes, and an estimated wait time '
-                            'will appear here while your resume is being processed.</div></div>'
+                            _empty("Upload a .tex resume and click <b>Enhance Resume</b> to begin.")
                         )
 
             # ── Sections ─────────────────────────────────────────
-            with gr.Tab("📄 Sections"):
-                gr.HTML(
-                    '<div class="nc-card" style="margin-bottom:14px">'
-                    '<div class="nc-card-title">Per-section before / after</div>'
-                    '<div class="nc-card-sub">Every rewritten section shows the original, the enhanced version, '
-                    'critic iteration dots, and the final score.</div></div>'
+            with gr.Tab("Sections"):
+                sections_out = gr.HTML(
+                    _empty("Per-section before / after will appear here after enhancement.")
                 )
-                sections_out = gr.HTML(_empty("⬡", "Section traces appear here after enhancement."))
 
             # ── Review ───────────────────────────────────────────
-            with gr.Tab("🎯 Review"):
-                gr.HTML(
-                    '<div class="nc-card" style="margin-bottom:14px">'
-                    '<div class="nc-card-title">Hiring-manager simulation</div>'
-                    '<div class="nc-card-sub">Strengths, weaknesses, missing keywords, and a phone-screen '
-                    'likelihood score for the target role.</div></div>'
+            with gr.Tab("Review"):
+                review_out = gr.HTML(
+                    _empty("Hiring-manager review will appear here after enhancement.")
                 )
-                review_out = gr.HTML(_empty("◑", "Review appears here after enhancement."))
 
             # ── JD Matching ───────────────────────────────────────
-            with gr.Tab("📊 JD Matching"):
-                gr.HTML(
-                    '<div class="nc-card" style="margin-bottom:14px">'
-                    '<div class="nc-card-title">Role job-description validation</div>'
-                    '<div class="nc-card-sub">Before/after scores across curated JDs for the target role, '
-                    'plus top keyword gaps to close.</div></div>'
+            with gr.Tab("JD Match"):
+                jd_out = gr.HTML(
+                    _empty("JD keyword scores will appear here after enhancement.")
                 )
-                jd_out = gr.HTML(_empty("◌", "JD scores appear here after enhancement."))
 
             # ── Download ─────────────────────────────────────────
-            with gr.Tab("⬇ Download"):
+            with gr.Tab("Download"):
                 with gr.Group(visible=False) as download_group:
                     gr.HTML(
-                        '<div class="nc-card" style="margin-bottom:12px">'
-                        '<div class="nc-card-title">Enhanced .tex output</div>'
-                        '<div class="nc-card-sub">Open in '
-                        '<a href="https://overleaf.com" target="_blank" style="color:#c4b5fd">Overleaf</a> '
-                        'to compile. Uses standard packages: '
-                        '<code style="background:rgba(124,58,237,.15);padding:1px 6px;border-radius:4px;font-size:11.5px">fontawesome5</code>, '
-                        '<code style="background:rgba(124,58,237,.15);padding:1px 6px;border-radius:4px;font-size:11.5px">sourcesanspro</code>, '
-                        '<code style="background:rgba(124,58,237,.15);padding:1px 6px;border-radius:4px;font-size:11.5px">tabularx</code>.</div></div>'
+                        '<div style="font-size:13px;color:var(--text2);margin-bottom:16px">'
+                        'Paste the .tex into <a href="https://overleaf.com" target="_blank" '
+                        'style="color:var(--accent2)">Overleaf</a> to compile to PDF.'
+                        '</div>'
                     )
                     tex_file_out = gr.File(label="Enhanced .tex", interactive=False)
                     tex_text_out = gr.Code(
-                        label="Preview (read-only)",
+                        label="Preview",
                         language="latex",
-                        lines=28,
+                        lines=30,
                         interactive=False,
                     )
 
-            # ── Template ─────────────────────────────────────────
-            with gr.Tab("📋 Template"):
-                gr.HTML(
-                    '<div class="nc-card" style="margin-bottom:12px">'
-                    '<div class="nc-card-title">Active Jinja2 LaTeX template</div>'
-                    '<div class="nc-card-sub">This is the template used to render the final .tex. '
-                    'Edit it in <code style="background:rgba(124,58,237,.15);padding:1px 6px;border-radius:4px;font-size:11.5px">app/render/template.tex.j2</code> to customize the layout.</div></div>'
-                )
-                gr.Code(
-                    value=_template_preview(),
-                    language="latex",
-                    lines=28,
-                    interactive=False,
-                    label="template.tex.j2",
-                )
-
-            # ── Setup ─────────────────────────────────────────────
-            with gr.Tab("⚙ Setup"):
-                setup_html = gr.HTML(_setup_html())
-
-        # Wire up the run button
+        # Wire up
         run_btn.click(
             _enhance_handler,
             inputs=[
@@ -1569,9 +1254,8 @@ def build_app() -> gr.Blocks:
         )
 
         gr.HTML(
-            '<div class="nc-footer">'
-            'v5 Neural Canvas · Multi-agent skill-driven · '
-            'HuggingFace optimized · Output: .tex (Overleaf-ready)'
+            '<div class="app-footer">'
+            'AI Resume Enhancer · Multi-agent · Fact-preserving · Overleaf-ready'
             '</div>'
         )
 
@@ -1589,5 +1273,4 @@ if __name__ == "__main__":
         server_port=int(os.environ.get("RESUME_UI_PORT", "7860")),
         show_error=True,
         auth=auth,
-        css=CSS,
     )
