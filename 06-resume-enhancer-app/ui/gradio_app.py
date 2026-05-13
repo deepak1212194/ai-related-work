@@ -22,11 +22,10 @@ if str(ROOT) not in sys.path:
 from app.core.config import settings                              # noqa: E402
 from app.core.ir import PipelineResult                           # noqa: E402
 from app.core.llm import (best_available_backend,               # noqa: E402
-                          detect_available_backends,
                           is_backend_configured)
 from app.core.skills import load_skills                          # noqa: E402
 from app.pipeline import (PipelineConfig, ROLES,                # noqa: E402
-                          list_role_keywords, run_pipeline)
+                          run_pipeline)
 
 logging.basicConfig(level=settings.log_level)
 log = logging.getLogger(__name__)
@@ -910,20 +909,12 @@ def _fmt_event(event: str, data: dict) -> str:
 
 
 # ─────────────────────────────────────────────────────────────
-#  Enhance handler  (no changes to logic)
+#  Enhance handler
 # ─────────────────────────────────────────────────────────────
 def _enhance_handler(
     file,
     role_id: str,
-    backend: str,
     groq_api_key: str,
-    hf_api_key: str,
-    hf_model: str,
-    hf_extraction_model: str,
-    enable_critic: bool,
-    enable_review: bool,
-    enable_cross: bool,
-    max_iter: int,
     optimization_mode: str,
 ):
     blank = (
@@ -958,34 +949,22 @@ def _enhance_handler(
 
     if groq_api_key.strip():
         os.environ["GROQ_API_KEY"] = groq_api_key.strip()
-    if hf_api_key.strip():
-        os.environ["HF_API_KEY"] = hf_api_key.strip()
-    if hf_model.strip():
-        os.environ["HF_MODEL"] = hf_model.strip()
-    if hf_extraction_model.strip():
-        os.environ["HF_EXTRACTION_MODEL"] = hf_extraction_model.strip()
 
-    if backend == "auto":
-        backend = "groq" if os.environ.get("GROQ_API_KEY") else "huggingface"
-
-    if backend != "auto" and not is_backend_configured(backend):
-        yield (_empty(f"Backend <b>{backend}</b> is not configured. Add your API key above."), *blank)
-        return
-
-    if backend == "auto" and best_available_backend() is None:
-        yield (_empty("No AI backend configured. Add a Groq API key above."), *blank)
+    if not is_backend_configured("groq") and best_available_backend() is None:
+        yield (_empty("No AI backend configured. Add a <b>Groq API key</b> above."), *blank)
         return
 
     section_budget = 140 if optimization_mode == "accuracy" else (100 if optimization_mode == "balanced" else 70)
     use_multi_llm  = optimization_mode in ("accuracy", "balanced")
 
     cfg = PipelineConfig(
-        role_id=role_id, backend=backend,
-        enable_critic=enable_critic,
-        enable_role_review=enable_review,
+        role_id=role_id,
+        backend="groq" if is_backend_configured("groq") else "auto",
+        enable_critic=True,
+        enable_role_review=True,
         enable_jd_matching=True,
-        enable_cross_role=enable_cross,
-        max_iterations=int(max_iter),
+        enable_cross_role=False,
+        max_iterations=4,
         enable_multi_llm=use_multi_llm,
         max_section_calls=section_budget,
         optimization_mode=optimization_mode,
@@ -1111,19 +1090,13 @@ def build_app() -> gr.Blocks:
             '</div></div>'
         )
 
-        # Hidden state
-        critic_state = gr.State(True)
-        review_state = gr.State(True)
-        cross_state  = gr.State(False)
-        iter_state   = gr.State(4)
-
         with gr.Tabs():
 
             # ── Enhance ──────────────────────────────────────────
             with gr.Tab("Enhance"):
                 with gr.Row():
                     # Left column — controls
-                    with gr.Column(scale=1, min_width=300):
+                    with gr.Column(scale=1, min_width=280):
 
                         gr.HTML('<div class="field-label">Resume file</div>')
                         file_in = gr.File(
@@ -1165,32 +1138,6 @@ def build_app() -> gr.Blocks:
                             placeholder="gsk_...",
                             show_label=False,
                         )
-
-                        backend_in = gr.Dropdown(
-                            choices=[
-                                ("Groq — Llama 4 Scout (free)", "groq"),
-                                ("HuggingFace — Qwen 2.5 (free)", "huggingface"),
-                                ("Auto-detect", "auto"),
-                            ],
-                            value="groq",
-                            label="Provider",
-                            interactive=True,
-                        )
-
-                        with gr.Accordion("HuggingFace settings", open=False):
-                            hf_key_in = gr.Textbox(
-                                label="HuggingFace API key",
-                                type="password",
-                                placeholder="hf_...",
-                            )
-                            hf_model_in = gr.Textbox(
-                                label="Generation model",
-                                value="Qwen/Qwen2.5-7B-Instruct",
-                            )
-                            hf_extract_model_in = gr.Textbox(
-                                label="Extraction model",
-                                value="Qwen/Qwen2.5-7B-Instruct",
-                            )
 
                         run_btn = gr.Button(
                             "Enhance Resume",
@@ -1242,11 +1189,7 @@ def build_app() -> gr.Blocks:
         # Wire up
         run_btn.click(
             _enhance_handler,
-            inputs=[
-                file_in, role_in, backend_in,
-                groq_key_in, hf_key_in, hf_model_in, hf_extract_model_in,
-                critic_state, review_state, cross_state, iter_state, opt_mode_in,
-            ],
+            inputs=[file_in, role_in, groq_key_in, opt_mode_in],
             outputs=[
                 summary_out, sections_out, review_out, jd_out,
                 tex_file_out, tex_text_out, download_group,
