@@ -35,14 +35,25 @@ class CriticAgent(Agent):
         after: str,
         *,
         is_final_iteration: bool = False,
+        priority_keywords: list[str] | None = None,
+        skills_context: str | None = None,
     ) -> dict:
         if not after.strip():
             return self._fallback("empty draft", is_final=is_final_iteration)
         try:
             sys = self.system_prompt()
+            kw_block = ""
+            if priority_keywords:
+                kw_block = (
+                    f"\nROLE_PRIORITY_KEYWORDS: {', '.join(priority_keywords[:20])}\n"
+                )
+            skills_block = ""
+            if skills_context:
+                skills_block = f"\nUSER_SKILLS:\n{skills_context[:600]}\n"
             user = (
-                f"SECTION_TYPE: {section_type}\n\n"
-                f"ORIGINAL:\n\"\"\"\n{before}\n\"\"\"\n\n"
+                f"SECTION_TYPE: {section_type}\n"
+                + kw_block + skills_block +
+                f"\nORIGINAL:\n\"\"\"\n{before}\n\"\"\"\n\n"
                 f"REWRITE:\n\"\"\"\n{after}\n\"\"\"\n\n"
                 "Output the JSON now."
             )
@@ -67,13 +78,22 @@ class CriticAgent(Agent):
         }
         total_raw = parsed.get("total")
         if total_raw is None:
-            total = sum(dim_scores.values())
+            # Normalise raw sum to 0-100: n_dims × 20 = max raw
+            n_dims = max(len(dim_scores), 1)
+            raw_sum = sum(dim_scores.values())
+            total = round(raw_sum / (n_dims * 20) * 100)
         else:
             total = coerce_score(total_raw, scale_to=100.0)
-            # If the model echoed a 0-20 average instead of a 0-100 sum,
-            # back off to the dimension sum which is the contract.
-            if total < 20 and dim_scores and sum(dim_scores.values()) > total + 5:
-                total = sum(dim_scores.values())
+            # If the model returned a 0-120 raw sum instead of normalised 0-100,
+            # normalise it ourselves.
+            if total > 100:
+                n_dims = max(len(dim_scores), 6)
+                total = round(total / (n_dims * 20) * 100)
+            elif total < 20 and dim_scores and sum(dim_scores.values()) > total + 5:
+                # Model echoed an average-per-dim; recompute from dimensions.
+                n_dims = max(len(dim_scores), 1)
+                raw_sum = sum(dim_scores.values())
+                total = round(raw_sum / (n_dims * 20) * 100)
         violations = parsed.get("violations") or []
         if not isinstance(violations, list):
             violations = [str(violations)]
@@ -95,6 +115,8 @@ class CriticAgent(Agent):
         drafts: list[str],
         *,
         is_final_iteration: bool = False,
+        priority_keywords: list[str] | None = None,
+        skills_context: str | None = None,
     ) -> dict:
         """Score a batch of bullet rewrites as a single block.
 
@@ -106,6 +128,8 @@ class CriticAgent(Agent):
             return self.score(
                 section_type, originals[0], drafts[0],
                 is_final_iteration=is_final_iteration,
+                priority_keywords=priority_keywords,
+                skills_context=skills_context,
             )
 
         non_empty = [(o, d) for o, d in zip(originals, drafts) if d.strip()]
@@ -116,11 +140,18 @@ class CriticAgent(Agent):
             f"--- Bullet {i + 1} ---\nOriginal: {o}\nRewrite:  {d}"
             for i, (o, d) in enumerate(non_empty)
         )
+        kw_block = ""
+        if priority_keywords:
+            kw_block = f"\nROLE_PRIORITY_KEYWORDS: {', '.join(priority_keywords[:20])}\n"
+        skills_block = ""
+        if skills_context:
+            skills_block = f"\nUSER_SKILLS:\n{skills_context[:600]}\n"
         try:
             sys  = self.system_prompt()
             user = (
-                f"SECTION_TYPE: {section_type}\n\n"
-                "Score the following block of bullet rewrites as a single unit. "
+                f"SECTION_TYPE: {section_type}\n"
+                + kw_block + skills_block +
+                "\nScore the following block of bullet rewrites as a single unit. "
                 "Return one JSON verdict covering the whole block.\n\n"
                 + pairs +
                 "\n\nOutput the JSON now."
@@ -143,11 +174,18 @@ class CriticAgent(Agent):
         dim_scores = {k: coerce_score(v, scale_to=20.0) for k, v in raw_scores.items()}
         total_raw  = parsed.get("total")
         if total_raw is None:
-            total = sum(dim_scores.values())
+            n_dims = max(len(dim_scores), 1)
+            raw_sum = sum(dim_scores.values())
+            total = round(raw_sum / (n_dims * 20) * 100)
         else:
             total = coerce_score(total_raw, scale_to=100.0)
-            if total < 20 and dim_scores and sum(dim_scores.values()) > total + 5:
-                total = sum(dim_scores.values())
+            if total > 100:
+                n_dims = max(len(dim_scores), 6)
+                total = round(total / (n_dims * 20) * 100)
+            elif total < 20 and dim_scores and sum(dim_scores.values()) > total + 5:
+                n_dims = max(len(dim_scores), 1)
+                raw_sum = sum(dim_scores.values())
+                total = round(raw_sum / (n_dims * 20) * 100)
         violations = parsed.get("violations") or []
         if not isinstance(violations, list):
             violations = [str(violations)]

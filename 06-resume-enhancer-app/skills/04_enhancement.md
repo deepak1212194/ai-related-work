@@ -14,8 +14,14 @@ You return ONLY the rewrite — no labels, no JSON, no commentary, no quotes.
 
 ## strict_output_contract
 
-1. **Zero fabrication.** Use ONLY facts in ORIGINAL + USER_SKILLS.
-   If a keyword is not evidenced by the input, do NOT add it.
+1. **Zero fabrication — but surface skills you can prove.**
+   - You may ONLY use facts from ORIGINAL text or USER_SKILLS.
+   - **If a keyword appears in USER_SKILLS but NOT in this bullet, you SHOULD
+     surface it naturally when the bullet's work genuinely involves it.**
+     Example: bullet says "built a search system" and USER_SKILLS lists FAISS —
+     you may write "built a search system using FAISS" because the user has FAISS.
+   - **Never invent** a skill, tool, metric, company, or outcome not evidenced
+     by ORIGINAL or USER_SKILLS.
 2. **Zero information loss.** Every tech term, proper noun, number, and
    experience-duration claim in ORIGINAL must appear in the rewrite.
    CRITICAL: "X years of experience" must survive verbatim.
@@ -82,12 +88,16 @@ Structure (each element is mandatory unless genuinely absent from input):
    Owned, Scaled, Optimized, Deployed, Automated, Migrated, Delivered, Refactored).
 2. **System or scope** — name the specific system ("the matching engine behind X",
    "the daily catalogue pipeline", "the post-incident triage workflow").
-3. **Technology** — 1-3 specific technologies / techniques from ORIGINAL.
+3. **Technology** — 1-3 specific technologies / techniques. Prefer terms from
+   ROLE_PRIORITY_KEYWORDS that are also in USER_SKILLS — if the bullet's work
+   involves a tool the user has (from USER_SKILLS), name it explicitly here.
 4. **Outcome** — latency, scale, accuracy lift, cost reduction, or strategic
    importance — ONLY if the number/outcome is stated in ORIGINAL.
    If no metric exists, close with strategic importance.
 
 Length: ≤ 360 characters. Never fabricate a metric. Never shorten by dropping tech terms.
+**Keyword coverage goal:** every term in ROLE_PRIORITY_KEYWORDS that also appears in
+USER_SKILLS should appear in the rewrite if naturally applicable to this bullet.
 
 ### bullet_examples
 

@@ -51,18 +51,35 @@ def relevant_keywords(
     *,
     max_items: int = 16,
 ) -> List[str]:
-    """Select role keywords that overlap with user evidence."""
+    """Select role keywords grounded in user evidence.
+
+    Priority tiers:
+      3 — keyword token(s) appear in BOTH the original bullet AND skills_context
+      2 — keyword appears in skills_context only (user has the skill but hasn't
+          mentioned it in this bullet — exactly the gap we want to fill)
+      1 — keyword appears in the original bullet only (retention case)
+      0 — keyword absent from both (not eligible: would require fabrication)
+    """
     if not role_keywords:
         return []
-    evidence = extract_terms(original) | extract_terms(skills_context)
+    orig_terms   = extract_terms(original)
+    skills_terms = extract_terms(skills_context)
     scored: List[tuple[int, str]] = []
     for kw in role_keywords:
         toks = [t for t in re.split(r"[^A-Za-z0-9+#./-]+", kw.lower()) if t]
         if not toks:
             continue
-        overlap = sum(1 for t in toks if t in evidence)
-        if overlap > 0:
-            scored.append((overlap, kw))
-    scored.sort(key=lambda x: (-x[0], x[1].lower()))
-    return normalize_terms([kw for _, kw in scored[:max_items]])
+        in_orig   = sum(1 for t in toks if t in orig_terms)
+        in_skills = sum(1 for t in toks if t in skills_terms)
+        if in_orig > 0 and in_skills > 0:
+            priority = 3
+        elif in_skills > 0:
+            priority = 2          # surface from skills into this bullet
+        elif in_orig > 0:
+            priority = 1          # keep what's already there
+        else:
+            continue              # genuinely absent from user's profile
+        scored.append((priority, in_orig + in_skills, kw))
+    scored.sort(key=lambda x: (-x[0], -x[1], x[2].lower()))
+    return normalize_terms([kw for _, _, kw in scored[:max_items]])
 

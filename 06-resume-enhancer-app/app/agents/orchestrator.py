@@ -111,6 +111,8 @@ class IterativeOrchestrator:
             critique = self.critic.score(
                 section_type, original, draft,
                 is_final_iteration=is_final,
+                priority_keywords=priority_keywords,
+                skills_context=skills_context,
             )
             score = float(critique.get("total", 0))
             verdict = critique.get("verdict", "iterate")
@@ -257,6 +259,8 @@ class IterativeOrchestrator:
             critique = self.critic.score_block(
                 section_type, originals, drafts,
                 is_final_iteration=is_final,
+                priority_keywords=priority_keywords,
+                skills_context=skills_context,
             )
             score   = float(critique.get("total", 0))
             verdict = critique.get("verdict", "iterate")

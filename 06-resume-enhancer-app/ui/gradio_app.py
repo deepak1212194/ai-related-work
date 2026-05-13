@@ -786,6 +786,45 @@ def _ts_ago(ts: float) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 #  Result renderers
 # ─────────────────────────────────────────────────────────────────────────────
+def _score_badge(val: float, label: str = "") -> str:
+    """Circular score badge with colour coding."""
+    color = "var(--emerald)" if val >= 75 else ("var(--amber)" if val >= 50 else "var(--rose)")
+    sub = f'<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:600;letter-spacing:.05em">{label}</div>' if label else ""
+    return (
+        f'<div style="display:flex;flex-direction:column;align-items:center;'
+        f'background:var(--bg3);border:1.5px solid {color}33;border-radius:10px;'
+        f'padding:10px 14px;min-width:64px;text-align:center">'
+        f'<div style="font-size:26px;font-weight:800;color:{color};letter-spacing:-0.05em;line-height:1">'
+        f'{val:.0f}</div>'
+        f'{sub}'
+        f'</div>'
+    )
+
+
+def _delta_badge(delta: float) -> str:
+    if delta > 0:
+        color, icon = "var(--emerald)", "▲"
+    elif delta < 0:
+        color, icon = "var(--rose)", "▼"
+    else:
+        color, icon = "var(--text3)", "–"
+    return (
+        f'<span style="font-size:13px;font-weight:700;color:{color};'
+        f'letter-spacing:-0.02em">{icon} {abs(delta):.1f}</span>'
+    )
+
+
+def _section_divider(title: str, icon: str = "") -> str:
+    ico = f'<span style="font-size:13px;margin-right:6px">{icon}</span>' if icon else ""
+    return (
+        f'<div style="display:flex;align-items:center;gap:8px;margin:20px 0 10px">'
+        f'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;'
+        f'font-weight:700;color:var(--text3)">{ico}{title}</div>'
+        f'<div style="flex:1;height:1px;background:var(--border)"></div>'
+        f'</div>'
+    )
+
+
 def _summary_html(r: PipelineResult) -> str:
     if r.status == "error":
         errs = "<br>".join(r.errors) or "Unknown error."
@@ -796,24 +835,75 @@ def _summary_html(r: PipelineResult) -> str:
     elapsed = f"{r.elapsed_ms / 1000:.1f}s"
     ats     = r.ats.score if r.ats else 0.0
     rev     = r.role_reviews[0].overall_score if r.role_reviews else 0.0
-    # Prefer custom JD report when available
     jd_r    = r.custom_jd_report or r.jd_report
     jd_a    = jd_r.avg_score_after if jd_r else 0.0
     jd_d    = jd_r.avg_delta if jd_r else 0.0
     role    = ROLES.get(r.role, r.role)
-    delta   = f"{jd_d:+.1f}" if jd_r else "—"
     jd_lbl  = "Custom JD" if r.custom_jd_report else "JD match"
 
-    kpis = "".join([
-        _kpi("Sections",  f"{changed}/{total}", "changed"),
-        _kpi("ATS score", f"{ats:.0f}",          "/100"),
-        _kpi("HM score",  f"{rev:.0f}",           f"/100 · {role}"),
-        _kpi(jd_lbl,      f"{jd_a:.0f}",          f"Δ {delta}"),
-        _kpi("Actions",   str(len(r.manual_actions)), "to fix"),
-        _kpi("Time",      elapsed),
-    ])
+    # ── Score scoreboard row ──
+    scores_row = (
+        f'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">'
+        f'{_score_badge(ats, "ATS")}'
+        f'{_score_badge(rev, "HM Score")}'
+        f'{_score_badge(jd_a, jd_lbl)}'
+        f'<div style="display:flex;flex-direction:column;align-items:center;'
+        f'background:var(--bg3);border:1.5px solid var(--border2);border-radius:10px;'
+        f'padding:10px 14px;min-width:64px;text-align:center">'
+        f'<div style="font-size:26px;font-weight:800;line-height:1">{_delta_badge(jd_d)}</div>'
+        f'<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:600;letter-spacing:.05em">JD delta</div>'
+        f'</div>'
+        f'<div style="display:flex;flex-direction:column;align-items:center;'
+        f'background:var(--bg3);border:1.5px solid var(--border2);border-radius:10px;'
+        f'padding:10px 14px;min-width:64px;text-align:center">'
+        f'<div style="font-size:26px;font-weight:800;color:var(--violet2);letter-spacing:-.05em;line-height:1">'
+        f'{changed}<span style="font-size:14px;color:var(--text3)">/{total}</span></div>'
+        f'<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:600;letter-spacing:.05em">Sections</div>'
+        f'</div>'
+        f'<div style="display:flex;flex-direction:column;align-items:center;'
+        f'background:var(--bg3);border:1.5px solid var(--border2);border-radius:10px;'
+        f'padding:10px 14px;min-width:64px;text-align:center">'
+        f'<div style="font-size:26px;font-weight:800;color:var(--text2);letter-spacing:-.05em;line-height:1">'
+        f'{elapsed}</div>'
+        f'<div style="font-size:9px;color:var(--text3);margin-top:3px;font-weight:600;letter-spacing:.05em">Time</div>'
+        f'</div>'
+        f'</div>'
+    )
 
-    # Persistent gaps callout
+    # ── ATS breakdown ──
+    ats_html = ""
+    if r.ats:
+        ats_html = (
+            f'<div style="background:var(--bg2);border:1px solid var(--border);'
+            f'border-radius:var(--radius-sm);padding:14px;margin-bottom:10px">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+            f'<div style="font-size:12.5px;font-weight:600;color:var(--text)">ATS Keyword Coverage</div>'
+            f'<div style="font-size:12px;color:var(--text3)">{r.ats.matched_count} / {r.ats.total_checked} matched</div>'
+            f'</div>'
+            f'{_bar(ats)}'
+            f'<div style="display:flex;gap:16px;margin-top:10px;font-size:11.5px;color:var(--text3)">'
+            f'<span style="color:var(--emerald)">✓ {r.ats.matched_count} matched</span>'
+            f'<span style="color:var(--rose)">✗ {len(r.ats.missing_high_impact)} missing</span>'
+            f'<span style="color:var(--amber)">⚠ {len(r.ats.presentation_gaps)} presentation gaps</span>'
+            f'</div>'
+            f'</div>'
+        )
+
+    # ── Manual actions callout ──
+    actions_html = ""
+    n_actions = len(r.manual_actions)
+    if n_actions > 0:
+        actions_html = (
+            f'<div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.18);'
+            f'border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px">'
+            f'<div style="font-size:12px;color:#fcd34d;font-weight:600">'
+            f'⚠ {n_actions} section{"s" if n_actions > 1 else ""} need manual attention</div>'
+            f'<div style="font-size:11.5px;color:var(--text3);margin-top:4px">'
+            f'See the Action Plan tab for specific fixes.</div>'
+            f'</div>'
+        )
+
+    # ── Persistent gaps callout ──
     pg = get_persistent_gaps(8)
     pg_html = ""
     if pg:
@@ -821,7 +911,7 @@ def _summary_html(r: PipelineResult) -> str:
         pg_html = (
             f'<div class="persistent-gap-banner">'
             f'<strong>Recurring gaps</strong> — these keywords have been missing '
-            f'across multiple runs. Consider addressing them directly:<br>'
+            f'across multiple runs. Consider addressing them in your resume:<br>'
             f'<div style="margin-top:7px">{tags}</div>'
             f'</div>'
         )
@@ -830,44 +920,53 @@ def _summary_html(r: PipelineResult) -> str:
     if r.warnings:
         warn = f'<div class="msg-warn">{"  ·  ".join(r.warnings[:3])}</div>'
 
-    return f'{pg_html}<div class="kpi-grid">{kpis}</div>{warn}'
+    # ── Role label ──
+    role_tag = (
+        f'<div style="font-size:11px;color:var(--text3);margin-bottom:14px">'
+        f'Target role: <span style="color:var(--violet3);font-weight:600">{role}</span>'
+        f'</div>'
+    )
+
+    return role_tag + scores_row + ats_html + actions_html + pg_html + warn
 
 
 def _action_plan_html(r: PipelineResult) -> str:
     """Tab 2: Manual action checklist + gap classification."""
     parts = []
 
-    # --- Manual actions ---
+    # ── Manual actions ──
+    parts.append(_section_divider("Manual fixes needed", "🔧"))
     if r.manual_actions:
         items_html = []
         for a in r.manual_actions:
             urgency = "urgent" if a.score < 50 else ("ok" if a.score >= 75 else "")
-            score_pill = _pill(f"{a.score:.0f}", "r" if a.score < 50 else ("a" if a.score < 75 else "g"))
+            sc_color = "var(--rose)" if a.score < 50 else ("var(--amber)" if a.score < 75 else "var(--emerald)")
             items_html.append(
-                f'<div class="action-item {urgency}">'
-                f'<div class="action-section-label">{a.section} {score_pill}</div>'
-                f'<div class="action-issue">{a.issue}</div>'
-                f'<div class="action-hint">Fix: {a.fix_hint}</div>'
+                f'<div class="action-item {urgency}" style="margin-bottom:8px">'
+                f'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px">'
+                f'<div class="action-section-label">{a.section}</div>'
+                f'<span style="font-size:11px;font-weight:700;color:{sc_color};'
+                f'background:{sc_color}18;padding:2px 7px;border-radius:4px;white-space:nowrap">'
+                f'score {a.score:.0f}</span>'
+                f'</div>'
+                f'<div class="action-issue">⚑ {a.issue}</div>'
+                f'<div class="action-hint" style="margin-top:4px;padding-top:4px;'
+                f'border-top:1px solid var(--border)">→ {a.fix_hint}</div>'
                 f'</div>'
             )
-        parts.append(
-            f'<div class="action-section">'
-            f'<div class="action-section-title">Manual fixes needed ({len(r.manual_actions)})</div>'
-            + "".join(items_html)
-            + '</div>'
-        )
+        parts.append("".join(items_html))
     else:
         parts.append(
-            '<div class="action-section">'
-            '<div class="action-section-title">Manual fixes needed</div>'
-            '<div class="action-item ok"><div class="action-issue">No residual issues — all sections met the quality threshold.</div></div>'
+            '<div class="action-item ok">'
+            '<div class="action-issue" style="color:var(--emerald)">✓ All sections met the quality threshold — no residual issues.</div>'
             '</div>'
         )
 
-    # --- Gap classification ---
+    # ── Gap classification ──
     if r.ats:
         pres = r.ats.presentation_gaps
         real = r.ats.real_gaps
+        parts.append(_section_divider("Keyword gap analysis", "🎯"))
         pres_html = (
             "".join(f'<span class="gap-tag presentation">{k}</span>' for k in pres)
             or '<span style="color:var(--text4);font-size:12px">None — great!</span>'
@@ -877,34 +976,29 @@ def _action_plan_html(r: PipelineResult) -> str:
             or '<span style="color:var(--text4);font-size:12px">None — great!</span>'
         )
         parts.append(
-            '<div class="action-section">'
-            '<div class="action-section-title">Keyword gap analysis</div>'
             '<div class="gap-grid">'
             '<div class="gap-col">'
-            '<div class="gap-col-title presentation">Presentation gaps</div>'
-            '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">'
-            'Already in your resume — make them more visible</div>'
+            '<div class="gap-col-title presentation">⚡ Presentation gaps</div>'
+            '<div style="font-size:11px;color:var(--text3);line-height:1.5;margin-bottom:10px">'
+            'These keywords exist somewhere in your resume but aren\'t visible enough to ATS scanners. '
+            'Move them to the Skills section or lead bullets.</div>'
             f'{pres_html}'
             '</div>'
             '<div class="gap-col">'
-            '<div class="gap-col-title real">Real skill gaps</div>'
-            '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">'
-            'Not found anywhere — need actual work or a project</div>'
+            '<div class="gap-col-title real">🚨 Real skill gaps</div>'
+            '<div style="font-size:11px;color:var(--text3);line-height:1.5;margin-bottom:10px">'
+            'These keywords are completely absent from your resume. '
+            'Add them through a certification, project, or new bullet where truthful.</div>'
             f'{real_html}'
-            '</div>'
             '</div>'
             '</div>'
         )
 
-    # --- ATS matched keywords ---
+    # ── ATS matched keywords ──
     if r.ats and r.ats.matched:
-        matched_html = " ".join(f'<span class="kw-tag">{k}</span>' for k in r.ats.matched[:25])
-        parts.append(
-            '<div class="action-section">'
-            '<div class="action-section-title">ATS keywords already matched</div>'
-            f'<div class="kw-panel">{matched_html}</div>'
-            '</div>'
-        )
+        parts.append(_section_divider("Keywords already matched", "✓"))
+        matched_html = " ".join(f'<span class="kw-tag">{k}</span>' for k in r.ats.matched[:30])
+        parts.append(f'<div class="kw-panel">{matched_html}</div>')
 
     if not parts:
         return _idle("Action plan appears after enhancement.")
@@ -914,10 +1008,47 @@ def _action_plan_html(r: PipelineResult) -> str:
 def _sections_html(r: PipelineResult) -> str:
     if not r.section_traces:
         return _idle("Section details appear here after enhancement.")
-    out = []
+
+    changed_count   = sum(1 for t in r.section_traces if t.changed)
+    avg_score       = (sum(t.final_score for t in r.section_traces) / len(r.section_traces)) if r.section_traces else 0
+
+    # Summary strip
+    summary_strip = (
+        f'<div style="display:flex;gap:10px;flex-wrap:wrap;'
+        f'background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);'
+        f'padding:12px 16px;margin-bottom:14px;align-items:center">'
+        f'<div style="font-size:12px;color:var(--text2)">'
+        f'<span style="color:var(--emerald);font-weight:600">{changed_count}</span> / '
+        f'{len(r.section_traces)} sections rewritten · '
+        f'avg critic score <span style="color:var(--violet2);font-weight:600">{avg_score:.0f}</span>/100'
+        f'</div>'
+        f'</div>'
+    )
+
+    out = [summary_strip]
     for t in r.section_traces:
-        sp = _pill(f"{t.final_score:.0f}", "v" if t.final_score >= 75 else ("a" if t.final_score >= 50 else "r"))
-        cp = _pill("changed", "g") if t.changed else _pill("unchanged", "z")
+        sc_color = "var(--emerald)" if t.final_score >= 75 else ("var(--amber)" if t.final_score >= 50 else "var(--rose)")
+        cp = _pill("rewritten", "g") if t.changed else _pill("unchanged", "z")
+
+        # Dim scores breakdown
+        dim_html = ""
+        if t.iterations and t.iterations[-1].dim_scores:
+            dims = t.iterations[-1].dim_scores
+            dim_items = "".join(
+                f'<div style="text-align:center;min-width:52px">'
+                f'<div style="font-size:14px;font-weight:700;color:{"var(--emerald)" if v >= 16 else ("var(--amber)" if v >= 10 else "var(--rose)")}">'
+                f'{int(v)}</div>'
+                f'<div style="font-size:9px;color:var(--text4);text-transform:uppercase;letter-spacing:.05em;margin-top:1px">'
+                f'{k.replace("_"," ")[:10]}</div>'
+                f'</div>'
+                for k, v in dims.items()
+            )
+            dim_html = (
+                f'<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 0 2px;'
+                f'border-top:1px solid var(--border);margin-top:10px">'
+                f'{dim_items}'
+                f'</div>'
+            )
 
         dots = ""
         if t.iterations:
@@ -927,30 +1058,55 @@ def _sections_html(r: PipelineResult) -> str:
                 for s in t.iterations
             )
             dots = (
-                f'<div class="iter-row">{d}'
-                f'<span class="iter-meta">{t.iterations_used} iter · {t.final_score:.0f}/100</span>'
+                f'<div class="iter-row" style="margin-top:8px">{d}'
+                f'<span class="iter-meta">{t.iterations_used} iteration{"s" if t.iterations_used > 1 else ""}</span>'
                 f'</div>'
             )
 
         viols = ""
         if t.iterations and t.iterations[-1].violations:
-            viols = f'<div class="violations">Critic: {"; ".join(t.iterations[-1].violations[:3])}</div>'
+            vlist = "".join(f'<div style="margin-top:3px">• {v}</div>' for v in t.iterations[-1].violations[:3])
+            viols = (
+                f'<div style="background:rgba(245,158,11,0.05);border-left:2px solid var(--amber);'
+                f'padding:8px 10px;margin-top:8px;border-radius:0 4px 4px 0;'
+                f'font-size:11px;color:var(--amber);line-height:1.55">'
+                f'{vlist}</div>'
+            )
 
-        note = f'<div class="trace-warn">{t.note}</div>' if t.note else ""
+        note = ""
+        if t.note:
+            note = (
+                f'<div style="font-size:11px;color:var(--rose);margin-top:6px;'
+                f'padding:6px 10px;background:rgba(244,63,94,0.05);border-radius:4px">'
+                f'⚠ {t.note}</div>'
+            )
 
         out.append(
             f'<div class="trace-card">'
+            # header
             f'<div class="trace-head">'
+            f'<div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">'
             f'<span class="trace-name">{t.label}</span>'
-            f'<div class="trace-meta">{sp}{cp}</div>'
             f'</div>'
+            f'<div class="trace-meta" style="gap:6px;flex-shrink:0">'
+            f'<span style="font-size:20px;font-weight:800;color:{sc_color};letter-spacing:-.04em">'
+            f'{t.final_score:.0f}</span>'
+            f'<span style="font-size:10px;color:var(--text4)">/100</span>'
+            f'{cp}'
+            f'</div>'
+            f'</div>'
+            # diff
             f'<div class="diff-wrap">'
-            f'<div class="diff-pane"><div class="diff-lbl">Before</div>'
-            f'<div class="diff-txt">{t.before}</div></div>'
-            f'<div class="diff-pane"><div class="diff-lbl">After</div>'
-            f'<div class="diff-txt new">{t.after}</div></div>'
+            f'<div class="diff-pane">'
+            f'<div class="diff-lbl">Before</div>'
+            f'<div class="diff-txt">{t.before}</div>'
             f'</div>'
-            f'{viols}{dots}{note}'
+            f'<div class="diff-pane">'
+            f'<div class="diff-lbl">After</div>'
+            f'<div class="diff-txt new">{t.after}</div>'
+            f'</div>'
+            f'</div>'
+            f'{dim_html}{dots}{viols}{note}'
             f'</div>'
         )
     return "\n".join(out)
@@ -962,8 +1118,8 @@ def _review_html(r: PipelineResult) -> str:
     rv = r.role_reviews[0]
     sc = _sc(rv.overall_score)
 
-    strengths  = "".join(f"<li>{s}</li>" for s in rv.strengths)  or "<li><i>None</i></li>"
-    weaknesses = "".join(f"<li>{w}</li>" for w in rv.weaknesses) or "<li><i>None</i></li>"
+    strengths  = "".join(f"<li style='margin-bottom:4px'>{s}</li>" for s in rv.strengths)  or "<li><i>None</i></li>"
+    weaknesses = "".join(f"<li style='margin-bottom:4px'>{w}</li>" for w in rv.weaknesses) or "<li><i>None</i></li>"
     missing    = "".join(f'<span class="kw-tag miss">{k}</span>' for k in rv.missing_keywords) or '<span class="kw-tag">None</span>'
 
     hero = (
@@ -981,11 +1137,25 @@ def _review_html(r: PipelineResult) -> str:
     )
     cols = (
         f'<div class="review-grid">'
-        f'<div class="review-col"><h5>Strengths</h5><ul>{strengths}</ul></div>'
-        f'<div class="review-col weak"><h5>Weaknesses</h5><ul>{weaknesses}</ul></div>'
+        f'<div class="review-col">'
+        f'<h5>✓ Strengths</h5>'
+        f'<ul style="list-style:none;padding:0">{strengths}</ul>'
+        f'</div>'
+        f'<div class="review-col weak">'
+        f'<h5>✗ Weaknesses</h5>'
+        f'<ul style="list-style:none;padding:0">{weaknesses}</ul>'
+        f'</div>'
         f'</div>'
     )
-    kw = f'<div class="kw-panel"><h5>Missing keywords</h5>{missing}</div>'
+    kw = (
+        f'<div class="kw-panel">'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+        f'<h5 style="margin:0">Missing role keywords</h5>'
+        f'<span style="font-size:11px;color:var(--text3)">{len(rv.missing_keywords)} keywords</span>'
+        f'</div>'
+        f'{missing}'
+        f'</div>'
+    )
 
     extra = ""
     if len(r.role_reviews) > 1:
@@ -1004,7 +1174,7 @@ def _review_html(r: PipelineResult) -> str:
             f'<div style="background:var(--bg2);border:1px solid var(--border);'
             f'border-radius:var(--radius-sm);padding:12px 14px;margin-top:8px">'
             f'<div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;'
-            f'color:var(--text3);font-weight:700;margin-bottom:7px">Cross-role</div>'
+            f'color:var(--text3);font-weight:700;margin-bottom:7px">Cross-role scores</div>'
             + "".join(rows) + "</div>"
         )
     return hero + cols + kw + extra
@@ -1026,52 +1196,92 @@ def _jd_html(r: PipelineResult) -> str:
 
 def _jd_block(rep, kind: str, *, is_custom: bool = False) -> str:
     role = "Custom JD" if is_custom else ROLES.get(rep.role_id, rep.role_id)
-    dk   = "v" if rep.avg_delta >= 5 else ("a" if rep.avg_delta >= 0 else "r")
+    dk   = "g" if rep.avg_delta >= 5 else ("a" if rep.avg_delta >= 0 else "r")
+    avg_color = "var(--emerald)" if rep.avg_score_after >= 75 else ("var(--amber)" if rep.avg_score_after >= 50 else "var(--rose)")
 
+    # ── Header with score ring ──
+    hdr = (
+        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px">'
+        f'<div>'
+        f'<div style="font-size:14px;font-weight:700;color:var(--text);letter-spacing:-.02em">{role}</div>'
+        f'<div style="margin-top:5px">{_pill(kind, "b" if is_custom else "z")}</div>'
+        f'</div>'
+        f'<div style="display:flex;gap:10px;align-items:center;flex-shrink:0">'
+        f'<div style="text-align:center">'
+        f'<div style="font-size:11px;color:var(--text3);margin-bottom:3px">Before</div>'
+        f'<div style="font-size:22px;font-weight:800;color:var(--text2);letter-spacing:-.04em">'
+        f'{rep.avg_score_before:.0f}</div>'
+        f'</div>'
+        f'<div style="font-size:18px;color:var(--text4)">→</div>'
+        f'<div style="text-align:center">'
+        f'<div style="font-size:11px;color:var(--text3);margin-bottom:3px">After</div>'
+        f'<div style="font-size:22px;font-weight:800;color:{avg_color};letter-spacing:-.04em">'
+        f'{rep.avg_score_after:.0f}</div>'
+        f'</div>'
+        f'<div style="text-align:center;padding:8px 12px;border-radius:8px;'
+        f'background:var(--bg3);border:1px solid var(--border2)">'
+        f'<div style="font-size:10px;color:var(--text4);margin-bottom:2px">Δ avg</div>'
+        f'{_delta_badge(rep.avg_delta)}'
+        f'</div>'
+        f'</div>'
+        f'</div>'
+    )
+
+    # ── Table ──
     rows = [
-        "<tr>"
-        "<th>Job / Title</th><th>Archetype</th>"
-        "<th class='r'>Before</th><th class='r'>After</th>"
-        "<th class='r'>Δ</th><th>Gaps</th>"
-        "</tr>"
+        "<thead><tr>"
+        "<th>Job Title</th>"
+        "<th>Archetype</th>"
+        "<th class='r'>Before</th>"
+        "<th class='r'>After</th>"
+        "<th class='r'>Δ</th>"
+        "<th>Missing keywords</th>"
+        "</tr></thead>"
+        "<tbody>"
     ]
     for s in rep.samples:
-        kl   = "g" if s.delta >= 5 else ("a" if s.delta >= 0 else "r")
-        gaps = ", ".join(s.missing_keywords[:4]) or "—"
+        kl      = "g" if s.delta > 3 else ("a" if s.delta >= 0 else "r")
+        delta_c = "var(--emerald)" if s.delta > 3 else ("var(--amber)" if s.delta >= 0 else "var(--rose)")
+        after_c = "var(--emerald)" if s.score_after >= 75 else ("var(--amber)" if s.score_after >= 50 else "var(--text2)")
+        # Display up to 5 missing keywords as small tags
+        gap_tags = "".join(
+            f'<span style="display:inline-block;background:rgba(244,63,94,0.08);'
+            f'border:1px solid rgba(244,63,94,0.18);color:#fda4af;'
+            f'font-size:10.5px;padding:1px 6px;border-radius:4px;margin:2px">{k}</span>'
+            for k in s.missing_keywords[:5]
+        ) or '<span style="color:var(--text4);font-size:11px">—</span>'
         rows.append(
             f'<tr>'
-            f'<td><b style="color:var(--text);font-size:12.5px">{s.title}</b></td>'
+            f'<td><b style="color:var(--text);font-size:12.5px">{s.title}</b>'
+            f'<div style="font-size:10.5px;color:var(--text3);margin-top:1px">{s.seniority or ""}</div>'
+            f'</td>'
             f'<td>{_pill(s.company_archetype or "—", "z")}</td>'
-            f'<td class="r">{s.score_before:.0f}</td>'
-            f'<td class="r">{s.score_after:.0f}</td>'
-            f'<td class="r">{_pill(f"{s.delta:+.1f}", kl)}</td>'
-            f'<td class="dim">{gaps}</td>'
+            f'<td class="r" style="font-size:13px;color:var(--text3)">{s.score_before:.0f}</td>'
+            f'<td class="r" style="font-size:13px;font-weight:700;color:{after_c}">{s.score_after:.0f}</td>'
+            f'<td class="r"><span style="font-size:12.5px;font-weight:700;color:{delta_c}">'
+            f'{"+" if s.delta > 0 else ""}{s.delta:.1f}'
+            f'</span></td>'
+            f'<td style="max-width:220px">{gap_tags}</td>'
             f'</tr>'
         )
-
-    hdr = (
-        f'<div class="jd-header">'
-        f'<span>{role}</span>'
-        f'{_pill(kind, "b" if is_custom else "z")}'
-        f'<span style="margin-left:auto;font-size:12.5px;color:var(--text2);font-weight:400">'
-        f'{rep.avg_score_before:.0f} → {rep.avg_score_after:.0f} '
-        f'{_pill(f"{rep.avg_delta:+.1f}", dk)}'
-        f'</span></div>'
-    )
+    rows.append("</tbody>")
 
     gaps_html = ""
     if rep.top_gaps:
         gaps_html = (
-            f'<div style="margin-top:10px">'
-            f'<div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;'
-            f'color:var(--text3);font-weight:700;margin-bottom:6px">Top gaps</div>'
-            + "".join(f'<span class="kw-tag miss">{k}</span>' for k in rep.top_gaps)
+            f'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">'
+            f'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;'
+            f'color:var(--text3);font-weight:700;margin-bottom:7px">Top gaps across all samples</div>'
+            + "".join(
+                f'<span class="kw-tag miss" style="margin:2px">{k}</span>'
+                for k in rep.top_gaps
+            )
             + "</div>"
         )
 
     return (
         f'<div class="jd-section" style="background:var(--bg2);border:1px solid var(--border);'
-        f'border-radius:var(--radius);padding:16px 18px;margin-bottom:12px">'
+        f'border-radius:var(--radius);padding:18px 20px;margin-bottom:14px">'
         f'{hdr}'
         f'<div class="jd-table-wrap"><table class="jd-table">{"".join(rows)}</table></div>'
         f'{gaps_html}</div>'

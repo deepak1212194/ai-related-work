@@ -1,11 +1,14 @@
-# Critique Skill — score a draft against the original on 5 dimensions
+# Critique Skill — score a draft against the original on 6 dimensions
 
-You score the REWRITE against the ORIGINAL on five dimensions, 0-20 each (total 0-100).
+You score the REWRITE against the ORIGINAL on six dimensions, 0-20 each (total 0-120, normalised to 0-100).
 You output ONLY a JSON object — no prose, no markdown, no explanation.
 
 Target quality bar: **95 / 100**.  Most rewrites need 2-4 iterations to reach it.
 A score of 95+ means: every fact preserved, strong action verb, concrete specifics,
-tight prose, and every keyword retained. Award 19-20 only when genuinely excellent.
+tight prose, every keyword retained, AND any available role keywords from USER_SKILLS
+have been surfaced. Award 19-20 only when genuinely excellent.
+
+**Scoring formula:** `total = round(sum_of_six_scores / 120 * 100)`
 
 ---
 
@@ -62,6 +65,17 @@ tight prose, and every keyword retained. Award 19-20 only when genuinely excelle
   **–8** each.
 - Minimum floor: 0.
 
+### 6. keyword_coverage (0-20) — surfacing available role keywords
+This dimension rewards adding role-relevant keywords that are in USER_SKILLS but
+were missing from the original bullet — exactly the gap the enhancer should fill.
+- **20** — REWRITE includes all ROLE_PRIORITY_KEYWORDS that are also in USER_SKILLS
+  and naturally applicable to this bullet's work. (If no such keywords exist, award 20.)
+- **–5** per missing role keyword that IS in USER_SKILLS and would fit naturally
+  in this bullet (you judge applicability).
+- **+0** for adding keywords not in USER_SKILLS (those are fabrications and hurt honesty).
+- If ROLE_PRIORITY_KEYWORDS or USER_SKILLS are not provided, award 18 (neutral).
+- Minimum floor: 0.
+
 ---
 
 ## output_schema
@@ -73,9 +87,10 @@ tight prose, and every keyword retained. Award 19-20 only when genuinely excelle
     "action_verb": <int 0-20>,
     "specificity": <int 0-20>,
     "tightness": <int 0-20>,
-    "keyword_retention": <int 0-20>
+    "keyword_retention": <int 0-20>,
+    "keyword_coverage": <int 0-20>
   },
-  "total": <int 0-100, sum of the five scores>,
+  "total": <int 0-100, = round(sum_of_six_scores / 120 * 100)>,
   "violations": ["short string describing each deduction", ...],
   "fix_hint": "one short actionable sentence for the next iteration",
   "verdict": "accept" | "iterate"
@@ -83,9 +98,12 @@ tight prose, and every keyword retained. Award 19-20 only when genuinely excelle
 ```
 
 Rules:
+- `total` = `round(sum_of_six_scores / 120 * 100)` (six dimensions × 20 max = 120 raw max, normalised to 100).
 - `verdict` = "accept" if `total >= 95` AND `violations` is empty (or only minor style notes).
 - `verdict` = "iterate" in all other cases.
 - `fix_hint` must be a concrete instruction: what to fix, not a restatement of the score.
+  **When keyword_coverage < 15:** the fix_hint MUST name the specific missing keywords and say
+  "add [keyword] to this bullet since it's in USER_SKILLS".
 - `violations` must list each individual deduction — one entry per issue.
 
 ---
@@ -117,7 +135,8 @@ CORRECT JSON OUTPUT:
     "action_verb": 20,
     "specificity": 19,
     "tightness": 19,
-    "keyword_retention": 19
+    "keyword_retention": 19,
+    "keyword_coverage": 19
   },
   "total": 97,
   "violations": [],
@@ -152,9 +171,10 @@ CORRECT JSON OUTPUT:
     "action_verb": 0,
     "specificity": 10,
     "tightness": 14,
-    "keyword_retention": 0
+    "keyword_retention": 0,
+    "keyword_coverage": 14
   },
-  "total": 28,
+  "total": 35,
   "violations": [
     "fabricated '40% accuracy improvement' — not in original",
     "action verb 'Spearheaded' is blacklisted",
@@ -195,9 +215,10 @@ CORRECT JSON OUTPUT:
     "action_verb": 18,
     "specificity": 17,
     "tightness": 13,
-    "keyword_retention": 18
+    "keyword_retention": 18,
+    "keyword_coverage": 18
   },
-  "total": 86,
+  "total": 87,
   "violations": [
     "action verb 'Established' is acceptable but not senior-tier — prefer 'Engineered' or 'Built'",
     "missing the model-type specificity present in some resumes; acceptable here since not in original"
