@@ -1175,6 +1175,7 @@ def _enhance_handler(
     file,
     role_id: str,
     backend: str,
+    groq_api_key: str,
     hf_api_key: str,
     hf_model: str,
     hf_extraction_model: str,
@@ -1214,6 +1215,8 @@ def _enhance_handler(
         yield (_empty("⏳", rate_err), *blank)
         return
 
+    if groq_api_key.strip():
+        os.environ["GROQ_API_KEY"] = groq_api_key.strip()
     if hf_api_key.strip():
         os.environ["HF_API_KEY"] = hf_api_key.strip()
     if hf_model.strip():
@@ -1222,7 +1225,7 @@ def _enhance_handler(
         os.environ["HF_EXTRACTION_MODEL"] = hf_extraction_model.strip()
 
     if backend == "auto":
-        backend = "huggingface"
+        backend = "groq" if os.environ.get("GROQ_API_KEY") else "huggingface"
 
     if backend != "auto" and not is_backend_configured(backend):
         yield (_empty("⚠", f"Backend <b>{backend}</b> is not configured. Check the Setup tab."), *blank)
@@ -1423,20 +1426,32 @@ def build_app() -> gr.Blocks:
 
                         gr.HTML(
                             '<div class="nc-card" style="margin:12px 0">'
-                            '<div class="nc-card-title"><span class="nc-step">4</span>Provider</div>'
-                            '<div class="nc-card-sub">Hugging Face free tier is enabled. Add your API key below.</div></div>'
+                            '<div class="nc-card-title"><span class="nc-step">4</span>API Key &amp; Provider</div>'
+                            '<div class="nc-card-sub">'
+                            '<b>Groq (recommended):</b> free at '
+                            '<a href="https://console.groq.com" target="_blank" style="color:#c4b5fd">console.groq.com</a>'
+                            ' — no credit card needed.<br>'
+                            '<b>Hugging Face:</b> free at '
+                            '<a href="https://huggingface.co/settings/tokens" target="_blank" style="color:#c4b5fd">huggingface.co/settings/tokens</a>.'
+                            '</div></div>'
+                        )
+                        groq_key_in = gr.Textbox(
+                            label="Groq API key (recommended — free & fast)",
+                            type="password",
+                            placeholder="gsk_...",
                         )
                         backend_in = gr.Dropdown(
                             choices=[
-                                ("Hugging Face", "huggingface"),
+                                ("Groq  (Llama 4 Scout — free)", "groq"),
+                                ("Hugging Face  (Qwen 2.5 — free)", "huggingface"),
                                 ("Auto-detect", "auto"),
                             ],
-                            value="huggingface",
+                            value="groq",
                             label="Provider",
                             interactive=True,
                         )
 
-                        with gr.Accordion("API key & model IDs", open=False):
+                        with gr.Accordion("HuggingFace key & model IDs", open=False):
                             hf_key_in = gr.Textbox(
                                 label="HuggingFace API key",
                                 type="password",
@@ -1544,7 +1559,7 @@ def build_app() -> gr.Blocks:
             _enhance_handler,
             inputs=[
                 file_in, role_in, backend_in,
-                hf_key_in, hf_model_in, hf_extract_model_in,
+                groq_key_in, hf_key_in, hf_model_in, hf_extract_model_in,
                 critic_state, review_state, cross_state, iter_state, opt_mode_in,
             ],
             outputs=[

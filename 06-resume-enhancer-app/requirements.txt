@@ -1,4 +1,4 @@
-# Core dependencies (always required)
+# Core dependencies
 fastapi>=0.110.0,<1.0.0
 uvicorn[standard]>=0.27.0
 python-multipart>=0.0.9
@@ -6,12 +6,11 @@ jinja2>=3.1.0,<4.0.0
 pydantic>=2.6.0,<3.0.0
 requests>=2.31.0,<3.0.0
 
-# Direct Anthropic API (optional - only needed for the 'anthropic' backend)
-anthropic>=0.40.0,<1.0.0
+# Gradio UI
+gradio>=4.44.0,<5.0.0
 
-# Claude Code SDK (optional - enables the 'claude_code' backend that uses
-# your existing Claude Code login. Requires the `claude` CLI on PATH.)
-claude-agent-sdk>=0.0.14
+# LLM backends (Groq uses plain requests — no SDK needed)
+anthropic>=0.40.0,<1.0.0
 
 # Testing (dev only)
 pytest>=8.0.0

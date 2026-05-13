@@ -1,3 +1,16 @@
+---
+title: AI Resume Enhancer
+emoji: 📄
+colorFrom: purple
+colorTo: cyan
+sdk: gradio
+sdk_version: "4.44.1"
+app_file: app.py
+pinned: false
+license: mit
+short_description: Multi-agent LaTeX resume enhancer — ATS-optimised, Overleaf-ready
+---
+
 # AI Resume Enhancer — Multi-Agent Edition (v6)
 
 > Upload a `.tex` resume, get back an ATS-optimised, Overleaf-ready `.tex` with per-section critic scores, a hiring-manager simulation, and JD keyword-match deltas — all powered by a free Groq API key.
