@@ -85,13 +85,15 @@ class EnhancerAgent(Agent):
         kw_block = ""
         if selected_keywords:
             kw_block = (
-                "\nROLE_PRIORITY_KEYWORDS (use only if they are TRUE for this user; never invent):\n"
+                "\nROLE_PRIORITY_KEYWORDS — these are confirmed in USER_SKILLS; "
+                "weave applicable ones naturally into the rewrite:\n"
                 + ", ".join(selected_keywords) + "\n"
             )
         skills_block = ""
         if skills_context:
             skills_block = (
-                "\nUSER_SKILLS (the user's actual skills — only use keywords that match these):\n"
+                "\nUSER_SKILLS (authoritative source — you MAY name any skill listed here "
+                "when it is relevant to this bullet's work):\n"
                 + skills_context + "\n"
             )
         emphasis = ""
@@ -105,10 +107,12 @@ class EnhancerAgent(Agent):
         user = (
             f"ORIGINAL ({section_type}):\n\"\"\"\n{original}\n\"\"\"\n"
             + kw_block + skills_block + emphasis +
-            "\nToken budget policy:\n"
-            "- Keep semantics identical to input; improve clarity/impact only.\n"
-            "- Do not add new claims, entities, or metrics.\n"
-            "- Prefer the shortest rewrite that preserves all critical facts.\n"
+            "\nRewrite rules:\n"
+            "- Preserve every number, company name, technology, and duration from ORIGINAL.\n"
+            "- You MAY add role keywords from ROLE_PRIORITY_KEYWORDS when they are listed in "
+            "USER_SKILLS and naturally apply to this bullet's work — this is keyword surfacing, not fabrication.\n"
+            "- Never invent metrics, outcomes, or tools absent from both ORIGINAL and USER_SKILLS.\n"
+            "- Prefer tight prose; do not pad.\n"
             "\nReturn plain text only.\n"
         )
         if prior_draft is not None and prior_critique is not None:
@@ -179,20 +183,22 @@ class EnhancerAgent(Agent):
         kw_block = ""
         if selected_keywords:
             kw_block = (
-                "\nROLE_PRIORITY_KEYWORDS (use only if TRUE for this user; never invent):\n"
+                "\nROLE_PRIORITY_KEYWORDS — confirmed in USER_SKILLS; "
+                "weave applicable ones into the rewrites naturally:\n"
                 + ", ".join(selected_keywords) + "\n"
             )
         skills_block = ""
         if skills_context:
             skills_block = (
-                "\nUSER_SKILLS (only use keywords that match these):\n"
+                "\nUSER_SKILLS (authoritative — you MAY name any skill here "
+                "when relevant to that bullet's work):\n"
                 + skills_context + "\n"
             )
         lead_hint = ""
         if lead_indices:
             nums = ", ".join(f"[{i + 1}]" for i in sorted(lead_indices))
             lead_hint = (
-                f"\nLEAD_BULLETS: {nums} — these are the highlight bullets for this block; "
+                f"\nLEAD_BULLETS: {nums} — highlight bullets; "
                 "invest in a clear scope phrase and a specific measured outcome.\n"
             )
 
@@ -209,7 +215,9 @@ class EnhancerAgent(Agent):
             "- Same count as input — never merge, never split, never omit.\n"
             "- One line per bullet, prefixed [N] exactly as shown.\n"
             "- Preserve every number, company name, and technology exactly.\n"
-            "- Improve clarity and role keyword alignment only.\n"
+            "- You MAY add keywords from ROLE_PRIORITY_KEYWORDS when they are in USER_SKILLS "
+            "and naturally apply to that bullet's work — name the skill, not just the concept.\n"
+            "- Never invent metrics, outcomes, or tools absent from both the bullet and USER_SKILLS.\n"
             "- No markdown, no labels, no explanations outside the [N] lines.\n"
         )
 

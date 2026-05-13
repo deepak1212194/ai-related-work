@@ -58,22 +58,27 @@ have been surfaced. Award 19-20 only when genuinely excellent.
 - Minimum floor: 0.
 
 ### 5. keyword_retention (0-20) — zero data loss
-- **20** — Every tech term, product name, proper noun, number, and experience-
-  duration claim from ORIGINAL appears verbatim (case-insensitive) in REWRITE.
+- **20** — Every tech term, product name, proper noun, number, experience-
+  duration claim, AND every ROLE_PRIORITY_KEYWORD that appeared in ORIGINAL
+  all appear verbatim (case-insensitive) in REWRITE.
 - **–4** per distinct dropped term, up to 20.
-- Critical drops (years of experience, specific model name, specific number):
-  **–8** each.
+- Critical drops (years of experience, specific model name, specific number,
+  or a ROLE_PRIORITY_KEYWORD that was in ORIGINAL): **–8** each.
+- **Paraphrase penalty**: if a JD keyword in ORIGINAL was replaced by a synonym
+  (e.g. "recommendation" → "ranking", "embeddings" → "representations"),
+  treat it as a drop even if semantically similar. JD scoring is exact-match.
 - Minimum floor: 0.
 
 ### 6. keyword_coverage (0-20) — surfacing available role keywords
-This dimension rewards adding role-relevant keywords that are in USER_SKILLS but
-were missing from the original bullet — exactly the gap the enhancer should fill.
-- **20** — REWRITE includes all ROLE_PRIORITY_KEYWORDS that are also in USER_SKILLS
-  and naturally applicable to this bullet's work. (If no such keywords exist, award 20.)
-- **–5** per missing role keyword that IS in USER_SKILLS and would fit naturally
-  in this bullet (you judge applicability).
-- **+0** for adding keywords not in USER_SKILLS (those are fabrications and hurt honesty).
+This dimension rewards adding role-relevant keywords the user has (in USER_SKILLS)
+but hadn't mentioned in this specific bullet.
+- **20** — REWRITE contains all ROLE_PRIORITY_KEYWORDS that are in USER_SKILLS and
+  naturally apply to this bullet's work. (Award 20 if no such gaps exist.)
+- **–4** per ROLE_PRIORITY_KEYWORD that IS in USER_SKILLS, would naturally fit this
+  bullet's work, but was NOT added to the rewrite.
+- **0** for adding keywords not in USER_SKILLS (not penalised here; honesty catches it).
 - If ROLE_PRIORITY_KEYWORDS or USER_SKILLS are not provided, award 18 (neutral).
+- Do NOT penalise for keywords that don't logically apply to this bullet's specific work.
 - Minimum floor: 0.
 
 ---

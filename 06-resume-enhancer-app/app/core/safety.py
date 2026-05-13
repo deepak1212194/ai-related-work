@@ -223,8 +223,10 @@ def check_rewrite(
     A rewrite is OK if:
       1. It is non-empty.
       2. Length is within [min_length_ratio, max_length_ratio] of original.
-      3. Every protected token from the original still appears in the
-         rewrite (case-insensitive substring match).
+      3. No blacklisted buzzwords were introduced.
+      4. Every protected token that appeared in the ORIGINAL still appears in
+         the rewrite. Terms from protected_terms that were NOT in the original
+         are ignored — the enhancer is allowed to add new skills from USER_SKILLS.
     """
     rep = GuardReport(ok=True)
     o, r = _normalize(original), _normalize(rewrite)
@@ -249,7 +251,10 @@ def check_rewrite(
         rep.ok = False
         rep.reason = f"rewrite contains blacklisted phrase: '{bm.group(0)}'"
         return rep
-    # Protected-term check
+    # Protected-term check — only terms that were present in the ORIGINAL
+    # bullet are checked. Terms from the global protected set that were absent
+    # from the original are intentionally excluded: the enhancer may legitimately
+    # add skills from USER_SKILLS into a bullet where they weren't mentioned.
     orig_protected = _tokens_protected(o, protected_terms)
     new_lower = r.lower()
     dropped: List[str] = []

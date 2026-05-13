@@ -559,13 +559,6 @@ def run_pipeline(
     protected_terms = get_all_protected_terms(ir)
     skills_context = _build_skills_context(ir)
 
-    # Create orchestrator with dynamic protected terms
-    orchestrator = IterativeOrchestrator(
-        enhancer=enhancer, critic=critic,
-        max_iterations=cfg.max_iterations,
-        protected_terms=protected_terms,
-    )
-
     # ----- 5. Enhance per section -----
     role_keywords = list_role_keywords(cfg.role_id)
 
@@ -581,6 +574,19 @@ def run_pipeline(
                 seen_kw.add(k)
                 merged.append(kw)
         role_keywords = merged[:80]
+
+    # Add role/JD keywords to protected_terms so safe_apply() never lets the
+    # enhancer paraphrase away a JD keyword that was already present in a bullet.
+    # (Only terms that appear in the bullet are actually checked by safe_apply —
+    # this just ensures they're in the guard vocabulary when they do appear.)
+    protected_terms = protected_terms | {kw for kw in role_keywords}
+
+    # Create orchestrator with dynamic protected terms
+    orchestrator = IterativeOrchestrator(
+        enhancer=enhancer, critic=critic,
+        max_iterations=cfg.max_iterations,
+        protected_terms=protected_terms,
+    )
     section_traces: List[SectionTrace] = []
     # Use block-level count so progress events match the new one-per-block emits
     total_rewrite_units = _count_rewrite_blocks(ir, "accuracy")
