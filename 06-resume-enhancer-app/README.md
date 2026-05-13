@@ -2,18 +2,18 @@
 title: AI Resume Enhancer
 emoji: 📄
 colorFrom: purple
-colorTo: cyan
+colorTo: blue
 sdk: gradio
-sdk_version: "4.44.1"
+sdk_version: "5.29.1"
 app_file: app.py
 pinned: false
 license: mit
-short_description: Multi-agent LaTeX resume enhancer — ATS-optimised, Overleaf-ready
+short_description: Multi-agent LaTeX resume enhancer, ATS-optimised
 ---
 
 # AI Resume Enhancer — Multi-Agent Edition (v6)
 
-> Upload a `.tex` resume, get back an ATS-optimised, Overleaf-ready `.tex` with per-section critic scores, a hiring-manager simulation, and JD keyword-match deltas — all powered by a free Groq API key.
+> Upload a `.tex` resume, paste a real job description (or use built-in role templates), and get back an ATS-optimised, Overleaf-ready `.tex` — complete with per-section critic scores, a hiring-manager simulation, a manual action checklist, and JD keyword-match deltas. Powered by a free Groq API key.
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
@@ -21,18 +21,26 @@ short_description: Multi-agent LaTeX resume enhancer — ATS-optimised, Overleaf
 
 ---
 
-## Demo / Screenshot
+## What You Get
 
 ```
-[ Upload .tex ]  →  [ 8-stage pipeline with live progress ]  →  [ Download enhanced .tex ]
-                                                                    ↓
-                                                              [ Critic scores ]
-                                                              [ JD match delta ]
-                                                              [ Hiring-manager review ]
+[ Upload .tex ]  +  [ Paste JD (optional) ]
+        ↓
+[ 9-stage pipeline with live progress ]
+        ↓
+┌─────────────────────────────────────────────────────────┐
+│  Summary     — 6 KPI cards + recurring-gaps callout     │
+│  Action Plan — manual fix checklist + gap classification │
+│  Sections    — before/after diffs with critic detail    │
+│  JD Match    — custom JD tab + generic role templates   │
+│  HM Review   — hiring-manager simulation (0-100)        │
+│  Download    — Overleaf-ready .tex                      │
+└─────────────────────────────────────────────────────────┘
 ```
 
-_Dark animated single-page UI with per-section before/after diffs, 5-dimension critic scores,
-JD keyword match bars, ATS donut chart, and hiring-manager simulation panel._
+**Sidebar** shows your last 5 runs with ATS and HM scores so you can track progress across iterations.
+
+_Dark UI with sidebar layout, per-section before/after diffs, 5-dimension critic scores, custom JD keyword targeting, and a manual action checklist of residual issues the AI could not auto-fix._
 
 ---
 
@@ -122,7 +130,7 @@ The container maps port `7860` and hot-mounts `skills/` and `data/jds/` for live
 ## Pipeline Diagram
 
 ```
-Input .tex
+Input .tex  +  optional custom JD text
      |
      v
 +-------------+
@@ -147,7 +155,7 @@ Input .tex
 |  4. PLAN    |  PlannerAgent — section ordering, lead-bullet hints
 |             |  role-specific priority from skills/*.md
 +------+------+
-       |
+       |  custom JD keywords merged into priority_keywords here
        v
 +-------------------------------------------+
 |  5. ENHANCE (block-level batching)        |
@@ -171,19 +179,28 @@ Input .tex
 +------+------+
        |
        v
-+-------------+
-|  7. SCORE   |  ATS keyword scan (deterministic)
-|             |  JD match delta vs. curated JDs
-+------+------+
++--------------------+
+|  7. SCORE          |  ATS keyword scan (deterministic)
+|                    |  Gap classification: presentation vs real
+|                    |  Generic JD match vs. curated role JDs
+|                    |  Custom JD match (if JD was pasted)
+|                    |  Manual action checklist from residual violations
++------+-------------+
        |
        v
 +-------------+
 | 8. REVIEW   |  RoleReviewerAgent — hiring-manager simulation
 |             |  JSON: score, strengths, weaknesses, verdict
++------+------+
+       |
+       v
++-------------+
+| 9. HISTORY  |  Run record saved to .work/history.json
+|             |  Persistent gap tracker updated
 +-------------+
        |
        v
-Enhanced .tex + scores + review
+Enhanced .tex + scores + review + action plan
 ```
 
 ---
@@ -195,11 +212,11 @@ Enhanced .tex + scores + review
 | **ExtractorAgent** | Raw `.tex` string (up to 12,000 chars) | Populated `ResumeIR` (LLM path) or repairs to existing IR | Falls back to regex parser; never crashes the pipeline |
 | **CompleterAgent** | Partially-populated `ResumeIR` | `[PLACEHOLDER]` tokens for missing required fields | Deterministic; no LLM call; always succeeds |
 | **PlannerAgent** | `ResumeIR` + role skill file | `SectionPlan` (ordered section list, lead-bullet index hints) | Falls back to default section order |
-| **EnhancerAgent** | One section or block of bullets + role context | Rewritten plain-text bullet(s) via `draft()` or `draft_block()` | Returns empty string on LLM error; orchestrator keeps original |
+| **EnhancerAgent** | One section or block of bullets + role context + merged priority keywords | Rewritten plain-text bullet(s) via `draft()` or `draft_block()` | Returns empty string on LLM error; orchestrator keeps original |
 | **CriticAgent** | Original + rewrite pair (or block of pairs) | JSON score dict: `scores`, `total`, `violations`, `fix_hint`, `verdict` | Returns conservative "iterate" fallback (non-final) or "accept" (final iteration) to prevent infinite loops |
 | **IterativeOrchestrator** | Enhancer + Critic + `protected_terms` set | `SectionTrace` per bullet with full iteration history | Hard cap of 4 iterations; deterministic `safe_apply()` guard always runs last |
 | **RoleReviewerAgent** | Full enhanced resume text + role profile | JSON: `overall_score`, `strengths`, `weaknesses`, `missing_keywords`, `one_line_verdict` | Skipped with warning; pipeline completes without it |
-| **JDMatchAgent** | Resume text + curated JD keyword lists | `JDMatchReport`: per-JD scores, `avg_delta`, `top_gaps` | Deterministic (no LLM); skipped with warning on missing JD data |
+| **JDMatchAgent** | Resume text + curated JD keyword lists **or** raw JD text | `JDMatchReport`: per-JD scores, `avg_delta`, `top_gaps`. Also extracts keywords from raw JD for enhancer. | Deterministic (no LLM); skipped with warning on missing JD data |
 
 ---
 
@@ -243,6 +260,8 @@ All settings are read from environment variables (or a `.env` file). Copy `.env.
 | `RESUME_ENABLE_MULTI_LLM` | `true` | Use cheaper HF model for extraction, Groq for enhancement |
 | `RESUME_DEFAULT_ROLE` | `ai_ml_engineer` | Default role when none is selected in the UI |
 
+**New in v3 — no env var needed.** Custom JD text is passed directly in the UI. The history store writes to `.work/history.json` automatically on every completed run; no configuration required.
+
 ---
 
 ## Project Layout
@@ -259,20 +278,25 @@ All settings are read from environment variables (or a `.env` file). Copy `.env.
 │   │   ├── critic.py          # CriticAgent — score() + score_block()
 │   │   ├── orchestrator.py    # IterativeOrchestrator — loop + safety guard
 │   │   ├── role_reviewer.py   # RoleReviewerAgent — hiring-manager simulation
-│   │   └── jd_matcher.py      # JDMatchAgent — deterministic keyword scoring
+│   │   └── jd_matcher.py      # JDMatchAgent — generic + custom JD scoring,
+│   │                          #   extract_keywords_from_jd(), evaluate_custom()
 │   ├── core/
 │   │   ├── config.py          # Settings (env-driven, frozen dataclass)
 │   │   ├── llm.py             # LLM backends: Groq, HuggingFace (+ retry logic)
 │   │   ├── safety.py          # Deterministic rewrite guard
 │   │   ├── skills.py          # Markdown skill-file loader (hot-reloadable)
-│   │   ├── ir.py              # ResumeIR, PipelineResult, SectionTrace types
+│   │   ├── ir.py              # ResumeIR, PipelineResult, SectionTrace,
+│   │   │                      #   ManualActionItem, ATSReport (+ gap fields)
 │   │   ├── ats.py             # ATS keyword scoring
+│   │   ├── history.py         # Run history store (.work/history.json)
 │   │   └── context_budget.py  # Token estimation, relevant_keywords()
 │   ├── parser/
 │   │   └── tex_parser.py      # Heuristic regex .tex -> ResumeIR
 │   ├── render/
 │   │   └── template.tex.j2    # Jinja2 LaTeX output template
-│   └── pipeline.py            # run_pipeline() — 8-stage orchestration
+│   └── pipeline.py            # run_pipeline() — 9-stage orchestration
+│                              #   PipelineConfig.custom_jd_text,
+│                              #   _classify_gaps(), _build_manual_actions()
 ├── skills/                    # Hot-reloadable agent instruction files
 │   ├── 00_core_rules.md       # Universal rules injected into every prompt
 │   ├── 01_extraction.md       # ExtractorAgent instructions
@@ -281,7 +305,8 @@ All settings are read from environment variables (or a `.env` file). Copy `.env.
 │   ├── 04_enhancement.md      # EnhancerAgent instructions + examples
 │   ├── 05_critique.md         # CriticAgent rubric + calibration examples
 │   ├── 06_role_review.md      # RoleReviewerAgent instructions
-│   ├── 07_jd_matching.md      # JDMatchAgent documentation
+│   ├── 07_jd_matching.md      # JDMatchAgent docs — generic + custom paths,
+│   │                          #   gap classification explained
 │   ├── role_ai_ml_engineer.md
 │   ├── role_data_scientist.md
 │   ├── role_software_engineer.md
@@ -290,8 +315,8 @@ All settings are read from environment variables (or a `.env` file). Copy `.env.
 ├── data/
 │   └── jds/                   # Curated JD keyword JSON files per role
 ├── ui/
-│   ├── app.py                 # FastAPI backend (SSE streaming, job queue)
-│   └── index.html             # Single-page dark UI (animated, no framework)
+│   ├── gradio_app.py          # Full Gradio UI — sidebar layout, all tabs
+│   └── app.py                 # FastAPI backend (SSE streaming, job queue)
 ├── tests/
 │   ├── test_parser.py
 │   ├── test_safety.py
@@ -327,6 +352,9 @@ keep prompt tokens tight.
 - **Tune the critic rubric** — edit `skills/05_critique.md`. Adjust per-dimension scoring rules and calibration examples.
 - **Add a new role** — create `skills/role_<role_id>.md` with sections `## priority_keywords`, `## hiring_signals`, `## red_flags`. Then register the role ID in `app/pipeline.py`'s `ROLES` dict.
 - **Add diction rules** — extend the `## diction_blacklist` block in `skills/00_core_rules.md`.
+- **Custom JD targeting** — paste any raw job description into the sidebar textarea. The pipeline extracts must-have and nice-to-have keywords automatically and merges them into the enhancer's priority list. No configuration file needed.
+- **View run history** — the sidebar shows your last 5 runs with scores. History is stored in `.work/history.json`. Delete or reset it by running `python -c "from app.core.history import clear_history; clear_history()"`.
+- **Tune custom JD keyword extraction** — the extraction heuristics live in `app/agents/jd_matcher.py` (`extract_keywords_from_jd()`). Extend `_TECH_BIGRAMS` or `_STOP_WORDS` to adjust what gets picked up.
 
 ---
 

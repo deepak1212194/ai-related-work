@@ -1,9 +1,10 @@
 """
-JDMatchAgent - deterministic keyword scoring against curated job descriptions.
+JDMatchAgent - deterministic keyword scoring against curated job descriptions
+and optionally a user-supplied custom JD.
 
-Loads `data/jds/<role_id>.json` and computes per-JD scores plus a roll-up
-report. Synonyms are honoured: a match against any synonym in the bundle
-counts as a match for the canonical keyword.
+Loads `data/jds/<role_id>.json` for the generic tab.
+When a raw JD text is provided (custom tab), keywords are extracted from it
+and scored against the resume — no curated file needed.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from ..core.config import JD_DIR
 from ..core.ir import JDMatch, JDMatchReport
@@ -98,8 +99,166 @@ def _score_one(sample: JDSample, text_norm: str) -> tuple[float, int, int, List[
     return round(score, 1), matched_count, must_total + nice_total, missing
 
 
+# ---------------------------------------------------------------------------
+# Custom JD keyword extraction (no curated file needed)
+# ---------------------------------------------------------------------------
+
+# Stop-words to strip from raw JD text before counting keyword candidates
+_STOP_WORDS = {
+    "a", "an", "the", "and", "or", "of", "to", "in", "for", "with", "on",
+    "at", "by", "is", "are", "was", "were", "be", "been", "being", "have",
+    "has", "had", "do", "does", "did", "will", "would", "could", "should",
+    "may", "might", "shall", "must", "can", "not", "no", "but", "if", "as",
+    "from", "that", "this", "these", "those", "we", "you", "they", "our",
+    "your", "their", "its", "it", "i", "he", "she", "us", "them", "who",
+    "which", "what", "when", "where", "how", "why", "more", "most", "also",
+    "any", "all", "both", "about", "such", "than", "into", "through",
+    "during", "before", "after", "above", "below", "between", "each",
+    "other", "own", "same", "so", "just", "then", "too", "very", "well",
+    "new", "good", "great", "strong", "preferred", "required", "desired",
+    "experience", "ability", "knowledge", "understanding", "understanding",
+    "including", "make", "work", "working", "ensure", "support", "use",
+    "using", "across", "within", "across", "based", "including", "related",
+    "including", "able", "key", "plus", "nice", "bonus",
+}
+
+# Technical multi-word phrases to recognise even without explicit listing
+_TECH_BIGRAMS = re.compile(
+    r"\b("
+    r"machine learning|deep learning|natural language|computer vision|"
+    r"large language|language model|neural network|reinforcement learning|"
+    r"transfer learning|data pipeline|data science|data engineering|"
+    r"feature engineering|model training|model serving|model deployment|"
+    r"vector database|vector store|prompt engineering|retrieval augmented|"
+    r"fine.?tuning|generative ai|agentic ai|multi.?agent|tool use|"
+    r"a/b testing|distributed training|gpu cluster|inference server|"
+    r"real.?time|end.?to.?end|full.?stack|open.?source"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def extract_keywords_from_jd(jd_text: str) -> tuple[List[str], List[str]]:
+    """Extract must-have and nice-to-have keywords from raw JD text.
+
+    Heuristic rules:
+    - Lines/phrases after "required", "must have", "you will need" → must_have
+    - Lines/phrases after "preferred", "nice to have", "bonus", "plus" → nice_to_have
+    - Capitalised acronyms (2-8 chars) and known tech phrases always → must_have
+    - Remaining non-stop-word tokens from bullet points → nice_to_have
+    """
+    must: List[str] = []
+    nice: List[str] = []
+    seen: set[str] = set()
+
+    def _add(lst: List[str], kw: str) -> None:
+        k = kw.strip().lower()
+        if k and k not in seen and len(kw) > 1:
+            seen.add(k)
+            lst.append(kw.strip())
+
+    # Step 1 — extract multi-word tech phrases
+    for m in _TECH_BIGRAMS.finditer(jd_text):
+        _add(must, m.group(0))
+
+    # Step 2 — collect capitalised acronyms (e.g. RAG, LLM, FAISS, CI/CD)
+    for token in re.findall(r"\b[A-Z][A-Z0-9+#/.-]{1,7}\b", jd_text):
+        if token not in {"AND", "OR", "THE", "FOR", "WITH", "NOT", "ARE",
+                         "HAS", "HAVE", "CAN", "WILL", "MUST", "MAY", "YOUR",
+                         "OUR", "ALL", "BE", "US", "AT", "IN", "TO", "OF",
+                         "IS", "IT", "WE", "YOU", "NO", "DO", "AN", "BY"}:
+            _add(must, token)
+
+    # Step 3 — scan line context for required vs preferred signals
+    nice_section = False
+    for line in jd_text.splitlines():
+        low = line.lower().strip()
+        # Flip to nice_to_have section when preamble says so
+        if re.search(r"\b(preferred|nice.to.have|bonus|plus|desired)\b", low):
+            nice_section = True
+        elif re.search(r"\b(required|must.have|you.will|you.must|essential|mandatory)\b", low):
+            nice_section = False
+
+        # Extract CamelCase / PascalCase tokens (library/framework names)
+        for token in re.findall(r"\b[A-Z][a-z]{2,}(?:[A-Z][a-z]+)+\b", line):
+            _add(must if not nice_section else nice, token)
+
+        # Extract bracketed/version tokens: Python 3.x, PyTorch 2.x, etc.
+        for token in re.findall(r"\b([A-Za-z][A-Za-z0-9+#._-]{2,15})\s+\d+[\.\d]*\b", line):
+            _add(must if not nice_section else nice, token)
+
+        # Bullet-point lines: extract meaningful nouns/terms
+        if re.match(r"^\s*[-•*·‣▸▹◦]\s+", line) or re.match(r"^\s*\d+[.)]\s+", line):
+            _GENERIC = {
+                "deep", "solid", "proven", "years", "expertise",
+                "familiar", "familiarity", "proficiency", "proficient",
+                "excellent", "hands", "preferred", "required",
+                "following", "various", "similar",
+            }
+            words = re.findall(r"\b[a-zA-Z][a-zA-Z0-9+#._-]{2,25}\b", line)
+            for w in words:
+                wl = w.lower()
+                if wl in _STOP_WORDS or wl in _GENERIC or w.isdigit():
+                    continue
+                _add(nice if nice_section else must, w)
+
+    # De-duplicate: anything in must shouldn't also be in nice
+    must_lower = {m.lower() for m in must}
+    nice = [n for n in nice if n.lower() not in must_lower]
+
+    return must[:40], nice[:30]
+
+
+def _score_custom_jd(
+    jd_text: str,
+    text_before: str,
+    text_after: str,
+) -> JDMatchReport:
+    """Score a resume against a user-supplied raw JD text."""
+    must_have, nice_to_have = extract_keywords_from_jd(jd_text)
+    if not must_have and not nice_to_have:
+        return JDMatchReport(role_id="custom", samples_count=0)
+
+    dummy = JDSample(
+        title="Your Target Job",
+        archetype="Custom JD",
+        seniority="",
+        must_have=must_have,
+        nice_to_have=nice_to_have,
+    )
+    norm_before = _normalize(text_before)
+    norm_after = _normalize(text_after)
+    sb, mb, total, _ = _score_one(dummy, norm_before)
+    sa, ma, _, miss_a = _score_one(dummy, norm_after)
+
+    report = JDMatchReport(role_id="custom", samples_count=1)
+    report.samples.append(JDMatch(
+        role_id="custom",
+        title="Your Target Job",
+        company_archetype="Custom JD",
+        seniority="",
+        keywords_total=total,
+        keywords_matched_before=mb,
+        keywords_matched_after=ma,
+        score_before=sb,
+        score_after=sa,
+        delta=round(sa - sb, 1),
+        missing_keywords=miss_a[:15],
+    ))
+    report.avg_score_before = sb
+    report.avg_score_after = sa
+    report.avg_delta = round(sa - sb, 1)
+    report.top_gaps = miss_a[:10]
+    return report
+
+
 class JDMatchAgent:
-    """Deterministic - does NOT use the LLM."""
+    """Deterministic - does NOT use the LLM.
+
+    Two evaluation paths:
+    - evaluate()        → scores against curated role JD samples (generic tab)
+    - evaluate_custom() → scores against a raw user-supplied JD text (custom tab)
+    """
 
     def evaluate(
         self,
@@ -142,3 +301,18 @@ class JDMatchAgent:
             report.avg_delta = round(report.avg_score_after - report.avg_score_before, 1)
         report.top_gaps = [kw for kw, _ in gap_counter.most_common(10)]
         return report
+
+    def evaluate_custom(
+        self,
+        *,
+        jd_text: str,
+        text_before: str,
+        text_after: str,
+    ) -> JDMatchReport:
+        """Score resume against a raw job description pasted by the user."""
+        return _score_custom_jd(jd_text, text_before, text_after)
+
+    def get_custom_keywords(self, jd_text: str) -> tuple[List[str], List[str]]:
+        """Extract must-have and nice-to-have keywords from a raw JD for use
+        as priority_keywords in the enhancer when custom JD mode is active."""
+        return extract_keywords_from_jd(jd_text)

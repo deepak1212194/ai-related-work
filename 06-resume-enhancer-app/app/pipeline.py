@@ -42,9 +42,10 @@ from .agents.role_reviewer import RoleReviewerAgent
 from .core.ats import score_keywords
 from .core.config import DANGEROUS_TEX_COMMANDS, settings, workdir
 from .core.ir import (
-    ATSReport, JDMatchReport, PipelineResult, ResumeIR, RoleReview,
-    SectionTrace,
+    ATSReport, JDMatchReport, ManualActionItem, PipelineResult, ResumeIR,
+    RoleReview, SectionTrace,
 )
+from .core.history import RunRecord, save_run
 from .core.llm import LLMClient, LLMError, build_llm, is_backend_configured
 from .core.safety import extract_protected_terms_from_ir, get_all_protected_terms
 from .core.skills import get_bundle, load_skills
@@ -179,6 +180,7 @@ class PipelineConfig:
     max_iterations: int = 3
     enable_multi_llm: bool = True
     max_section_calls: int = 120
+    custom_jd_text: str = ""              # raw user-pasted JD text (custom tab)
 
 
 def _emit(cb: Optional[ProgressCallback], event: str, data: dict) -> None:
@@ -243,6 +245,65 @@ def _is_resume_like(ir: ResumeIR) -> bool:
     if ir.education:
         required_hits += 1
     return required_hits >= 2
+
+
+def _classify_gaps(
+    missing_keywords: List[str],
+    ir: ResumeIR,
+) -> tuple[List[str], List[str]]:
+    """Split missing ATS keywords into presentation gaps vs real skill gaps.
+
+    A presentation gap means the keyword exists somewhere in the resume IR
+    (skills, experience, projects, etc.) but was not picked up by surface
+    ATS scanning. The user just needs to make it more visible.
+    A real gap means the keyword is absent everywhere — needs actual work.
+    """
+    blob = ir.text_blob().lower()
+    presentation: List[str] = []
+    real: List[str] = []
+    for kw in missing_keywords:
+        kw_low = kw.lower().strip()
+        # Multi-word: substring match; single word: whole-word match
+        if " " in kw_low:
+            found = kw_low in blob
+        else:
+            found = bool(re.search(
+                r"(?:^|[^a-z0-9+])" + re.escape(kw_low) + r"(?:[^a-z0-9+]|$)", blob
+            ))
+        if found:
+            presentation.append(kw)
+        else:
+            real.append(kw)
+    return presentation, real
+
+
+def _build_manual_actions(section_traces: List) -> List[ManualActionItem]:
+    """Extract residual violations from section traces as a manual checklist.
+
+    Any section whose last iteration still has violations and a score below
+    the accept threshold gets surfaced as an actionable item.
+    """
+    actions: List[ManualActionItem] = []
+    for trace in section_traces:
+        if not trace.iterations:
+            continue
+        last = trace.iterations[-1]
+        if last.accepted:
+            continue
+        if not last.violations:
+            continue
+        if trace.final_score >= 80:
+            continue
+        fix = getattr(last, "fix_hint", "") or "; ".join(last.violations[:2])
+        actions.append(ManualActionItem(
+            section=trace.label,
+            issue=last.violations[0] if last.violations else "Quality below threshold",
+            fix_hint=fix,
+            score=trace.final_score,
+        ))
+    # Sort by urgency: lowest score first
+    actions.sort(key=lambda a: a.score)
+    return actions[:20]
 
 
 def _count_rewrite_candidates(ir: ResumeIR, mode: str) -> int:
@@ -507,6 +568,19 @@ def run_pipeline(
 
     # ----- 5. Enhance per section -----
     role_keywords = list_role_keywords(cfg.role_id)
+
+    # When user pasted a custom JD, augment role keywords with its must-haves
+    if cfg.custom_jd_text and cfg.custom_jd_text.strip():
+        custom_must, custom_nice = jd_agent.get_custom_keywords(cfg.custom_jd_text)
+        # Merge: custom must-haves take priority, de-duplicate preserving order
+        merged: List[str] = []
+        seen_kw: set[str] = set()
+        for kw in custom_must + role_keywords + custom_nice:
+            k = kw.lower()
+            if k not in seen_kw:
+                seen_kw.add(k)
+                merged.append(kw)
+        role_keywords = merged[:80]
     section_traces: List[SectionTrace] = []
     # Use block-level count so progress events match the new one-per-block emits
     total_rewrite_units = _count_rewrite_blocks(ir, "accuracy")
@@ -786,12 +860,16 @@ def run_pipeline(
         text_after = ir.text_blob()
         text_before = (result.ir_before.text_blob() if result.ir_before else "")
         ats = score_keywords(text_after, role_keywords)
+        missing = ats.missing[:20]
+        pres_gaps, real_gaps = _classify_gaps(missing, ir)
         result.ats = ATSReport(
             score=ats.score,
             matched_count=ats.matched_count,
             total_checked=ats.total_checked,
             matched=ats.matched[:30],
-            missing_high_impact=ats.missing[:20],
+            missing_high_impact=missing,
+            presentation_gaps=pres_gaps,
+            real_gaps=real_gaps,
             suggestions=ats.suggestions,
         )
     except Exception as e:                                   # noqa: BLE001
@@ -823,6 +901,22 @@ def run_pipeline(
         except Exception as e:                              # noqa: BLE001
             log.warning("[pipeline] JD matching failed: %s", e)
             result.warnings.append(f"JD matching skipped: {e}")
+
+    # ----- 8b. Custom JD scoring (when user pasted a JD) -----
+    if cfg.custom_jd_text and cfg.custom_jd_text.strip():
+        try:
+            custom_report = jd_agent.evaluate_custom(
+                jd_text=cfg.custom_jd_text,
+                text_before=text_before,
+                text_after=text_after,
+            )
+            result.custom_jd_report = custom_report
+        except Exception as e:                              # noqa: BLE001
+            log.warning("[pipeline] custom JD matching failed: %s", e)
+            result.warnings.append(f"Custom JD matching skipped: {e}")
+
+    # ----- 8c. Build manual action checklist from residual violations -----
+    result.manual_actions = _build_manual_actions(section_traces)
 
     # ----- 9. Role review (LLM, target role only by default) -----
     if cfg.enable_role_review:
@@ -858,6 +952,33 @@ def run_pipeline(
     result.status = "complete" if not result.errors else (
         "partial" if result.tex_path else "error"
     )
+
+    # Persist run to history (best-effort — never block the result)
+    try:
+        ats_r = result.ats
+        jd_r = result.jd_report or result.custom_jd_report
+        rev_r = result.role_reviews[0] if result.role_reviews else None
+        rec = RunRecord(
+            run_id=job_id,
+            timestamp=time.time(),
+            role=cfg.role_id,
+            ats_score=ats_r.score if ats_r else 0.0,
+            hm_score=rev_r.overall_score if rev_r else 0.0,
+            jd_avg_after=jd_r.avg_score_after if jd_r else 0.0,
+            jd_avg_delta=jd_r.avg_delta if jd_r else 0.0,
+            sections_changed=sum(1 for t in section_traces if t.changed),
+            sections_total=len(section_traces),
+            elapsed_s=result.elapsed_ms / 1000,
+            missing_keywords=(ats_r.missing_high_impact if ats_r else []),
+            presentation_gaps=(ats_r.presentation_gaps if ats_r else []),
+            real_gaps=(ats_r.real_gaps if ats_r else []),
+            manual_action_count=len(result.manual_actions),
+            custom_jd_used=bool(cfg.custom_jd_text and cfg.custom_jd_text.strip()),
+        )
+        save_run(rec)
+    except Exception as _he:                                 # noqa: BLE001
+        log.debug("[pipeline] history save skipped: %s", _he)
+
     return result
 
 

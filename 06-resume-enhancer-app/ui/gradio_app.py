@@ -1,5 +1,18 @@
 """
-gradio_app.py — Sleek minimal UI for the AI Resume Enhancer.
+gradio_app.py — AI Resume Enhancer UI (v3).
+
+Layout
+------
+Left sidebar  : Upload · Role · JD mode toggle (Generic / Custom) · Run button
+                + Run History panel (last 5 runs)
+Right area    : Progress panel (while running)
+                Results tabs after completion:
+                  1. Summary      — KPI cards + persistent-gaps callout
+                  2. Action Plan  — manual checklist + gap classification
+                  3. Sections     — before/after diffs with critic detail
+                  4. JD Match     — generic tab OR custom JD tab (toggled)
+                  5. HM Review    — hiring-manager simulation
+                  6. Download     — .tex file + source preview
 """
 
 from __future__ import annotations
@@ -19,10 +32,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.core.config import settings                              # noqa: E402
-from app.core.ir import PipelineResult                           # noqa: E402
-from app.core.skills import load_skills                          # noqa: E402
-from app.pipeline import (PipelineConfig, ROLES, run_pipeline)  # noqa: E402
+from app.core.config import settings                               # noqa: E402
+from app.core.history import get_persistent_gaps, load_runs       # noqa: E402
+from app.core.ir import PipelineResult                            # noqa: E402
+from app.core.skills import load_skills                           # noqa: E402
+from app.pipeline import PipelineConfig, ROLES, run_pipeline      # noqa: E402
 
 logging.basicConfig(level=settings.log_level)
 log = logging.getLogger(__name__)
@@ -60,9 +74,9 @@ def _friendly_error(raw: str) -> str:
     return f"Something went wrong: {raw[:200]}"
 
 
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 #  CSS
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
@@ -83,13 +97,14 @@ CSS = """
   --violet2:    #a78bfa;
   --violet3:    #c4b5fd;
   --cyan:       #06b6d4;
-  --green:      #22d3ee;
   --emerald:    #10b981;
   --amber:      #f59e0b;
   --rose:       #f43f5e;
-  --radius:     14px;
+  --blue:       #3b82f6;
+  --radius:     12px;
   --radius-sm:  8px;
-  --radius-lg:  20px;
+  --radius-lg:  18px;
+  --sidebar-w:  300px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -100,18 +115,16 @@ body, html {
 }
 
 .gradio-container {
-  max-width: 1120px !important;
+  max-width: 1280px !important;
   margin: 0 auto !important;
   background: transparent !important;
   font-family: 'Inter', system-ui, sans-serif !important;
-  padding: 0 20px 60px !important;
+  padding: 0 16px 60px !important;
 }
 
-/* ── Hide Gradio footer ── */
 footer { display: none !important; }
 .gradio-container > .built-with { display: none !important; }
 
-/* ── All gradio panels transparent ── */
 .gradio-container .block,
 .gradio-container .panel,
 .gradio-container .wrap,
@@ -124,9 +137,9 @@ footer { display: none !important; }
   padding: 0 !important;
 }
 
-/* ── Header ── */
+/* ── Compact hero ── */
 .hero {
-  padding: 56px 0 48px;
+  padding: 36px 0 28px;
   text-align: center;
   position: relative;
 }
@@ -134,8 +147,8 @@ footer { display: none !important; }
   position: absolute;
   top: 0; left: 50%;
   transform: translateX(-50%);
-  width: 600px; height: 200px;
-  background: radial-gradient(ellipse, rgba(139,92,246,0.18) 0%, transparent 70%);
+  width: 500px; height: 160px;
+  background: radial-gradient(ellipse, rgba(139,92,246,0.15) 0%, transparent 70%);
   pointer-events: none;
 }
 .hero-badge {
@@ -143,30 +156,30 @@ footer { display: none !important; }
   align-items: center;
   gap: 6px;
   background: rgba(139,92,246,0.1);
-  border: 1px solid rgba(139,92,246,0.25);
+  border: 1px solid rgba(139,92,246,0.22);
   border-radius: 999px;
-  padding: 5px 14px;
-  font-size: 11.5px;
+  padding: 4px 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--violet3);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 .hero-badge::before {
   content: '';
-  width: 6px; height: 6px;
+  width: 5px; height: 5px;
   border-radius: 50%;
   background: var(--violet2);
-  box-shadow: 0 0 6px var(--violet);
+  box-shadow: 0 0 5px var(--violet);
 }
 .hero-title {
-  font-size: clamp(32px, 5vw, 52px);
+  font-size: clamp(26px, 4vw, 40px);
   font-weight: 800;
   color: var(--text);
   letter-spacing: -0.04em;
   line-height: 1.1;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 .hero-title em {
   font-style: normal;
@@ -176,94 +189,121 @@ footer { display: none !important; }
   background-clip: text;
 }
 .hero-sub {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--text2);
-  max-width: 480px;
+  max-width: 440px;
   margin: 0 auto;
-  line-height: 1.65;
-  font-weight: 400;
+  line-height: 1.6;
 }
 
-/* ── Main card ── */
-.main-card {
+/* ── Layout: sidebar + main ── */
+.app-layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .app-layout { grid-template-columns: 1fr; }
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: sticky;
+  top: 16px;
+}
+.card {
   background: var(--bg1);
   border: 1px solid var(--border2);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   overflow: hidden;
-  margin-bottom: 20px;
 }
-.card-header {
-  padding: 20px 24px;
+.card-hd {
+  padding: 14px 16px 12px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
-.card-header-icon {
-  width: 30px; height: 30px;
-  border-radius: 8px;
+.card-hd-icon {
+  width: 26px; height: 26px;
+  border-radius: 7px;
   background: rgba(139,92,246,0.12);
-  border: 1px solid rgba(139,92,246,0.2);
+  border: 1px solid rgba(139,92,246,0.18);
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px;
+  font-size: 13px;
 }
-.card-header-title {
-  font-size: 13.5px;
+.card-hd-title {
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text);
   letter-spacing: -0.01em;
 }
-.card-header-sub {
-  font-size: 12px;
-  color: var(--text3);
-  margin-left: auto;
-}
-.card-body { padding: 24px; }
+.card-body { padding: 16px; }
 
-/* ── Tabs ── */
-.gradio-container .tab-nav {
-  background: var(--bg2) !important;
+/* ── JD mode toggle ── */
+.jd-toggle {
+  display: flex;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+.jd-toggle-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Inter', system-ui, sans-serif;
+  transition: background 0.15s, color 0.15s;
+  background: transparent;
+  color: var(--text3);
+}
+.jd-toggle-btn.active {
+  background: var(--violet);
+  color: #fff;
+}
+
+/* ── Run button ── */
+.gradio-container button.primary {
+  background: linear-gradient(135deg, var(--violet) 0%, #6d28d9 100%) !important;
+  color: #fff !important;
   border: none !important;
-  border-bottom: 1px solid var(--border) !important;
-  border-radius: 0 !important;
-  padding: 0 24px !important;
-  margin: 0 !important;
-  gap: 0 !important;
-}
-.gradio-container .tab-nav button {
-  color: var(--text3) !important;
-  font-weight: 500 !important;
-  font-size: 13px !important;
-  border-radius: 0 !important;
-  padding: 13px 16px !important;
-  border-bottom: 2px solid transparent !important;
-  background: transparent !important;
-  transition: color 0.15s !important;
-  letter-spacing: 0 !important;
+  border-radius: var(--radius-sm) !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  padding: 13px 20px !important;
+  cursor: pointer !important;
+  letter-spacing: -0.01em !important;
   font-family: 'Inter', system-ui, sans-serif !important;
+  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s !important;
+  width: 100% !important;
+  margin-top: 4px !important;
 }
-.gradio-container .tab-nav button.selected {
-  color: var(--text) !important;
-  border-bottom-color: var(--violet) !important;
-  background: transparent !important;
-  box-shadow: none !important;
+.gradio-container button.primary:hover {
+  opacity: 0.9 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 8px 24px rgba(139,92,246,0.35) !important;
 }
-.gradio-container .tab-nav button:hover:not(.selected) {
-  color: var(--text2) !important;
-  background: transparent !important;
-}
-.gradio-container .tabitem {
-  background: transparent !important;
-  padding: 0 !important;
+.gradio-container button.primary:active {
+  transform: none !important;
 }
 
 /* ── Form inputs ── */
 .gradio-container label > span,
 .gradio-container .label-wrap span {
   color: var(--text2) !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  letter-spacing: 0.03em !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
   text-transform: uppercase !important;
   font-family: 'Inter', system-ui, sans-serif !important;
 }
@@ -274,19 +314,18 @@ footer { display: none !important; }
   border: 1px solid var(--border2) !important;
   color: var(--text) !important;
   border-radius: var(--radius-sm) !important;
-  font-size: 14px !important;
+  font-size: 13.5px !important;
   font-family: 'Inter', system-ui, sans-serif !important;
-  transition: border-color 0.15s, box-shadow 0.15s !important;
+  transition: border-color 0.15s !important;
 }
 .gradio-container input:focus,
 .gradio-container textarea:focus {
   border-color: var(--violet) !important;
-  box-shadow: 0 0 0 3px rgba(139,92,246,0.12) !important;
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.1) !important;
   outline: none !important;
 }
 .gradio-container .prose { color: var(--text2) !important; }
 
-/* Dropdown */
 .gradio-container .svelte-select {
   background: var(--bg3) !important;
   color: var(--text) !important;
@@ -298,13 +337,12 @@ footer { display: none !important; }
   border: 1px solid var(--border2) !important;
   border-radius: var(--radius-sm) !important;
 }
-.gradio-container .svelte-select .item { color: var(--text) !important; font-size: 13.5px !important; }
+.gradio-container .svelte-select .item { color: var(--text) !important; font-size: 13px !important; }
 .gradio-container .svelte-select .item.active,
 .gradio-container .svelte-select .item:hover {
   background: rgba(139,92,246,0.12) !important;
 }
 
-/* File upload */
 .gradio-container .upload-button,
 .gradio-container .file-preview {
   background: var(--bg3) !important;
@@ -312,15 +350,13 @@ footer { display: none !important; }
   border-radius: var(--radius) !important;
   color: var(--text3) !important;
   font-family: 'Inter', system-ui, sans-serif !important;
-  transition: border-color 0.15s, background 0.15s !important;
+  transition: border-color 0.15s !important;
 }
 .gradio-container .upload-button:hover {
   border-color: var(--violet) !important;
-  background: rgba(139,92,246,0.05) !important;
-  color: var(--text2) !important;
+  background: rgba(139,92,246,0.04) !important;
 }
 
-/* Code block */
 .gradio-container .code-wrap,
 .gradio-container code {
   background: var(--bg2) !important;
@@ -329,75 +365,51 @@ footer { display: none !important; }
   font-family: 'Fira Code', 'SF Mono', monospace !important;
 }
 
-/* ── Button ── */
-.gradio-container button.primary {
-  background: var(--violet) !important;
-  color: #fff !important;
+/* ── Tabs ── */
+.gradio-container .tab-nav {
+  background: var(--bg2) !important;
   border: none !important;
-  border-radius: var(--radius-sm) !important;
-  font-weight: 600 !important;
-  font-size: 14px !important;
-  padding: 13px 28px !important;
-  cursor: pointer !important;
-  letter-spacing: -0.01em !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  padding: 0 20px !important;
+  margin: 0 !important;
+  gap: 0 !important;
+}
+.gradio-container .tab-nav button {
+  color: var(--text3) !important;
+  font-weight: 500 !important;
+  font-size: 12.5px !important;
+  border-radius: 0 !important;
+  padding: 12px 14px !important;
+  border-bottom: 2px solid transparent !important;
+  background: transparent !important;
+  transition: color 0.15s !important;
   font-family: 'Inter', system-ui, sans-serif !important;
-  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s !important;
-  box-shadow: 0 0 0 0 rgba(139,92,246,0) !important;
-  width: 100% !important;
 }
-.gradio-container button.primary:hover {
-  opacity: 0.88 !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 8px 24px rgba(139,92,246,0.3) !important;
+.gradio-container .tab-nav button.selected {
+  color: var(--text) !important;
+  border-bottom-color: var(--violet) !important;
 }
-.gradio-container button.primary:active {
-  transform: none !important;
-  box-shadow: none !important;
+.gradio-container .tab-nav button:hover:not(.selected) {
+  color: var(--text2) !important;
 }
-
-/* ── Stat pills ── */
-.pill {
-  display: inline-block;
-  padding: 3px 9px;
-  border-radius: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  font-family: 'Inter', system-ui, sans-serif;
+.gradio-container .tabitem {
+  background: transparent !important;
+  padding: 0 !important;
 }
-.pill-v  { background: rgba(139,92,246,0.12); color: var(--violet3); border: 1px solid rgba(139,92,246,0.2); }
-.pill-c  { background: rgba(6,182,212,0.10);  color: #67e8f9;        border: 1px solid rgba(6,182,212,0.2); }
-.pill-g  { background: rgba(16,185,129,0.10); color: #6ee7b7;        border: 1px solid rgba(16,185,129,0.2); }
-.pill-a  { background: rgba(245,158,11,0.10); color: #fcd34d;        border: 1px solid rgba(245,158,11,0.2); }
-.pill-r  { background: rgba(244,63,94,0.10);  color: #fda4af;        border: 1px solid rgba(244,63,94,0.2); }
-.pill-z  { background: rgba(255,255,255,0.05); color: var(--text2);  border: 1px solid var(--border2); }
-
-/* ── Score bar ── */
-.score-bar {
-  height: 2px;
-  background: var(--border2);
-  border-radius: 999px;
-  overflow: hidden;
-  margin-top: 10px;
-}
-.score-bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
-.bar-g { background: linear-gradient(90deg, var(--emerald), var(--green)); }
-.bar-a { background: var(--amber); }
-.bar-r { background: var(--rose); }
-.bar-v { background: linear-gradient(90deg, var(--violet), var(--violet2)); }
 
 /* ── KPI grid ── */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 10px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
 }
 .kpi-card {
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 16px;
+  padding: 14px;
   position: relative;
   overflow: hidden;
 }
@@ -410,31 +422,63 @@ footer { display: none !important; }
   opacity: 0.4;
 }
 .kpi-num {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 800;
   color: var(--text);
   letter-spacing: -0.05em;
   line-height: 1;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
   font-family: 'Inter', system-ui, sans-serif;
 }
 .kpi-key {
-  font-size: 10.5px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--text3);
   font-weight: 600;
   font-family: 'Inter', system-ui, sans-serif;
 }
-.kpi-note { font-size: 11px; color: var(--text4); margin-top: 3px; font-family: 'Inter', system-ui, sans-serif; }
+.kpi-note { font-size: 10.5px; color: var(--text4); margin-top: 2px; font-family: 'Inter', system-ui, sans-serif; }
 
-/* ── Section trace card ── */
+/* ── Score bar ── */
+.score-bar {
+  height: 2px;
+  background: var(--border2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.score-bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+.bar-g { background: linear-gradient(90deg, var(--emerald), #6ee7b7); }
+.bar-a { background: var(--amber); }
+.bar-r { background: var(--rose); }
+.bar-v { background: linear-gradient(90deg, var(--violet), var(--violet2)); }
+
+/* ── Pills ── */
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.pill-v  { background: rgba(139,92,246,0.12); color: var(--violet3); border: 1px solid rgba(139,92,246,0.2); }
+.pill-c  { background: rgba(6,182,212,0.10);  color: #67e8f9;        border: 1px solid rgba(6,182,212,0.2); }
+.pill-g  { background: rgba(16,185,129,0.10); color: #6ee7b7;        border: 1px solid rgba(16,185,129,0.2); }
+.pill-a  { background: rgba(245,158,11,0.10); color: #fcd34d;        border: 1px solid rgba(245,158,11,0.2); }
+.pill-r  { background: rgba(244,63,94,0.10);  color: #fda4af;        border: 1px solid rgba(244,63,94,0.2); }
+.pill-z  { background: rgba(255,255,255,0.05); color: var(--text2);  border: 1px solid var(--border2); }
+.pill-b  { background: rgba(59,130,246,0.10); color: #93c5fd;        border: 1px solid rgba(59,130,246,0.2); }
+
+/* ── Section trace ── */
 .trace-card {
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 18px 20px;
-  margin-bottom: 10px;
+  padding: 16px 18px;
+  margin-bottom: 8px;
   transition: border-color 0.15s;
 }
 .trace-card:hover { border-color: var(--border2); }
@@ -442,306 +486,214 @@ footer { display: none !important; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
-.trace-name {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text);
-  letter-spacing: -0.01em;
-  font-family: 'Inter', system-ui, sans-serif;
-}
-.trace-meta { display: flex; align-items: center; gap: 6px; }
-.diff-wrap {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.diff-pane {
-  background: var(--bg3);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-}
+.trace-name { font-size: 13px; font-weight: 600; color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+.trace-meta { display: flex; align-items: center; gap: 5px; }
+.diff-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.diff-pane { background: var(--bg3); border-radius: var(--radius-sm); padding: 11px 13px; }
 .diff-lbl {
-  font-size: 9.5px;
+  font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   font-weight: 700;
   color: var(--text4);
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   font-family: 'Inter', system-ui, sans-serif;
 }
 .diff-txt {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text2);
   line-height: 1.65;
   white-space: pre-wrap;
   font-family: 'Inter', system-ui, sans-serif;
 }
 .diff-txt.new { color: var(--text); }
-.iter-row { display: flex; align-items: center; gap: 5px; margin-top: 10px; }
-.iter-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bg4); border: 1px solid var(--border2); }
+.iter-row { display: flex; align-items: center; gap: 4px; margin-top: 9px; }
+.iter-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bg4); border: 1px solid var(--border2); }
 .iter-dot.ok   { background: var(--emerald); border-color: var(--emerald); }
-.iter-dot.done { background: var(--violet); border-color: var(--violet); }
-.iter-meta { font-size: 11px; color: var(--text3); margin-left: 4px; font-family: 'Inter', system-ui, sans-serif; }
-.trace-warn { font-size: 11px; color: var(--amber); margin-top: 6px; font-family: 'Inter', system-ui, sans-serif; }
-.violations { font-size: 11px; color: var(--text3); margin-top: 5px; line-height: 1.5; font-family: 'Inter', system-ui, sans-serif; }
+.iter-dot.done { background: var(--violet);  border-color: var(--violet); }
+.iter-meta { font-size: 10.5px; color: var(--text3); margin-left: 3px; font-family: 'Inter', system-ui, sans-serif; }
+.trace-warn { font-size: 11px; color: var(--amber); margin-top: 5px; font-family: 'Inter', system-ui, sans-serif; }
+.violations { font-size: 11px; color: var(--text3); margin-top: 4px; line-height: 1.5; font-family: 'Inter', system-ui, sans-serif; }
 
 /* ── Progress panel ── */
 .prog-panel {
-  background: var(--bg2);
-  border: 1px solid var(--border);
+  background: var(--bg1);
+  border: 1px solid var(--border2);
   border-radius: var(--radius);
-  padding: 22px 24px;
+  padding: 20px 22px;
 }
-.prog-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-.prog-title { font-size: 14px; font-weight: 600; color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+.prog-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.prog-title { font-size: 13.5px; font-weight: 600; color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
 .prog-pct { font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums; font-family: 'Inter', system-ui, sans-serif; }
-.prog-track {
-  height: 2px;
-  background: var(--border2);
-  border-radius: 999px;
-  overflow: hidden;
-  margin-bottom: 22px;
-}
-.prog-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--violet), var(--cyan));
-  border-radius: 999px;
-  transition: width 0.4s ease;
-}
-.stage-pipeline {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  margin-bottom: 20px;
-  overflow-x: auto;
-}
+.prog-track { height: 2px; background: var(--border2); border-radius: 999px; overflow: hidden; margin-bottom: 20px; }
+.prog-fill { height: 100%; background: linear-gradient(90deg, var(--violet), var(--cyan)); border-radius: 999px; transition: width 0.4s ease; }
+.stage-pipeline { display: flex; align-items: center; gap: 0; margin-bottom: 18px; overflow-x: auto; }
 .stage-node { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
 .stage-icon {
-  width: 34px; height: 34px; border-radius: 50%;
+  width: 32px; height: 32px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 15px;
+  font-size: 14px;
   background: var(--bg3);
   border: 1.5px solid var(--border2);
   color: var(--text3);
   transition: all 0.2s;
 }
-.stage-icon.active {
-  border-color: var(--violet);
-  color: var(--violet2);
-  background: rgba(139,92,246,0.1);
-  box-shadow: 0 0 10px rgba(139,92,246,0.2);
-}
-.stage-icon.done {
-  border-color: var(--emerald);
-  color: var(--emerald);
-  background: rgba(16,185,129,0.08);
-}
-.stage-lbl {
-  font-size: 9.5px;
-  color: var(--text4);
-  margin-top: 5px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  font-weight: 600;
-  font-family: 'Inter', system-ui, sans-serif;
-}
+.stage-icon.active { border-color: var(--violet); color: var(--violet2); background: rgba(139,92,246,0.1); box-shadow: 0 0 8px rgba(139,92,246,0.2); }
+.stage-icon.done   { border-color: var(--emerald); color: var(--emerald); background: rgba(16,185,129,0.08); }
+.stage-lbl { font-size: 9px; color: var(--text4); margin-top: 4px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600; font-family: 'Inter', system-ui, sans-serif; }
 .stage-lbl.active { color: var(--violet3); }
 .stage-lbl.done   { color: var(--emerald); }
-.stage-conn {
-  flex: 1;
-  height: 1px;
-  background: var(--border2);
-  min-width: 16px;
-  margin-bottom: 18px;
-  transition: background 0.3s;
-}
+.stage-conn { flex: 1; height: 1px; background: var(--border2); min-width: 14px; margin-bottom: 16px; transition: background 0.3s; }
 .stage-conn.done { background: var(--emerald); }
-.log-stream {
-  font-size: 11.5px;
-  color: var(--text3);
-  line-height: 1.85;
-  max-height: 160px;
-  overflow-y: auto;
-  font-family: 'Fira Code', 'SF Mono', monospace;
-}
+.log-stream { font-size: 11px; color: var(--text3); line-height: 1.85; max-height: 140px; overflow-y: auto; font-family: 'Fira Code', 'SF Mono', monospace; }
 .log-stream .ok  { color: var(--emerald); }
 .log-stream .act { color: var(--violet2); }
 .log-stream .dim { color: var(--text4); }
+
+/* ── Action plan ── */
+.action-section { margin-bottom: 20px; }
+.action-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  color: var(--text3);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.action-item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--amber);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 12px 14px;
+  margin-bottom: 7px;
+}
+.action-item.urgent { border-left-color: var(--rose); }
+.action-item.ok { border-left-color: var(--emerald); }
+.action-item.info { border-left-color: var(--blue); }
+.action-section-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.action-issue { font-size: 11.5px; color: var(--text2); margin-bottom: 4px; font-family: 'Inter', system-ui, sans-serif; }
+.action-hint { font-size: 11px; color: var(--text3); font-style: italic; font-family: 'Inter', system-ui, sans-serif; }
+.gap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 600px) { .gap-grid { grid-template-columns: 1fr; } }
+.gap-col { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
+.gap-col-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 700; margin-bottom: 8px; font-family: 'Inter', system-ui, sans-serif; }
+.gap-col-title.presentation { color: var(--amber); }
+.gap-col-title.real { color: var(--rose); }
+.gap-tag {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  margin: 3px 2px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.gap-tag.presentation { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); color: #fcd34d; }
+.gap-tag.real { background: rgba(244,63,94,0.08); border: 1px solid rgba(244,63,94,0.2); color: #fda4af; }
+.persistent-gap-banner {
+  background: rgba(59,130,246,0.07);
+  border: 1px solid rgba(59,130,246,0.18);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #93c5fd;
+  line-height: 1.55;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.persistent-gap-banner strong { color: #bfdbfe; }
 
 /* ── Review panel ── */
 .review-hero {
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 22px 24px;
-  margin-bottom: 12px;
+  padding: 20px 22px;
+  margin-bottom: 10px;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 20px;
+  gap: 16px;
 }
 .review-left { flex: 1; min-width: 0; }
-.review-role-name {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.02em;
-  margin-bottom: 4px;
-  font-family: 'Inter', system-ui, sans-serif;
-}
-.review-sub {
-  font-size: 12px;
-  color: var(--text3);
-  margin-bottom: 14px;
-  font-family: 'Inter', system-ui, sans-serif;
-}
-.verdict {
-  font-size: 13px;
-  color: var(--text2);
-  font-style: italic;
-  padding-top: 14px;
-  margin-top: 14px;
-  border-top: 1px solid var(--border);
-  line-height: 1.55;
-  font-family: 'Inter', system-ui, sans-serif;
-}
-.score-ring {
-  flex-shrink: 0;
-  text-align: center;
-  width: 80px;
-}
-.score-big {
-  font-size: 42px;
-  font-weight: 800;
-  letter-spacing: -0.06em;
-  line-height: 1;
-  font-family: 'Inter', system-ui, sans-serif;
-}
+.review-role-name { font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; margin-bottom: 3px; font-family: 'Inter', system-ui, sans-serif; }
+.review-sub { font-size: 11.5px; color: var(--text3); margin-bottom: 12px; font-family: 'Inter', system-ui, sans-serif; }
+.verdict { font-size: 12.5px; color: var(--text2); font-style: italic; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border); line-height: 1.55; font-family: 'Inter', system-ui, sans-serif; }
+.score-ring { flex-shrink: 0; text-align: center; width: 72px; }
+.score-big { font-size: 38px; font-weight: 800; letter-spacing: -0.06em; line-height: 1; font-family: 'Inter', system-ui, sans-serif; }
 .score-big.hi  { color: var(--emerald); }
 .score-big.mid { color: var(--amber); }
 .score-big.lo  { color: var(--rose); }
-.score-cap {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text3);
-  margin-top: 3px;
-  font-weight: 600;
-  font-family: 'Inter', system-ui, sans-serif;
-}
-.review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-.review-col {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 16px;
-}
-.review-col h5 {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text3);
-  font-weight: 700;
-  margin-bottom: 10px;
-  font-family: 'Inter', system-ui, sans-serif;
-}
-.review-col ul { padding-left: 16px; }
-.review-col li { font-size: 12.5px; color: var(--text2); line-height: 1.7; font-family: 'Inter', system-ui, sans-serif; }
+.score-cap { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-top: 2px; font-weight: 600; font-family: 'Inter', system-ui, sans-serif; }
+.review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.review-col { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
+.review-col h5 { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 700; margin-bottom: 8px; font-family: 'Inter', system-ui, sans-serif; }
+.review-col ul { padding-left: 15px; }
+.review-col li { font-size: 12px; color: var(--text2); line-height: 1.7; font-family: 'Inter', system-ui, sans-serif; }
 .review-col.weak li { color: #fda4af; }
-.kw-panel {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 14px 16px;
-}
-.kw-panel h5 {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text3);
-  font-weight: 700;
-  margin-bottom: 10px;
-  font-family: 'Inter', system-ui, sans-serif;
-}
+.kw-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; }
+.kw-panel h5 { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-weight: 700; margin-bottom: 8px; font-family: 'Inter', system-ui, sans-serif; }
 .kw-tag {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 5px;
-  font-size: 11.5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
   font-weight: 500;
   background: rgba(255,255,255,0.04);
   border: 1px solid var(--border2);
   color: var(--text2);
-  margin: 3px;
+  margin: 2px;
   font-family: 'Inter', system-ui, sans-serif;
 }
 .kw-tag.miss { background: rgba(244,63,94,0.07); border-color: rgba(244,63,94,0.18); color: #fda4af; }
 
 /* ── JD table ── */
-.jd-section { margin-bottom: 16px; }
-.jd-header {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: 'Inter', system-ui, sans-serif;
-}
+.jd-section { margin-bottom: 14px; }
+.jd-header { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; display: flex; align-items: center; gap: 7px; font-family: 'Inter', system-ui, sans-serif; }
 .jd-table-wrap { overflow-x: auto; }
-table.jd-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-  font-family: 'Inter', system-ui, sans-serif;
-}
-table.jd-table th {
-  text-align: left;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text3);
-  font-weight: 700;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-}
-table.jd-table td {
-  padding: 9px 10px;
-  color: var(--text2);
-  border-bottom: 1px solid var(--border);
-}
+table.jd-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: 'Inter', system-ui, sans-serif; }
+table.jd-table th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); font-weight: 700; padding: 7px 9px; border-bottom: 1px solid var(--border); }
+table.jd-table td { padding: 8px 9px; color: var(--text2); border-bottom: 1px solid var(--border); }
 table.jd-table tr:last-child td { border-bottom: none; }
 table.jd-table td.r { text-align: right; font-variant-numeric: tabular-nums; }
-table.jd-table td.dim { color: var(--text3); font-size: 11.5px; }
+table.jd-table td.dim { color: var(--text3); font-size: 11px; }
 table.jd-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
 
-/* ── Download tab ── */
-.dl-hint {
-  font-size: 13px;
-  color: var(--text2);
-  margin-bottom: 16px;
-  line-height: 1.5;
-  font-family: 'Inter', system-ui, sans-serif;
+/* ── History sidebar panel ── */
+.hist-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
 }
-.dl-hint a { color: var(--violet2); text-decoration: none; }
-.dl-hint a:hover { text-decoration: underline; }
+.hist-item:last-child { border-bottom: none; }
+.hist-left { flex: 1; min-width: 0; }
+.hist-role { font-size: 11.5px; font-weight: 600; color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+.hist-meta { font-size: 10px; color: var(--text3); margin-top: 2px; font-family: 'Inter', system-ui, sans-serif; }
+.hist-scores { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 
 /* ── Messages ── */
 .msg-error {
   background: rgba(244,63,94,0.06);
   border: 1px solid rgba(244,63,94,0.18);
   border-radius: var(--radius-sm);
-  padding: 16px 18px;
+  padding: 14px 16px;
   color: #fda4af;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.55;
   font-family: 'Inter', system-ui, sans-serif;
 }
@@ -749,16 +701,16 @@ table.jd-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
   background: rgba(245,158,11,0.06);
   border: 1px solid rgba(245,158,11,0.18);
   border-radius: var(--radius-sm);
-  padding: 10px 14px;
+  padding: 9px 13px;
   color: #fcd34d;
-  font-size: 12px;
-  margin-top: 10px;
+  font-size: 11.5px;
+  margin-top: 8px;
   font-family: 'Inter', system-ui, sans-serif;
 }
 .msg-idle {
   color: var(--text4);
-  font-size: 13.5px;
-  padding: 48px 24px;
+  font-size: 13px;
+  padding: 42px 20px;
   text-align: center;
   border: 1px dashed var(--border2);
   border-radius: var(--radius);
@@ -766,6 +718,11 @@ table.jd-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
   font-family: 'Inter', system-ui, sans-serif;
 }
 .msg-idle strong { color: var(--text3); }
+
+/* ── Download tab ── */
+.dl-hint { font-size: 12.5px; color: var(--text2); margin-bottom: 14px; line-height: 1.5; font-family: 'Inter', system-ui, sans-serif; }
+.dl-hint a { color: var(--violet2); text-decoration: none; }
+.dl-hint a:hover { text-decoration: underline; }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -779,14 +736,14 @@ table.jd-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
   .review-hero { flex-direction: column; }
   .review-grid { grid-template-columns: 1fr; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  .hero-title { font-size: 28px; }
+  .gap-grid { grid-template-columns: 1fr; }
 }
 """
 
 
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 #  Shared helpers
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 def _sc(s: float) -> str:
     return "hi" if s >= 75 else ("mid" if s >= 50 else "lo")
 
@@ -815,9 +772,20 @@ def _kpi(label: str, val: str, note: str = "") -> str:
     )
 
 
-# ─────────────────────────────────────────────────────────────
+def _ts_ago(ts: float) -> str:
+    diff = time.time() - ts
+    if diff < 60:
+        return "just now"
+    if diff < 3600:
+        return f"{int(diff/60)}m ago"
+    if diff < 86400:
+        return f"{int(diff/3600)}h ago"
+    return f"{int(diff/86400)}d ago"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  Result renderers
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 def _summary_html(r: PipelineResult) -> str:
     if r.status == "error":
         errs = "<br>".join(r.errors) or "Unknown error."
@@ -828,24 +796,119 @@ def _summary_html(r: PipelineResult) -> str:
     elapsed = f"{r.elapsed_ms / 1000:.1f}s"
     ats     = r.ats.score if r.ats else 0.0
     rev     = r.role_reviews[0].overall_score if r.role_reviews else 0.0
-    jd_a    = r.jd_report.avg_score_after if r.jd_report else 0.0
-    jd_d    = r.jd_report.avg_delta if r.jd_report else 0.0
+    # Prefer custom JD report when available
+    jd_r    = r.custom_jd_report or r.jd_report
+    jd_a    = jd_r.avg_score_after if jd_r else 0.0
+    jd_d    = jd_r.avg_delta if jd_r else 0.0
     role    = ROLES.get(r.role, r.role)
-    delta   = f"{jd_d:+.1f}" if jd_d else "—"
+    delta   = f"{jd_d:+.1f}" if jd_r else "—"
+    jd_lbl  = "Custom JD" if r.custom_jd_report else "JD match"
 
     kpis = "".join([
-        _kpi("Sections", f"{changed}/{total}", "changed"),
-        _kpi("ATS",      f"{ats:.0f}",          "/100"),
-        _kpi("HM score", f"{rev:.0f}",           f"/100 · {role}"),
-        _kpi("JD match", f"{jd_a:.0f}",          f"Δ {delta}"),
-        _kpi("Time",     elapsed),
+        _kpi("Sections",  f"{changed}/{total}", "changed"),
+        _kpi("ATS score", f"{ats:.0f}",          "/100"),
+        _kpi("HM score",  f"{rev:.0f}",           f"/100 · {role}"),
+        _kpi(jd_lbl,      f"{jd_a:.0f}",          f"Δ {delta}"),
+        _kpi("Actions",   str(len(r.manual_actions)), "to fix"),
+        _kpi("Time",      elapsed),
     ])
+
+    # Persistent gaps callout
+    pg = get_persistent_gaps(8)
+    pg_html = ""
+    if pg:
+        tags = " ".join(f'<span class="kw-tag miss">{k}</span>' for k in pg)
+        pg_html = (
+            f'<div class="persistent-gap-banner">'
+            f'<strong>Recurring gaps</strong> — these keywords have been missing '
+            f'across multiple runs. Consider addressing them directly:<br>'
+            f'<div style="margin-top:7px">{tags}</div>'
+            f'</div>'
+        )
 
     warn = ""
     if r.warnings:
         warn = f'<div class="msg-warn">{"  ·  ".join(r.warnings[:3])}</div>'
 
-    return f'<div class="kpi-grid">{kpis}</div>{warn}'
+    return f'{pg_html}<div class="kpi-grid">{kpis}</div>{warn}'
+
+
+def _action_plan_html(r: PipelineResult) -> str:
+    """Tab 2: Manual action checklist + gap classification."""
+    parts = []
+
+    # --- Manual actions ---
+    if r.manual_actions:
+        items_html = []
+        for a in r.manual_actions:
+            urgency = "urgent" if a.score < 50 else ("ok" if a.score >= 75 else "")
+            score_pill = _pill(f"{a.score:.0f}", "r" if a.score < 50 else ("a" if a.score < 75 else "g"))
+            items_html.append(
+                f'<div class="action-item {urgency}">'
+                f'<div class="action-section-label">{a.section} {score_pill}</div>'
+                f'<div class="action-issue">{a.issue}</div>'
+                f'<div class="action-hint">Fix: {a.fix_hint}</div>'
+                f'</div>'
+            )
+        parts.append(
+            f'<div class="action-section">'
+            f'<div class="action-section-title">Manual fixes needed ({len(r.manual_actions)})</div>'
+            + "".join(items_html)
+            + '</div>'
+        )
+    else:
+        parts.append(
+            '<div class="action-section">'
+            '<div class="action-section-title">Manual fixes needed</div>'
+            '<div class="action-item ok"><div class="action-issue">No residual issues — all sections met the quality threshold.</div></div>'
+            '</div>'
+        )
+
+    # --- Gap classification ---
+    if r.ats:
+        pres = r.ats.presentation_gaps
+        real = r.ats.real_gaps
+        pres_html = (
+            "".join(f'<span class="gap-tag presentation">{k}</span>' for k in pres)
+            or '<span style="color:var(--text4);font-size:12px">None — great!</span>'
+        )
+        real_html = (
+            "".join(f'<span class="gap-tag real">{k}</span>' for k in real)
+            or '<span style="color:var(--text4);font-size:12px">None — great!</span>'
+        )
+        parts.append(
+            '<div class="action-section">'
+            '<div class="action-section-title">Keyword gap analysis</div>'
+            '<div class="gap-grid">'
+            '<div class="gap-col">'
+            '<div class="gap-col-title presentation">Presentation gaps</div>'
+            '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">'
+            'Already in your resume — make them more visible</div>'
+            f'{pres_html}'
+            '</div>'
+            '<div class="gap-col">'
+            '<div class="gap-col-title real">Real skill gaps</div>'
+            '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">'
+            'Not found anywhere — need actual work or a project</div>'
+            f'{real_html}'
+            '</div>'
+            '</div>'
+            '</div>'
+        )
+
+    # --- ATS matched keywords ---
+    if r.ats and r.ats.matched:
+        matched_html = " ".join(f'<span class="kw-tag">{k}</span>' for k in r.ats.matched[:25])
+        parts.append(
+            '<div class="action-section">'
+            '<div class="action-section-title">ATS keywords already matched</div>'
+            f'<div class="kw-panel">{matched_html}</div>'
+            '</div>'
+        )
+
+    if not parts:
+        return _idle("Action plan appears after enhancement.")
+    return "\n".join(parts)
 
 
 def _sections_html(r: PipelineResult) -> str:
@@ -882,8 +945,10 @@ def _sections_html(r: PipelineResult) -> str:
             f'<div class="trace-meta">{sp}{cp}</div>'
             f'</div>'
             f'<div class="diff-wrap">'
-            f'<div class="diff-pane"><div class="diff-lbl">Before</div><div class="diff-txt">{t.before}</div></div>'
-            f'<div class="diff-pane"><div class="diff-lbl">After</div><div class="diff-txt new">{t.after}</div></div>'
+            f'<div class="diff-pane"><div class="diff-lbl">Before</div>'
+            f'<div class="diff-txt">{t.before}</div></div>'
+            f'<div class="diff-pane"><div class="diff-lbl">After</div>'
+            f'<div class="diff-txt new">{t.after}</div></div>'
             f'</div>'
             f'{viols}{dots}{note}'
             f'</div>'
@@ -914,14 +979,12 @@ def _review_html(r: PipelineResult) -> str:
         f'<div class="score-cap">Phone-screen<br>likelihood</div>'
         f'</div></div>'
     )
-
     cols = (
         f'<div class="review-grid">'
         f'<div class="review-col"><h5>Strengths</h5><ul>{strengths}</ul></div>'
         f'<div class="review-col weak"><h5>Weaknesses</h5><ul>{weaknesses}</ul></div>'
         f'</div>'
     )
-
     kw = f'<div class="kw-panel"><h5>Missing keywords</h5>{missing}</div>'
 
     extra = ""
@@ -931,52 +994,54 @@ def _review_html(r: PipelineResult) -> str:
             kc = "v" if rr.overall_score >= 75 else ("a" if rr.overall_score >= 50 else "r")
             rows.append(
                 f'<div style="display:flex;justify-content:space-between;align-items:center;'
-                f'padding:9px 0;border-bottom:1px solid var(--border)">'
-                f'<div><div style="font-size:13px;color:var(--text);font-weight:600">{rr.role_name}</div>'
-                f'<div style="font-size:11.5px;color:var(--text3);margin-top:1px">"{rr.one_line_verdict}"</div></div>'
+                f'padding:8px 0;border-bottom:1px solid var(--border)">'
+                f'<div><div style="font-size:12.5px;color:var(--text);font-weight:600">{rr.role_name}</div>'
+                f'<div style="font-size:11px;color:var(--text3);margin-top:1px">"{rr.one_line_verdict}"</div></div>'
                 f'{_pill(str(int(rr.overall_score)), kc)}'
                 f'</div>'
             )
         extra = (
             f'<div style="background:var(--bg2);border:1px solid var(--border);'
-            f'border-radius:var(--radius-sm);padding:14px 16px;margin-top:10px">'
-            f'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;'
-            f'color:var(--text3);font-weight:700;margin-bottom:8px">Cross-role</div>'
+            f'border-radius:var(--radius-sm);padding:12px 14px;margin-top:8px">'
+            f'<div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;'
+            f'color:var(--text3);font-weight:700;margin-bottom:7px">Cross-role</div>'
             + "".join(rows) + "</div>"
         )
-
     return hero + cols + kw + extra
 
 
 def _jd_html(r: PipelineResult) -> str:
+    """Render JD match tab: custom JD first if present, then generic."""
     bits = []
+    if r.custom_jd_report and r.custom_jd_report.samples_count > 0:
+        bits.append(_jd_block(r.custom_jd_report, "Your Job Description", is_custom=True))
     if r.jd_report and r.jd_report.samples:
-        bits.append(_jd_block(r.jd_report, "Target role"))
+        bits.append(_jd_block(r.jd_report, "Generic role samples"))
     for jd in r.cross_role_jd_reports:
         bits.append(_jd_block(jd, "Cross-validation"))
     if not bits:
-        return _idle("JD matching is off or no JDs loaded for this role.")
+        return _idle("JD matching scores appear here after enhancement.")
     return "\n".join(bits)
 
 
-def _jd_block(rep, kind: str) -> str:
-    role = ROLES.get(rep.role_id, rep.role_id)
+def _jd_block(rep, kind: str, *, is_custom: bool = False) -> str:
+    role = "Custom JD" if is_custom else ROLES.get(rep.role_id, rep.role_id)
     dk   = "v" if rep.avg_delta >= 5 else ("a" if rep.avg_delta >= 0 else "r")
 
     rows = [
         "<tr>"
-        "<th>Job</th><th>Archetype</th>"
+        "<th>Job / Title</th><th>Archetype</th>"
         "<th class='r'>Before</th><th class='r'>After</th>"
         "<th class='r'>Δ</th><th>Gaps</th>"
         "</tr>"
     ]
     for s in rep.samples:
-        kl  = "g" if s.delta >= 5 else ("a" if s.delta >= 0 else "r")
+        kl   = "g" if s.delta >= 5 else ("a" if s.delta >= 0 else "r")
         gaps = ", ".join(s.missing_keywords[:4]) or "—"
         rows.append(
             f'<tr>'
-            f'<td><b style="color:var(--text);font-size:13px">{s.title}</b></td>'
-            f'<td>{_pill(s.company_archetype, "z")}</td>'
+            f'<td><b style="color:var(--text);font-size:12.5px">{s.title}</b></td>'
+            f'<td>{_pill(s.company_archetype or "—", "z")}</td>'
             f'<td class="r">{s.score_before:.0f}</td>'
             f'<td class="r">{s.score_after:.0f}</td>'
             f'<td class="r">{_pill(f"{s.delta:+.1f}", kl)}</td>'
@@ -987,8 +1052,8 @@ def _jd_block(rep, kind: str) -> str:
     hdr = (
         f'<div class="jd-header">'
         f'<span>{role}</span>'
-        f'{_pill(kind, "z")}'
-        f'<span style="margin-left:auto;font-size:13px;color:var(--text2);font-weight:400">'
+        f'{_pill(kind, "b" if is_custom else "z")}'
+        f'<span style="margin-left:auto;font-size:12.5px;color:var(--text2);font-weight:400">'
         f'{rep.avg_score_before:.0f} → {rep.avg_score_after:.0f} '
         f'{_pill(f"{rep.avg_delta:+.1f}", dk)}'
         f'</span></div>'
@@ -997,32 +1062,62 @@ def _jd_block(rep, kind: str) -> str:
     gaps_html = ""
     if rep.top_gaps:
         gaps_html = (
-            f'<div style="margin-top:12px">'
-            f'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;'
-            f'color:var(--text3);font-weight:700;margin-bottom:7px">Top gaps</div>'
+            f'<div style="margin-top:10px">'
+            f'<div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;'
+            f'color:var(--text3);font-weight:700;margin-bottom:6px">Top gaps</div>'
             + "".join(f'<span class="kw-tag miss">{k}</span>' for k in rep.top_gaps)
             + "</div>"
         )
 
     return (
         f'<div class="jd-section" style="background:var(--bg2);border:1px solid var(--border);'
-        f'border-radius:var(--radius);padding:18px 20px">'
+        f'border-radius:var(--radius);padding:16px 18px;margin-bottom:12px">'
         f'{hdr}'
         f'<div class="jd-table-wrap"><table class="jd-table">{"".join(rows)}</table></div>'
         f'{gaps_html}</div>'
     )
 
 
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+#  History panel
+# ─────────────────────────────────────────────────────────────────────────────
+def _history_html() -> str:
+    runs = load_runs()[:5]
+    if not runs:
+        return '<div style="color:var(--text4);font-size:12px;padding:8px 0">No runs yet.</div>'
+    items = []
+    for run in runs:
+        role_name = ROLES.get(run.get("role", ""), run.get("role", "Unknown"))
+        ats  = run.get("ats_score", 0)
+        hm   = run.get("hm_score", 0)
+        jd   = run.get("jd_avg_after", 0)
+        ts   = run.get("timestamp", 0)
+        cjd  = " · custom JD" if run.get("custom_jd_used") else ""
+        ago  = _ts_ago(ts) if ts else ""
+        ats_pill = _pill(f"ATS {ats:.0f}", "g" if ats >= 75 else ("a" if ats >= 50 else "r"))
+        hm_pill  = _pill(f"HM {hm:.0f}", "v" if hm >= 75 else ("a" if hm >= 50 else "r"))
+        items.append(
+            f'<div class="hist-item">'
+            f'<div class="hist-left">'
+            f'<div class="hist-role">{role_name}</div>'
+            f'<div class="hist-meta">{ago}{cjd}</div>'
+            f'</div>'
+            f'<div class="hist-scores">{ats_pill}{hm_pill}</div>'
+            f'</div>'
+        )
+    return "".join(items)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  Progress
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 _STAGES = [
     ("parse",    "📄", "Parse"),
     ("repair",   "🔧", "Repair"),
     ("plan",     "📐", "Plan"),
     ("enhance",  "✦",  "Enhance"),
-    ("render",   "🖨", "Render"),
-    ("jd_match", "🎯", "Validate"),
+    ("render",   "🖨",  "Render"),
+    ("jd_match", "🎯", "Score"),
 ]
 _ENHANCE_SUB = {"enhance_plan", "section"}
 
@@ -1051,7 +1146,7 @@ def _progress_html(lines: list[str], pct: int, *, eta_s: int = 0, done: set | No
             conn = "done" if sid in done else ""
             nodes.append(f'<div class="stage-conn {conn}"></div>')
 
-    log_html = "".join(f"<div>{ln}</div>" for ln in lines[-20:])
+    log_html = "".join(f"<div>{ln}</div>" for ln in lines[-18:])
 
     return (
         f'<div class="prog-panel">'
@@ -1068,8 +1163,7 @@ def _progress_html(lines: list[str], pct: int, *, eta_s: int = 0, done: set | No
 
 def _fmt_event(event: str, data: dict) -> str:
     if event == "stage":
-        name   = data.get("name", "")
-        status = data.get("status", "")
+        name, status = data.get("name", ""), data.get("status", "")
         labels = {
             "parse": "Parsing resume", "repair": "Repairing fields",
             "complete": "Filling gaps", "plan": "Planning rewrite",
@@ -1091,11 +1185,15 @@ def _fmt_event(event: str, data: dict) -> str:
     return f'<span class="dim">{event}</span>'
 
 
-# ─────────────────────────────────────────────────────────────
-#  Handler  (only 2 real inputs: file + role)
-# ─────────────────────────────────────────────────────────────
-def _enhance_handler(file, role_id: str):
+# ─────────────────────────────────────────────────────────────────────────────
+#  Handler
+# ─────────────────────────────────────────────────────────────────────────────
+def _enhance_handler(file, role_id: str, custom_jd: str):
+    """Main pipeline handler. Yields 8 outputs:
+    summary, action_plan, sections, review, jd, tex_file, tex_text, dl_group
+    """
     blank = (
+        _idle("Action plan appears here."),
         _idle("Section details appear here."),
         _idle("Hiring-manager review appears here."),
         _idle("JD match scores appear here."),
@@ -1104,12 +1202,12 @@ def _enhance_handler(file, role_id: str):
     )
 
     if file is None:
-        yield (_idle("Upload a <b>.tex</b> resume, pick a role, then hit <strong>Enhance</strong>."), *blank)
+        yield (_idle("Upload a <b>.tex</b> resume, select a role, then click <strong>✦ Enhance Resume</strong>."), *blank)
         return
 
     tex_path = Path(file.name if hasattr(file, "name") else file)
     if tex_path.suffix.lower() != ".tex":
-        yield (_idle("Please upload a <b>.tex</b> file. PDF is not supported."), *blank)
+        yield (_idle("Please upload a <b>.tex</b> file. PDF is not supported yet."), *blank)
         return
 
     try:
@@ -1135,6 +1233,7 @@ def _enhance_handler(file, role_id: str):
         max_iterations=settings.max_iterations,
         enable_multi_llm=settings.enable_multi_llm,
         max_section_calls=settings.max_section_calls,
+        custom_jd_text=custom_jd.strip() if custom_jd else "",
     )
 
     q: queue.Queue = queue.Queue()
@@ -1157,16 +1256,16 @@ def _enhance_handler(file, role_id: str):
 
     threading.Thread(target=_worker, daemon=True, name="enhance-worker").start()
 
-    lines:        list[str]   = ['<span class="act">[start]</span> <span class="dim">initializing…</span>']
-    pct:          int         = 3
-    weights                   = {"parse": 10, "repair": 10, "complete": 8, "plan": 8,
-                                 "enhance_plan": 4, "render": 15, "jd_match": 15}
-    stages_done:  set[str]    = set()
-    cur_stage:    str         = "parse"
-    rew_done:     int         = 0
-    rew_total:    int         = 0
-    start_ts:     float       = time.monotonic()
-    last_emit:    float       = time.monotonic()
+    lines        = ['<span class="act">[start]</span> <span class="dim">initializing…</span>']
+    pct          = 3
+    weights      = {"parse": 10, "repair": 10, "complete": 8, "plan": 8,
+                    "enhance_plan": 4, "render": 15, "jd_match": 15}
+    stages_done  : set[str] = set()
+    cur_stage    = "parse"
+    rew_done     = 0
+    rew_total    = 0
+    start_ts     = time.monotonic()
+    last_emit    = time.monotonic()
 
     while True:
         try:
@@ -1221,6 +1320,7 @@ def _enhance_handler(file, role_id: str):
     res: PipelineResult = holder["result"]
     yield (
         _summary_html(res),
+        _action_plan_html(res),
         _sections_html(res),
         _review_html(res),
         _jd_html(res),
@@ -1230,9 +1330,9 @@ def _enhance_handler(file, role_id: str):
     )
 
 
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 #  Build app
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 def build_app() -> gr.Blocks:
     role_choices = [(name, rid) for rid, name in ROLES.items()]
 
@@ -1253,57 +1353,96 @@ def build_app() -> gr.Blocks:
             '<div class="hero-badge">Multi-agent · ATS-optimised · Fact-preserving</div>'
             '<div class="hero-title">Your resume,<br><em>engineered to land.</em></div>'
             '<div class="hero-sub">'
-            'Upload a LaTeX resume. Our AI agents rewrite every bullet for impact — '
-            'no hallucinations, Overleaf-ready output.'
+            'Upload a LaTeX resume, paste a job description (or use generic role templates), '
+            'and get a fully optimised, Overleaf-ready .tex file.'
             '</div>'
             '</div>'
         )
 
-        # ── Input card ──
+        # ── App layout ──
+        gr.HTML('<div class="app-layout">')
+
+        # ── LEFT SIDEBAR ──
+        gr.HTML('<div class="sidebar">')
+
+        # — Input card —
         gr.HTML(
-            '<div class="main-card">'
-            '<div class="card-header">'
-            '<div class="card-header-icon">✦</div>'
-            '<div class="card-header-title">Enhance Resume</div>'
-            '<div class="card-header-sub">Upload · Select role · Run</div>'
+            '<div class="card">'
+            '<div class="card-hd">'
+            '<div class="card-hd-icon">✦</div>'
+            '<div class="card-hd-title">Enhance Resume</div>'
+            '</div>'
+            '<div class="card-body">'
+        )
+
+        file_in = gr.File(
+            label="Resume (.tex)",
+            file_types=[".tex"],
+            file_count="single",
+            height=110,
+        )
+        role_in = gr.Dropdown(
+            choices=role_choices,
+            value="ai_ml_engineer",
+            label="Target role",
+            interactive=True,
+        )
+
+        # JD mode: Generic vs Custom — shown as explanatory labels
+        gr.HTML(
+            '<div style="margin:12px 0 6px">'
+            '<div style="font-size:11px;font-weight:600;color:var(--text2);'
+            'text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">'
+            'Job Description Mode</div>'
+            '<div style="font-size:11.5px;color:var(--text3);line-height:1.55;margin-bottom:6px">'
+            'Leave blank to use built-in role templates (Generic).<br>'
+            'Paste a real JD below to target that specific job (Custom).'
+            '</div>'
             '</div>'
         )
 
-        with gr.Row(equal_height=False):
-            with gr.Column(scale=1, min_width=260):
-                gr.HTML('<div style="padding:24px 24px 0">')
+        custom_jd_in = gr.Textbox(
+            label="Paste job description (optional)",
+            placeholder="Paste the full JD text here to target this specific job…",
+            lines=6,
+            max_lines=14,
+        )
 
-                file_in = gr.File(
-                    label="Resume (.tex)",
-                    file_types=[".tex"],
-                    file_count="single",
-                    height=120,
-                )
-                role_in = gr.Dropdown(
-                    choices=role_choices,
-                    value="ai_ml_engineer",
-                    label="Target role",
-                    interactive=True,
-                )
-                run_btn = gr.Button("✦  Enhance Resume", variant="primary", size="lg")
+        run_btn = gr.Button("✦  Enhance Resume", variant="primary", size="lg")
 
-                gr.HTML('</div>')
+        gr.HTML('</div></div>')  # close card-body, card
 
-            with gr.Column(scale=2):
-                gr.HTML('<div style="padding:24px">')
-                summary_out = gr.HTML(
-                    _idle("Upload a <b>.tex</b> resume, select a role, then click <strong>✦ Enhance Resume</strong>.")
-                )
-                gr.HTML('</div>')
+        # — Run history card —
+        gr.HTML(
+            '<div class="card">'
+            '<div class="card-hd">'
+            '<div class="card-hd-icon">🕐</div>'
+            '<div class="card-hd-title">Recent runs</div>'
+            '</div>'
+            '<div class="card-body" style="padding:12px 16px">'
+        )
+        history_out = gr.HTML(_history_html())
+        gr.HTML('</div></div>')  # close card-body, card
 
-        gr.HTML('</div>')  # close .main-card
+        gr.HTML('</div>')  # close .sidebar
 
-        # ── Results tabs ──
+        # ── RIGHT MAIN AREA ──
+        gr.HTML('<div style="min-width:0">')
+
+        # Summary (always visible, above tabs)
+        summary_out = gr.HTML(
+            _idle("Upload a <b>.tex</b> resume, select a role, then click <strong>✦ Enhance Resume</strong>.")
+        )
+
+        # Results tabs
         with gr.Tabs():
-            with gr.Tab("Sections"):
-                sections_out = gr.HTML(_idle("Per-section before / after appears here."))
+            with gr.Tab("Action Plan"):
+                action_out = gr.HTML(_idle("Manual action checklist and gap analysis appear here."))
 
-            with gr.Tab("Review"):
+            with gr.Tab("Sections"):
+                sections_out = gr.HTML(_idle("Per-section before / after diffs appear here."))
+
+            with gr.Tab("HM Review"):
                 review_out = gr.HTML(_idle("Hiring-manager review appears here."))
 
             with gr.Tab("JD Match"):
@@ -1312,18 +1451,38 @@ def build_app() -> gr.Blocks:
             with gr.Tab("Download"):
                 with gr.Group(visible=False) as dl_group:
                     gr.HTML(
-                        '<div class="dl-hint">'
-                        'Paste the .tex into <a href="https://overleaf.com" target="_blank">Overleaf</a> to compile to PDF.'
+                        '<div class="dl-hint" style="padding:16px 0 0">'
+                        'Paste the .tex into <a href="https://overleaf.com" target="_blank">Overleaf</a> '
+                        'to compile to PDF. Every bullet, skill, and section is fully editable.'
                         '</div>'
                     )
                     tex_file_out = gr.File(label="Enhanced .tex", interactive=False)
                     tex_text_out = gr.Code(label="Source preview", language="latex", lines=28, interactive=False)
 
+        gr.HTML('</div>')  # close right main
+        gr.HTML('</div>')  # close .app-layout
+
         # ── Wire ──
         run_btn.click(
             _enhance_handler,
-            inputs=[file_in, role_in],
-            outputs=[summary_out, sections_out, review_out, jd_out, tex_file_out, tex_text_out, dl_group],
+            inputs=[file_in, role_in, custom_jd_in],
+            outputs=[
+                summary_out,
+                action_out,
+                sections_out,
+                review_out,
+                jd_out,
+                tex_file_out,
+                tex_text_out,
+                dl_group,
+            ],
+        )
+
+        # Refresh history after each run
+        run_btn.click(
+            lambda: _history_html(),
+            inputs=[],
+            outputs=[history_out],
         )
 
     return app

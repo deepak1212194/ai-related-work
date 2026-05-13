@@ -17,9 +17,27 @@ The architecture deliberately separates concerns into two layers: a small set of
 LLM-powered agents that handle tasks requiring language understanding (parsing,
 enhancement, hiring-manager simulation), and a larger set of deterministic Python
 components that handle correctness guarantees (safety guard, ATS scoring, JD keyword
-matching, placeholder filling). This separation means the quality ceiling is set by
-the LLM but the correctness floor is set by deterministic code that cannot be
-hallucinated away.
+matching, placeholder filling, gap classification, history tracking). This separation
+means the quality ceiling is set by the LLM but the correctness floor is set by
+deterministic code that cannot be hallucinated away.
+
+**v3 additions** (on top of the original 8-stage pipeline):
+
+- **Custom JD targeting** — user can paste any raw job description. Keywords are
+  extracted heuristically and merged into the enhancer's priority list, biasing
+  rewrites toward that specific job's requirements. A separate custom JD match score
+  shows before/after alignment for the pasted JD.
+- **Gap classification** — missing ATS keywords are split into presentation gaps
+  (already in the resume IR but not surface-visible) vs real gaps (absent entirely),
+  so users know which gaps are easy wins and which require actual work.
+- **Manual action checklist** — residual critic violations that the AI could not
+  auto-fix are surfaced as a ranked, section-labelled checklist so users have
+  specific next steps.
+- **Run history** — every completed run is persisted to `.work/history.json`.
+  Keywords that have been missing across 2+ runs appear as a "Recurring gaps" banner
+  at the top of the Summary tab.
+- **Redesigned UI** — sidebar layout with persistent run history, redesigned Action
+  Plan tab, JD Match tab showing custom JD result first when present.
 
 The primary LLM backend is Groq's free inference API. Groq provides a reliable
 OpenAI-compatible endpoint with 14,400 free requests per day and multiple fallback
@@ -62,10 +80,14 @@ and a professionally typeset layout.
 ## Architecture Overview
 
 ```
+  .tex  +  optional custom JD text
+               |
                +--------------------------------------------------+
                |               run_pipeline()                     |
                |                                                  |
-  .tex  -----> | 1-Parse  2-Repair  3-Complete  4-Plan            |
+               | 1-Parse  2-Repair  3-Complete  4-Plan            |
+               |                    |                             |
+               |   custom JD keywords merged into priority_kw     |
                |                    |                             |
                |              5-Enhance loop                      |
                |         +----------+----------+                  |
@@ -76,15 +98,16 @@ and a professionally typeset layout.
                |         +-----> safe_apply() -+                  |
                |                (deterministic)                   |
                |                    |                             |
-               |         6-Render  7-Score  8-Review              |
+               |  6-Render  7-Score  8-Review  9-History          |
                |                                                  |
                +--------------------------------------------------+
                                     |
-               +--------------------+--------------------+
-               |                    |                    |
-            .tex out           ATS report           Role review
-           (Overleaf)       + JD match delta       (JSON: score,
-                                                  strengths, gaps)
+               +--------------------+--------------------+--------+
+               |                    |                    |        |
+            .tex out           ATS report           Role review  History
+           (Overleaf)     + gap classification    (JSON: score,  (.work/
+                          + custom JD report       strengths,   history.json)
+                          + manual actions         gaps)
 ```
 
 The pipeline is synchronous and single-threaded per job. All I/O (file reads,
@@ -248,7 +271,7 @@ The render stage does not call the LLM — it is purely a template fill. LaTeX s
 characters (`&`, `%`, `$`, `#`, `_`, `{`, `}`, `~`, `^`, `\`) are escaped in all
 string fields before template substitution.
 
-### Stage 7: ATS Scoring and JD Matching
+### Stage 7: ATS Scoring, JD Matching, Gap Classification, and Manual Actions
 
 **ATS scoring** is deterministic keyword frequency analysis. The pipeline extracts
 the role's `priority_keywords` list from the role skill file and counts how many
@@ -256,18 +279,64 @@ appear in the enhanced resume text (whole-word, case-insensitive). The result is
 a score 0–100, a list of matched keywords, and a list of missing high-impact keywords.
 No LLM is involved.
 
-**JD matching** compares the resume text against curated job description keyword sets
-stored in `data/jds/<role_id>.json`. Each JD entry has `must_have` keywords (weighted
-2x) and `nice_to_have` keywords (weighted 1x). The `JDMatchAgent` computes a
-per-JD match score before and after enhancement. The headline metric shown to the user
-is `avg_delta`: the average improvement in JD match score across all curated JDs for
-the target role. The `top_gaps` field lists the must-have keywords still missing after
-enhancement — these are genuine gaps the candidate should address rather than
-enhancement opportunities.
+**Gap classification** (`_classify_gaps()` in `pipeline.py`) splits the missing
+keywords into two categories:
+- *Presentation gaps* — the keyword is present somewhere in the full `ResumeIR`
+  text blob but was not picked up by the ATS surface scan. These are easy wins:
+  the candidate already has the skill, they just need to make it more visible
+  (move it to the skills section, add it to a bullet).
+- *Real gaps* — the keyword is absent from the entire resume. These require actual
+  work before the candidate can honestly claim them.
+
+Both lists are exposed in `ATSReport.presentation_gaps` and `ATSReport.real_gaps`
+and shown in the Action Plan tab.
+
+**JD matching — generic path** compares the resume text against curated job description
+keyword sets stored in `data/jds/<role_id>.json`. Each JD entry has `must_have`
+keywords (weighted 2x) and `nice_to_have` keywords (weighted 1x). The `JDMatchAgent`
+computes a per-JD match score before and after enhancement. The headline metric shown
+to the user is `avg_delta`: the average improvement in JD match score across all
+curated JDs for the target role. The `top_gaps` field lists the must-have keywords
+still missing after enhancement.
 
 JD keyword matching uses a `synonyms` field in each JD entry to handle semantic
 variants. A JD asking for "vector search" matches a resume containing "FAISS-backed
 semantic retrieval" if "FAISS" or "semantic retrieval" appears in the synonyms list.
+
+**JD matching — custom path** (`JDMatchAgent.evaluate_custom()`) scores the resume
+against keywords extracted from the user's pasted JD text. The extraction heuristic
+in `extract_keywords_from_jd()`:
+1. Matches multi-word tech phrases from a regex bigram list (fine-tuning,
+   multi-agent, vector database, etc.).
+2. Extracts capitalised acronyms (RAG, LLM, FAISS, CI/CD).
+3. Extracts CamelCase library/framework names (PyTorch, LangChain).
+4. Uses section context (lines after "required" / "preferred") to split results
+   into `must_have` vs `nice_to_have`.
+5. Filters generic noise words (deep, strong, years, familiar, etc.).
+
+The extracted keywords are also merged into `priority_keywords` before the enhance
+loop starts (Stage 5), so the AI actively targets the specific job's requirements.
+The custom JD report is stored in `PipelineResult.custom_jd_report` and shown first
+in the JD Match tab.
+
+**Manual action checklist** (`_build_manual_actions()`) scans all `SectionTrace`
+objects after the enhance loop. Any section that still has unresolved critic
+violations and a final score below 80 becomes a `ManualActionItem` with the section
+label, the top violation, and the critic's fix hint. Items are sorted by urgency
+(lowest score first) and capped at 20. They appear in the Action Plan tab as an
+explicit to-do list for the user.
+
+### Stage 9: History
+
+After every completed run, `app/core/history.py` appends a `RunRecord` to
+`.work/history.json`. Each record stores role, ATS/HM/JD scores, elapsed time,
+missing keywords, gap lists, and a flag for whether a custom JD was used. No PII
+(no resume text, no personal details) is stored.
+
+The persistent gap tracker maintains a counter for every missing keyword across runs.
+Keywords that appear in 2 or more runs are surfaced as a "Recurring gaps" banner at
+the top of the Summary tab, prompting the user to address them directly rather than
+relying on the AI to work around them.
 
 ### Stage 8: Role Review
 
@@ -593,3 +662,24 @@ enables scoring against all 5 supported roles. It is off by default because it a
 5 additional role review calls and 5 additional JD match evaluations per run. A
 future UI improvement would show a cross-role radar chart without requiring full
 cross-role processing.
+
+**Custom JD scoring is surface-level only.** The custom JD path uses heuristic
+keyword extraction and surface-match scoring. Unlike the curated JD path, it has no
+`synonyms` file, so semantic variants are not recognised (e.g. "FAISS" in the resume
+will not match "vector search" in the custom JD). As a practical workaround, paste JDs
+with explicit technology names rather than abstract descriptions.
+
+**Custom JD keyword extraction is heuristic.** The bigram list and noise filter cover
+most standard tech JDs, but highly domain-specific terminology (e.g. proprietary
+platform names, niche scientific toolkits) may not be captured. Power users can extend
+`_TECH_BIGRAMS` in `jd_matcher.py` to add domain-specific phrases.
+
+**History is local and instance-scoped.** The run history in `.work/history.json` is
+per-deployment. It is not shared across Docker instances or reset-proof unless `.work/`
+is mounted as a persistent volume. The persistent-gaps callout only reflects runs
+within the same history file. To reset: `python -c "from app.core.history import
+clear_history; clear_history()"`.
+
+**Manual actions cap at 20.** The checklist is truncated to the 20 lowest-scoring
+residual violations. On resumes with many sections, lower-urgency issues above the cap
+are still visible in the Sections tab's per-section critic detail.

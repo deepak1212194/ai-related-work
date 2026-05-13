@@ -255,7 +255,19 @@ class ATSReport(BaseModel):
     total_checked: int = 0
     matched: List[str] = Field(default_factory=list)
     missing_high_impact: List[str] = Field(default_factory=list)
+    # Gaps classified by type: "presentation" = already in resume but not
+    # surface-level visible; "real" = not found anywhere in the resume.
+    presentation_gaps: List[str] = Field(default_factory=list)
+    real_gaps: List[str] = Field(default_factory=list)
     suggestions: List[str] = Field(default_factory=list)
+
+
+class ManualActionItem(BaseModel):
+    """A specific manual fix the user should make after the automated run."""
+    section: str           # e.g. "Block 1 — Centific (Bullet 2)"
+    issue: str             # one-line description of the problem
+    fix_hint: str          # concrete suggestion from the critic
+    score: float = 0.0     # critic score at the time (lower = more urgent)
 
 
 # ----------------------------------------------------------------------
@@ -278,7 +290,11 @@ class PipelineResult(BaseModel):
     ats: Optional[ATSReport] = None
     role_reviews: List[RoleReview] = Field(default_factory=list)
     jd_report: Optional[JDMatchReport] = None
+    custom_jd_report: Optional[JDMatchReport] = None   # user-pasted JD tab
     cross_role_jd_reports: List[JDMatchReport] = Field(default_factory=list)
+
+    # Residual issues the AI could not fix — surfaced as a manual checklist
+    manual_actions: List[ManualActionItem] = Field(default_factory=list)
 
     notes: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
